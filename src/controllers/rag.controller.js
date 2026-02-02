@@ -81,50 +81,6 @@ export const getEmbedToken = async (req, res, next) => {
     return next();
 };
 
-export const searchKnowledge = async (req, res, next) => {
-    try {
-        const { query } = req.body;
-        const ownerId = req.body.agent_id;
-        
-        // Get environment variables
-        const hippocampusUrl = 'http://hippocampus.gtwy.ai/search';
-        const hippocampusApiKey = process.env.HIPPOCAMPUS_API_KEY;
-        const collectionId = process.env.HIPPOCAMPUS_COLLECTION_ID;
-
-        // Make the API call to Hippocampus
-        const response = await axios.post(hippocampusUrl, {
-            query,
-            collectionId,
-            ownerId
-        }, {
-            headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': hippocampusApiKey
-            }
-        });
-
-        // Extract only content from the result
-        const answers = response.data?.result?.map(item => item.payload?.content) || [];
-
-        res.locals = {
-            "success": true,
-            "data": {
-                "answers": answers
-            }
-        };
-        req.statusCode = 200;
-        return next();
-    } catch (error) {
-        console.error('Error calling Hippocampus API:', error.message);
-        res.locals = {
-            "success": false,
-            "error": error.response?.data || error.message
-        };
-        req.statusCode = error.response?.status || 500;
-        return next();
-    }
-};
-
 // Collection Management
 export const createCollection = async (req, res, next) => {
     try {
@@ -246,97 +202,24 @@ export const getCollectionById = async (req, res, next) => {
 
 // Resource Management
 export const createResourceInCollection = async (req, res, next) => {
-    try {
-        const { org } = req.profile || {};
-        let { collection_details, title, content, url, settings, description} = req.body;
-        let collectionId;
-        const isEmbedUser = req.profile.IsEmbedUser;
-        const folder_id = req.folder_id;
-        const user_id = req.profile.user.id;
-        const org_id = req.profile.org.id;
-        let ownerId;
-        if(folder_id){
-            ownerId = org_id + "_" + folder_id + "_" + user_id;
-        }
-        else if(isEmbedUser){
-            ownerId = org_id + "_" + user_id;
-        }
-        else{
-            ownerId = org_id;
-        }
-        const existingCollections = await ragCollectionService.getAllByOrgId(org?.id);
-
-        // Helper function to filter out undefined values
-        const filterUndefined = (obj) => {
-            return Object.fromEntries(
-                Object.entries(obj || {}).filter(([_, value]) => value !== undefined)
-            );
-        };
-
-        if(collection_details == 'high_accuracy'){
-            const collection = existingCollections.find(col => col.name == 'high_accuracy');
-            collectionId = collection?.collection_id;
-            settings = {...settings, ...filterUndefined(collection?.settings)};
-        }
-        else if(collection_details == 'moderate'){
-            const collection = existingCollections.find(col => col.name == 'moderate');
-            collectionId = collection?.collection_id;
-            settings = {...settings, ...filterUndefined(collection?.settings)};
-        }
-        else{
-            const collection = existingCollections.find(col => col.name == 'fastest');
-            collectionId = collection?.collection_id;
-            settings = {...settings, ...filterUndefined(collection?.settings)};
-        }
-
-        if(!collectionId){
-            res.locals = {
-                "success": false,
-                "message":"Collection not found"
-            }
-            req.statusCode = 400;
-            return next();
-        }
-        // Create resource via Hippocampus API
-        const hippocampusUrl = 'http://hippocampus.gtwy.ai';
-        const hippocampusApiKey = process.env.HIPPOCAMPUS_API_KEY;
-        
-        const response = await axios.post(`${hippocampusUrl}/resource`, {
-            collectionId,
-            title,
-            content,
-            url,
-            description,
-            ownerId: ownerId || 'public',
-            settings
-        }, {
-            headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': hippocampusApiKey
-            }
-        });
-
-
-        // Add resource ID to MongoDB collection's resource_ids array
-        if (response.data && response.data._id) {
-            await ragCollectionService.addResourceId(collectionId, response.data._id);
-        }
-
-        res.locals = {
-            "success": true,
-            "message": "Resource created successfully",
-            "data": response.data
-        };
-        req.statusCode = 201;
-        return next();
-    } catch (error) {
-        console.error('Error creating resource:', error);
-        res.locals = {
-            "success": false,
-            "error": error.response?.data || error.message
-        };
-        req.statusCode = error.response?.status || 500;
-        return next();
+  try {
+    const { org } = req.profile || {};
+    let { collection_details, title, content, url, settings, description } = req.body;
+    let collectionId;
+    const isEmbedUser = req.profile.IsEmbedUser;
+    const folder_id = req.folder_id;
+    const user_id = req.profile.user.id;
+    const org_id = req.profile.org.id;
+    let ownerId;
+    // Use owner_id from body if provided, otherwise use current logic
+    if (req.body.owner_id) {
+      ownerId = req.body.owner_id;
+    } else if (folder_id) {
+      ownerId = org_id + "_" + folder_id + "_" + user_id;
+    } else if (isEmbedUser) {
+      ownerId = org_id + "_" + user_id;
+    } else {
+      ownerId = org_id;
     }
 };
 
@@ -445,46 +328,23 @@ export const getAllResourcesByCollectionId = async (req, res, next) => {
     try {
         const { collectionId } = req.params;
 
-        // Fetch collection resources via Hippocampus API
-        const hippocampusUrl = 'http://hippocampus.gtwy.ai';
-        const hippocampusApiKey = process.env.HIPPOCAMPUS_API_KEY;
-        const isEmbedUser = req.profile.IsEmbedUser;
-        const folder_id = req.folder_id;
-        const user_id = req.profile.user.id;
-        const org_id = req.profile.org.id;
-        let ownerId;
-        if(folder_id){
-            ownerId = org_id + "_" + folder_id + "_" + user_id;
-        }
-        else if(isEmbedUser){
-            ownerId = org_id + "_" + user_id;
-        }
-        else{
-            ownerId = org_id;
-        }
-
-        const response = await axios.get(`${hippocampusUrl}/collection/${collectionId}/resources?content=true&ownerId=${ownerId}`, {
-            headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': hippocampusApiKey
-            }
-        });
-
-        res.locals = {
-            "success": true,
-            "message": "Resources fetched successfully",
-            "data": response.data
-        };
-        req.statusCode = 200;
-        return next();
-    } catch (error) {
-        console.error('Error fetching resources by collection:', error);
-        res.locals = {
-            "success": false,
-            "error": error.response?.data || error.message
-        };
-        req.statusCode = error.response?.status || 500;
-        return next();
+    // Fetch collection resources via Hippocampus API
+    const hippocampusUrl = "http://hippocampus.gtwy.ai";
+    const hippocampusApiKey = process.env.HIPPOCAMPUS_API_KEY;
+    const isEmbedUser = req.profile.IsEmbedUser;
+    const folder_id = req.folder_id;
+    const user_id = req.profile.user.id;
+    const org_id = req.profile.org.id;
+    let ownerId;
+    // Use owner_id from body if provided, otherwise use current logic
+    if (req.body.owner_id) {
+      ownerId = req.body.owner_id;
+    } else if (folder_id) {
+      ownerId = org_id + "_" + folder_id + "_" + user_id;
+    } else if (isEmbedUser) {
+      ownerId = org_id + "_" + user_id;
+    } else {
+      ownerId = org_id;
     }
 };
 
