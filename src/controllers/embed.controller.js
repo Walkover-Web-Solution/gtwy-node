@@ -7,6 +7,7 @@ import { cleanupCache } from "../services/utils/redis.utils.js";
 import { deleteInCache, findInCache } from "../cache_service/index.js";
 import { cost_types, redis_keys } from "../configs/constant.js";
 import { generateAuthToken } from "../services/utils/utility.service.js";
+import jwt from "jsonwebtoken";
 
 const embedLogin = async (req, res) => {
   const { name: embeduser_name, email: embeduser_email } = req.Embed;
@@ -166,7 +167,32 @@ const genrateToken = async (req, res, next) => {
       }
     });
   }
-  res.locals = { gtwyAccessToken };
+
+  const { folder_id, user_id, type } = req.body;
+  let embedToken = null;
+
+  if (type === "embed_preview" && folder_id && user_id) {
+    const payload = {
+      org_id: req.profile.org.id,
+      folder_id,
+      user_id
+    };
+    // Sign with HS256 using gtwyAccessToken as secret
+    embedToken = jwt.sign(payload, gtwyAccessToken, { algorithm: "HS256" });
+  } else if (type === "rag_embed_preview" && folder_id && user_id) {
+    const payload = {
+      org_id: req.profile.org.id,
+      folder_id,
+      user_id
+    };
+    // Sign with HS256 using auth_token as secret
+    const auth_token = data?.meta?.auth_token;
+    if (auth_token) {
+      embedToken = jwt.sign(payload, auth_token, { algorithm: "HS256" });
+    }
+  }
+
+  res.locals = { gtwyAccessToken, embedToken };
   req.statusCode = 200;
   return next();
 };

@@ -74,6 +74,12 @@ const generateToken = async (req, res, next) => {
     case "embed":
       return embedController.genrateToken(req, res, next);
 
+    case "embed_preview":
+      return embedController.genrateToken(req, res, next);
+
+    case "rag_embed_preview":
+      return embedController.genrateToken(req, res, next);
+
     default:
       res.locals = { success: false, message: `Invalid type: ${type}. Valid types are: rag, org, embed` };
       req.statusCode = 400;
