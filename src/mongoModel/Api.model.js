@@ -43,6 +43,10 @@ const ApikeyCredentials = new mongoose.Schema({
   last_used: {
     type: Date,
     default: null
+  },
+  status: {
+    type: String,
+    default: null
   }
 });
 ApikeyCredentials.index({ name: 1, org_id: 1, folder_id: 1 }, { unique: true });
