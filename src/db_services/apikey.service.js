@@ -4,7 +4,7 @@ import configurationModel from "../mongoModel/Configuration.model.js";
 import FolderModel from "../mongoModel/GtwyEmbed.model.js";
 
 const saveApikeyRecord = async (data) => {
-  const { org_id, apikey, service, name, comment, folder_id, user_id, apikey_limit = 0 } = data;
+  const { org_id, apikey, service, name, comment, folder_id, user_id, apikey_limit = 0, apikey_limit_reset_period, apikey_limit_start_date } = data;
   const version_ids = [];
   const result = await new ApikeyCredential({
     org_id,
@@ -15,7 +15,9 @@ const saveApikeyRecord = async (data) => {
     folder_id,
     user_id,
     version_ids,
-    apikey_limit
+    apikey_limit,
+    apikey_limit_reset_period,
+    apikey_limit_start_date
   }).save();
 
   return {
@@ -68,7 +70,17 @@ const findAllApikeys = async (org_id, folder_id, user_id, isEmbedUser) => {
   }
 };
 
-async function updateApikeyRecord(apikey_object_id, apikey = null, name = null, service = null, comment = null, apikey_limit = 0, apikey_usage = -1) {
+async function updateApikeyRecord(
+  apikey_object_id,
+  apikey = null,
+  name = null,
+  service = null,
+  comment = null,
+  apikey_limit = 0,
+  apikey_usage = -1,
+  apikey_limit_reset_period = null,
+  apikey_limit_start_date = null
+) {
   try {
     const updateFields = {};
 
@@ -89,6 +101,12 @@ async function updateApikeyRecord(apikey_object_id, apikey = null, name = null, 
     }
     if (apikey_usage == 0) {
       updateFields.apikey_usage = 0;
+    }
+    if (apikey_limit_reset_period) {
+      updateFields.apikey_limit_reset_period = apikey_limit_reset_period;
+    }
+    if (apikey_limit_start_date) {
+      updateFields.apikey_limit_start_date = apikey_limit_start_date;
     }
 
     let apikeyCredentialResult;

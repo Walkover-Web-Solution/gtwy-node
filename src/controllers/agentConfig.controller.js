@@ -222,8 +222,10 @@ const createAgentController = async (req, res, next) => {
       }
     }
 
-    const agent_limit = agents.bridge_limit || 0;
-    const agent_usage = agents.bridge_usage || 0;
+    const agent_limit = agents.bridge_limit;
+    const agent_usage = agents.bridge_usage;
+    const agent_limit_reset_period = agents.bridge_limit_reset_period;
+    const agent_limit_start_date = agents.bridge_limit_start_date;
 
     const result = await ConfigurationServices.createAgent({
       configuration: model_data,
@@ -239,6 +241,8 @@ const createAgentController = async (req, res, next) => {
       fall_back: fall_back,
       bridge_limit: agent_limit,
       bridge_usage: agent_usage,
+      bridge_limit_reset_period: agent_limit_reset_period,
+      bridge_limit_start_date: agent_limit_start_date,
       bridge_status: 1,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -362,6 +366,8 @@ const updateAgentController = async (req, res, next) => {
 
   if (body.bridge_limit !== undefined) update_fields.bridge_limit = body.bridge_limit;
   if (body.bridge_usage !== undefined) update_fields.bridge_usage = body.bridge_usage;
+  if (body.bridge_limit_reset_period !== undefined) update_fields.bridge_limit_reset_period = body.bridge_limit_reset_period;
+  if (body.bridge_limit_start_date !== undefined) update_fields.bridge_limit_start_date = body.bridge_limit_start_date;
 
   if (page_config) update_fields.page_config = page_config;
   if (web_search_filter !== undefined) update_fields.web_search_filters = web_search_filter;

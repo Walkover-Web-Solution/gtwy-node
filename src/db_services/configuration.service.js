@@ -1176,6 +1176,8 @@ const getAllAgentsInOrg = async (org_id, folder_id, user_id, isEmbedUser) => {
       deletedAt: 1,
       bridge_limit: 1,
       bridge_usage: 1,
+      bridge_limit_reset_period: 1,
+      bridge_limit_start_date: 1,
       last_used: 1,
       variables_path: 1,
       users: 1,

@@ -35,6 +35,15 @@ const FolderSchema = new mongoose.Schema({
   folder_usage: {
     type: Number,
     default: 0
+  },
+  folder_limit_reset_period: {
+    type: String,
+    enum: ["monthly", "weekly", "daily"],
+    default: "monthly"
+  },
+  folder_limit_start_date: {
+    type: Date,
+    default: null
   }
 });
 

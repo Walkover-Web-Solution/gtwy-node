@@ -20,6 +20,8 @@ const createEmbed = {
         .optional()
         .default({}),
       folder_limit: Joi.number().min(0).optional().default(0),
+      folder_limit_reset_period: Joi.string().valid("monthly", "weekly", "daily").optional(),
+      folder_limit_start_date: Joi.date().optional(),
       type: Joi.string().valid("embed", "rag_embed").optional().default("embed")
     })
     .unknown(true)
@@ -44,7 +46,9 @@ const updateEmbed = {
         .pattern(Joi.string(), Joi.string().pattern(/^[0-9a-fA-F]{24}$/))
         .optional(),
       folder_limit: Joi.number().min(0).optional(),
-      folder_usage: Joi.number().min(0).optional()
+      folder_usage: Joi.number().min(0).optional(),
+      folder_limit_reset_period: Joi.string().valid("monthly", "weekly", "daily").optional(),
+      folder_limit_start_date: Joi.date().optional()
     })
     .unknown(true)
 };

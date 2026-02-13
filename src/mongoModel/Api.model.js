@@ -40,6 +40,15 @@ const ApikeyCredentials = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  apikey_limit_reset_period: {
+    type: String,
+    enum: ["monthly", "weekly", "daily"],
+    default: "monthly"
+  },
+  apikey_limit_start_date: {
+    type: Date,
+    default: null
+  },
   last_used: {
     type: Date,
     default: null
