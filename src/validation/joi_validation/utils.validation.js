@@ -48,7 +48,8 @@ const callAi = {
         switch: [
           { is: "structured_output", then: Joi.string().optional() },
           { is: "gpt_memory", then: Joi.string().required() },
-          { is: "optimize_prompt", then: Joi.string().optional() }
+          { is: "optimize_prompt", then: Joi.string().optional() },
+          { is: "rich_ui_template", then: Joi.string().optional() }
         ],
         otherwise: Joi.forbidden()
       }),
