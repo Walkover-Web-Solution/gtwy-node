@@ -1,10 +1,19 @@
 import dotenv from "dotenv";
 import logger from "../logger.js";
 import rabbitmqService from "../services/rabbitmq.service.js";
+import { logQueueConsumerConfig } from "./logQueueConsumer.js";
 
 dotenv.config();
 const CONSUMER_ENABLED = process.env.CONSUMER_ENABLED?.toLowerCase() === "true";
+const LOG_QUEUE_CONSUMER_ENABLED = process.env.LOG_QUEUE_CONSUMER_ENABLED?.toLowerCase() === "true";
+
+// Configure consumers array
 const CONSUMERS = [];
+
+// Add log queue consumer if enabled
+if (LOG_QUEUE_CONSUMER_ENABLED) {
+  CONSUMERS.push(logQueueConsumerConfig);
+}
 
 class Consumer {
   constructor(obj, connectionString) {

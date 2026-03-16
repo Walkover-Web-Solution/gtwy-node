@@ -28,7 +28,8 @@ const bridge_ids = {
   improve_prompt_optimizer: "68e4ac02739a8b89ba27b22a",
   generate_test_cases: "68e8d1fbf8c9ba2043cf7afd",
   prompt_checker: "692ee19da04fbf2a132b252c",
-  rich_ui_template: "6967b36c17a69473fa7fdb90"
+  rich_ui_template: "6967b36c17a69473fa7fdb90",
+  canonicalizer: "6973200cf60dd5bf64eeb325"
 };
 
 const redis_keys = {
