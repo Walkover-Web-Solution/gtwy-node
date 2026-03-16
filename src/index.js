@@ -63,10 +63,10 @@ app.get("/healthcheck", async (req, res) => {
   res.status(200).send("OK running good...v1.1");
 });
 
-// Delayed health check endpoint - waits 10 seconds before responding
+// Delayed health check endpoint - waits 20 seconds before responding
 app.get("/health-check-delayed", async (req, res) => {
-  await new Promise((resolve) => setTimeout(resolve, 10000));
-  res.status(200).json({ status: "ok", message: "Health check passed after 10 second delay", delay: "10s" });
+  await new Promise((resolve) => setTimeout(resolve, 20000));
+  res.status(200).json({ status: "ok", message: "Health check passed after 20 second delay", delay: "20s" });
 });
 app.use("/api/v1/config", converstaionRoutes);
 app.use("/api/agent", configRoutes);
