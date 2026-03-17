@@ -307,7 +307,8 @@ const updateAgentController = async (req, res, next) => {
     "gtwy_web_search_filters",
     "chatbot_auto_answers",
     "auto_model_select",
-    "cache_on"
+    "cache_on",
+    "pre_tools"
   ];
 
   for (const field of simple_fields) {
