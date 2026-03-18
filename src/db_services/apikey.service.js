@@ -78,8 +78,7 @@ async function updateApikeyRecord(
   comment = null,
   apikey_limit = 0,
   apikey_usage = -1,
-  apikey_limit_reset_period = null,
-  apikey_limit_start_date = null
+  apikey_limit_reset_period = null
 ) {
   try {
     const updateFields = {};
@@ -104,9 +103,7 @@ async function updateApikeyRecord(
     }
     if (apikey_limit_reset_period) {
       updateFields.apikey_limit_reset_period = apikey_limit_reset_period;
-    }
-    if (apikey_limit_start_date) {
-      updateFields.apikey_limit_start_date = apikey_limit_start_date;
+      updateFields.apikey_limit_start_date = new Date();
     }
 
     let apikeyCredentialResult;

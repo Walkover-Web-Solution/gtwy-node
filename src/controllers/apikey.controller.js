@@ -118,7 +118,7 @@ const getAllApikeys = async (req, res, next) => {
 
 const updateApikey = async (req, res, next) => {
   let apikey = req.body.apikey;
-  const { name, comment, service, apikey_limit = 0, apikey_usage = -1, apikey_limit_reset_period, apikey_limit_start_date } = req.body;
+  const { name, comment, service, apikey_limit = 0, apikey_usage = -1, apikey_limit_reset_period } = req.body;
   const { apikey_id: apikey_object_id } = req.params;
 
   // Check API key validity if provided
@@ -135,8 +135,7 @@ const updateApikey = async (req, res, next) => {
     comment,
     apikey_limit,
     apikey_usage,
-    apikey_limit_reset_period,
-    apikey_limit_start_date
+    apikey_limit_reset_period
   );
 
   // Mask API key for response if updated

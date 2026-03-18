@@ -319,8 +319,10 @@ const updateAgentController = async (req, res, next) => {
 
   if (body.bridge_limit !== undefined) update_fields.bridge_limit = body.bridge_limit;
   if (body.bridge_usage !== undefined) update_fields.bridge_usage = body.bridge_usage;
-  if (body.bridge_limit_reset_period !== undefined) update_fields.bridge_limit_reset_period = body.bridge_limit_reset_period;
-  if (body.bridge_limit_start_date !== undefined) update_fields.bridge_limit_start_date = body.bridge_limit_start_date;
+  if (body.bridge_limit_reset_period !== undefined) {
+    update_fields.bridge_limit_reset_period = body.bridge_limit_reset_period;
+    update_fields.bridge_limit_start_date = new Date();
+  }
 
   if (page_config) update_fields.page_config = page_config;
   if (web_search_filter !== undefined) update_fields.web_search_filters = web_search_filter;
