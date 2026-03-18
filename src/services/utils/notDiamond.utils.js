@@ -20,12 +20,17 @@ const getSupportedModelSet = async () => {
     return supportedModelsCache;
   }
 
-  const { data } = await axios.get(NOT_DIAMOND_MODELS_URL);
-  const modelSet = new Set((data.models || []).map(({ provider, model }) => `${toInternalProviderName(provider)}:${model}`));
+  try {
+    const { data } = await axios.get(NOT_DIAMOND_MODELS_URL);
+    const modelSet = new Set((data.models || []).map(({ provider, model }) => `${toInternalProviderName(provider)}:${model}`));
 
-  supportedModelsCache = modelSet;
-  cacheExpiresAt = now + CACHE_TTL_MS;
-  return modelSet;
+    supportedModelsCache = modelSet;
+    cacheExpiresAt = now + CACHE_TTL_MS;
+    return modelSet;
+  } catch (err) {
+    console.error("Failed to fetch NotDiamond supported models:", err.message);
+    return supportedModelsCache ?? new Set();
+  }
 };
 
 /**
