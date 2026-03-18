@@ -1,4 +1,4 @@
-const Pyroscope = require("@pyroscope/nodejs");
+import Pyroscope from "@pyroscope/nodejs";
 
 Pyroscope.init({
   serverAddress: "http://alloy.observability.svc.cluster.local:9999",
