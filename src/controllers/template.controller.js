@@ -19,44 +19,36 @@ const allTemplates = async (req, res, next) => {
 /**
  * Filter bridge/agent data to include only specific keys
  */
-export function filterBridge(data) {
-  const KEYS = [
-    "_id",
-    "name",
-    "configuration",
-    "service",
-    "bridgeType",
-    "variables_state",
-    "built_in_tools",
-    "gpt_memory_context",
-    "gpt_memory",
-    "user_reference",
-    "bridge_summary",
-    "agent_variables",
-    "function_data",
-    "function_ids",
-    "connected_agents",
-    "pre_tools",
-    "fall_back",
-    "doc_ids",
-    "guardrails",
-    "actions",
-    "variables_path",
-    "bridge_status",
-    "starterQuestion",
-    "IsstarterQuestionEnable",
-    "defaultQuestions",
-    "page_config",
-    "criteria_check",
-    "auto_model_select",
-    "connected_agent_details"
-  ];
+const FILTER_BRIDGE_EXCLUDE_KEYS = new Set([
+  "api_key_object",
+  "apikey",
+  "org_id",
+  "user_id",
+  "total_tokens",
+  "prompt_total_tokens",
+  "prompt_enhancer_percentage",
+  "bridge_usage",
+  "bridge_limit",
+  "bridge_limit_reset_period",
+  "bridge_limit_start_date",
+  "last_used",
+  "responseIds",
+  "__v",
+  "createdAt",
+  "updatedAt",
+  "created_at",
+  "deletedAt",
+  "parent_id",
+  "published_version_id",
+  "versions",
+  "is_drafted"
+]);
 
-  const pick = (obj) =>
-    KEYS.reduce((acc, k) => {
-      acc[k] = obj && Object.prototype.hasOwnProperty.call(obj, k) ? obj[k] : null;
-      return acc;
-    }, {});
+export function filterBridge(data) {
+  const pick = (obj) => {
+    if (!obj) return {};
+    return Object.fromEntries(Object.entries(obj).filter(([k]) => !FILTER_BRIDGE_EXCLUDE_KEYS.has(k)));
+  };
 
   const toArray = (maybeObjOrArr) =>
     Array.isArray(maybeObjOrArr) ? maybeObjOrArr : maybeObjOrArr && typeof maybeObjOrArr === "object" ? Object.values(maybeObjOrArr) : [];
@@ -209,7 +201,30 @@ const createAgentFromTemplateController = async (req, res, next) => {
     model_data.tool_choice = "default";
 
     const fall_back = template_content?.fall_back || { is_enable: true, service: "ai_ml", model: "gpt-oss-120b" };
-    const template_fields = ["variables_state", "built_in_tools", "gpt_memory_context", "user_reference", "bridge_summary", "agent_variables"];
+    const template_fields = [
+      "variables_state",
+      "built_in_tools",
+      "gpt_memory_context",
+      "user_reference",
+      "bridge_summary",
+      "agent_variables",
+      "guardrails",
+      "actions",
+      "variables_path",
+      "bridge_status",
+      "starterQuestion",
+      "IsstarterQuestionEnable",
+      "defaultQuestions",
+      "page_config",
+      "criteria_check",
+      "auto_model_select",
+      "connected_agent_details",
+      "meta",
+      "cache_on",
+      "chatbot_auto_answers",
+      "tool_call_count",
+      "version_description"
+    ];
     const template_values = {};
     for (const field of template_fields) {
       if (template_content[field] !== undefined) template_values[field] = template_content[field];
@@ -330,6 +345,16 @@ const createAgentFromTemplateController = async (req, res, next) => {
 
     const pickDefined = (obj, keys) => Object.fromEntries(keys.filter((k) => obj[k] !== undefined).map((k) => [k, obj[k]]));
 
+    const resolveApiCalls = (apiCalls) => {
+      if (!apiCalls || typeof apiCalls !== "object" || Object.keys(apiCalls).length === 0) return null;
+      const remapped = {};
+      for (const [oldKey, fn] of Object.entries(apiCalls)) {
+        const newKey = functionIdMap.get(oldKey) || oldKey;
+        remapped[newKey] = { ...fn, _id: newKey };
+      }
+      return remapped;
+    };
+
     // Apply to root agent — batch all updates into single DB calls
     const parent_updates = {};
     const parent_function_ids_resolved = resolveFunctionIds(template_content?.function_ids);
@@ -338,6 +363,8 @@ const createAgentFromTemplateController = async (req, res, next) => {
     if (parent_pre_tools) parent_updates.pre_tools = parent_pre_tools;
     const parent_doc_ids = resolveDocIds(template_content?.doc_ids);
     if (parent_doc_ids) parent_updates.doc_ids = parent_doc_ids;
+    const parent_api_calls = resolveApiCalls(template_content?.apiCalls);
+    if (parent_api_calls) parent_updates.apiCalls = parent_api_calls;
     if (Object.keys(parent_updates).length > 0) {
       await ConfigurationServices.updateAgent(result.bridge._id.toString(), parent_updates);
       await ConfigurationServices.updateAgent(null, parent_updates, create_version._id.toString());
@@ -423,6 +450,8 @@ const createAgentFromTemplateController = async (req, res, next) => {
         }
         const child_doc_ids = resolveDocIds(child_details.doc_ids);
         if (child_doc_ids) child_updates.doc_ids = child_doc_ids;
+        const child_api_calls = resolveApiCalls(child_details.apiCalls);
+        if (child_api_calls) child_updates.apiCalls = child_api_calls;
         if (Object.keys(child_updates).length > 0) {
           await ConfigurationServices.updateAgent(child_result.bridge._id.toString(), child_updates);
           await ConfigurationServices.updateAgent(null, child_updates, child_version._id.toString());
