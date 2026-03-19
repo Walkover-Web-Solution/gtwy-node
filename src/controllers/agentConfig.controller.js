@@ -29,6 +29,7 @@ const createAgentController = async (req, res, next) => {
     let prompt =
       "Role: AI Bot\nObjective: Respond logically and clearly, maintaining a neutral, automated tone.\nGuidelines:\nIdentify the task or question first.\nProvide brief reasoning before the answer or action.\nKeep responses concise and contextually relevant.\nAvoid emotion, filler, or self-reference.\nUse examples or placeholders only when helpful.";
     let name = agents?.name || null;
+    let slugName = agents?.slugName || null;
     const meta = req.body.meta || null;
     let service = "openai";
     let model = "gpt-5-nano";
@@ -108,7 +109,7 @@ const createAgentController = async (req, res, next) => {
     }
 
     const nameSlugData = getUniqueNameAndSlug(name, all_agent);
-    const slugName = nameSlugData.slugName;
+    slugName = slugName || nameSlugData.slugName;
     name = nameSlugData.name;
 
     // Construct model data based on model configuration
