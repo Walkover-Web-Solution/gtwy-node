@@ -144,7 +144,7 @@ function extractActionDataFields(node, fieldsSet = new Set()) {
   return fieldsSet;
 }
 
-function buildSchemaFromTemplateFormat(templateFormat, typeOverrides = {}, variables = {}) {
+function buildSchemaFromTemplateFormat(templateFormat, typeOverrides = {}, variables = {}, meta = {}) {
   const actionDataFields = extractActionDataFields(templateFormat);
   const onClickTypeFieldNames = extractOnClickTypeFieldNames(templateFormat);
   const getActionDataSchema = (f) => ({
@@ -198,9 +198,7 @@ function buildSchemaFromTemplateFormat(templateFormat, typeOverrides = {}, varia
     if (schema.type !== "object" || !schema.properties) return schema;
     const newProps = {};
     for (const [f, propSchema] of Object.entries(schema.properties)) {
-      if (actionDataFields.has(f) || f === "actionData") {
-        newProps[f] = getActionDataSchema(f);
-      } else if (onClickTypeFieldNames.has(f)) {
+      if (onClickTypeFieldNames.has(f)) {
         newProps[f] = { type: "string", enum: ON_CLICK_ACTION_TYPES };
       } else if (propSchema.type === "object") {
         newProps[f] = applyFieldOverrides(propSchema);
@@ -267,10 +265,9 @@ function buildSchemaFromTemplateFormat(templateFormat, typeOverrides = {}, varia
   });
 
   const rootSchema = {
-    $schema: "https://json-schema.org/draft/2020-12/schema",
     type: "object",
-    title: "RichUI Variables",
-    description: "Variables the AI must populate to fill the richUI template",
+    title: meta.name || "",
+    description: meta.description || "",
     properties,
     required: rootKeys,
     additionalProperties: false
