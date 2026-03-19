@@ -4,6 +4,7 @@ import agentVersionDbService from "../db_services/agentVersion.service.js";
 import apiCallModel from "../mongoModel/ApiCall.model.js";
 import { ObjectId } from "mongodb";
 import { getUniqueNameAndSlug, normalizeFunctionIds, cloneFunctionsForAgent } from "../utils/agentConfig.utils.js";
+import { copyResourceToOrgUtil } from "../utils/rag.utils.js";
 
 const allTemplates = async (req, res, next) => {
   const result = await templateService.getAll();
@@ -21,18 +22,34 @@ const allTemplates = async (req, res, next) => {
 export function filterBridge(data) {
   const KEYS = [
     "_id",
+    "name",
     "configuration",
     "service",
     "bridgeType",
     "variables_state",
     "built_in_tools",
     "gpt_memory_context",
+    "gpt_memory",
     "user_reference",
     "bridge_summary",
     "agent_variables",
     "function_data",
     "function_ids",
-    "connected_agents"
+    "connected_agents",
+    "pre_tools",
+    "fall_back",
+    "doc_ids",
+    "guardrails",
+    "actions",
+    "variables_path",
+    "bridge_status",
+    "starterQuestion",
+    "IsstarterQuestionEnable",
+    "defaultQuestions",
+    "page_config",
+    "criteria_check",
+    "auto_model_select",
+    "connected_agent_details"
   ];
 
   const pick = (obj) =>
@@ -100,9 +117,9 @@ const createTemplate = async (req, res, next) => {
 
       if (ancestorIds.has(agentBridgeId)) {
         result[key] = {
-          description: agent.description,
           bridge_id: agentBridgeId,
-          variables: agent.variables || {},
+          ...(agent.thread_id !== undefined && { thread_id: agent.thread_id }),
+          ...(agent.version_id !== undefined && { version_id: agent.version_id }),
           bridge_details: {}
         };
         continue;
@@ -112,6 +129,7 @@ const createTemplate = async (req, res, next) => {
       if (!childBridgeData.success || !childBridgeData.bridges) continue;
 
       let childBridge = childBridgeData.bridges;
+
       const childFunctionData = [];
       if (childBridge.function_ids && childBridge.function_ids.length > 0) {
         for (const functionId of childBridge.function_ids) {
@@ -132,9 +150,9 @@ const createTemplate = async (req, res, next) => {
       }
 
       result[key] = {
-        description: agent.description,
         bridge_id: agentBridgeId,
-        variables: agent.variables || {},
+        ...(agent.thread_id !== undefined && { thread_id: agent.thread_id }),
+        ...(agent.version_id !== undefined && { version_id: agent.version_id }),
         bridge_details: filteredBridge
       };
     }
@@ -144,7 +162,6 @@ const createTemplate = async (req, res, next) => {
   if (bridge.connected_agents && Object.keys(bridge.connected_agents).length > 0) {
     bridge.child_agents = await buildConnectedAgents(bridge.connected_agents, new Set([agent_id]));
   }
-  delete bridge.connected_agents;
 
   // Save the template
   const template = await templateService.saveTemplate(bridge, templateName);
@@ -189,6 +206,7 @@ const createAgentFromTemplateController = async (req, res, next) => {
     model_data.response_format = model_data.response_format || { type: "default", cred: {} };
     if (model_data.is_rich_text === undefined) model_data.is_rich_text = false;
     model_data.prompt = model_data.prompt || prompt;
+    model_data.tool_choice = "default";
 
     const fall_back = template_content?.fall_back || { is_enable: true, service: "ai_ml", model: "gpt-oss-120b" };
     const template_fields = ["variables_state", "built_in_tools", "gpt_memory_context", "user_reference", "bridge_summary", "agent_variables"];
@@ -215,18 +233,114 @@ const createAgentFromTemplateController = async (req, res, next) => {
     });
 
     const create_version = await agentVersionDbService.createAgentVersion(result.bridge);
-    await ConfigurationServices.updateAgent(result.bridge._id.toString(), { versions: [create_version._id.toString()] });
+    await ConfigurationServices.updateAgent(result.bridge._id.toString(), {
+      versions: [create_version._id.toString()],
+      published_version_id: create_version._id.toString()
+    });
 
     all_agent.push({ name, slugName });
 
-    const parent_function_ids = normalizeFunctionIds(template_content?.function_ids);
-    if (parent_function_ids.length > 0) {
-      const cloned_function_ids = await cloneFunctionsForAgent(parent_function_ids, org_id, result.bridge._id.toString());
-      if (cloned_function_ids.length > 0) {
-        const functionObjectIds = cloned_function_ids.map((fid) => new ObjectId(fid));
-        await ConfigurationServices.updateAgent(result.bridge._id.toString(), { function_ids: functionObjectIds });
-        await ConfigurationServices.updateAgent(null, { function_ids: functionObjectIds }, create_version._id.toString());
+    // --- Collect all unique function IDs and doc resource pairs across root + all children ---
+    const collectAllResources = (content, allFunctionIds, allDocPairs) => {
+      if (!content) return;
+      for (const fid of normalizeFunctionIds(content.function_ids)) allFunctionIds.add(fid);
+      if (Array.isArray(content.pre_tools)) {
+        for (const tool of content.pre_tools) {
+          if (tool.type === "custom_function" && tool.config?.function_id) {
+            allFunctionIds.add(tool.config.function_id);
+          }
+        }
       }
+      if (Array.isArray(content.doc_ids)) {
+        for (const doc of content.doc_ids) {
+          if (doc.collection_id && doc.resource_id) {
+            allDocPairs.set(`${doc.collection_id}:${doc.resource_id}`, doc);
+          }
+        }
+      }
+      if (content.child_agents) {
+        for (const child_agent of Object.values(content.child_agents)) {
+          collectAllResources(child_agent?.bridge_details, allFunctionIds, allDocPairs);
+        }
+      }
+    };
+
+    const allFunctionIds = new Set();
+    const allDocPairs = new Map();
+    collectAllResources(template_content, allFunctionIds, allDocPairs);
+
+    // Clone all unique functions once → functionIdMap (old → new)
+    const functionIdMap = new Map();
+    if (allFunctionIds.size > 0) {
+      const uniqueIds = [...allFunctionIds];
+      const clonedIds = await cloneFunctionsForAgent(uniqueIds, org_id, result.bridge._id.toString());
+      uniqueIds.forEach((oldId, i) => {
+        if (clonedIds[i]) functionIdMap.set(oldId, clonedIds[i]);
+      });
+    }
+
+    // Copy all unique doc resources in parallel → docIdMap (collection_id:resource_id → new entry)
+    const docIdMap = new Map();
+    const docEntries = [...allDocPairs.entries()];
+    if (docEntries.length > 0) {
+      const docResults = await Promise.allSettled(
+        docEntries.map(([key, doc]) =>
+          copyResourceToOrgUtil({
+            collection_id: doc.collection_id,
+            resource_id: doc.resource_id,
+            org_id,
+            extra: { ...(doc.name && { name: doc.name }), ...(doc.description && { description: doc.description }) }
+          }).then((copied) => ({ key, copied }))
+        )
+      );
+      docResults.forEach((result) => {
+        if (result.status === "fulfilled") docIdMap.set(result.value.key, result.value.copied);
+        else console.error("Error copying doc resource:", result.reason?.message);
+      });
+    }
+
+    // --- Helpers that use maps instead of cloning each time ---
+    const resolvePreTools = (pre_tools) => {
+      if (!Array.isArray(pre_tools) || pre_tools.length === 0) return null;
+      return pre_tools.map((tool) => {
+        const clonedTool = { ...tool, config: { ...(tool.config || {}) } };
+        if (tool.type === "custom_function" && tool.config?.function_id) {
+          const newFid = functionIdMap.get(tool.config.function_id);
+          if (newFid) clonedTool.config.function_id = newFid;
+        }
+        return clonedTool;
+      });
+    };
+
+    const resolveDocIds = (doc_ids) => {
+      if (!Array.isArray(doc_ids) || doc_ids.length === 0) return null;
+      const resolved = doc_ids.map((doc) => docIdMap.get(`${doc.collection_id}:${doc.resource_id}`)).filter(Boolean);
+      return resolved.length > 0 ? resolved : null;
+    };
+
+    const resolveFunctionIds = (function_ids) => {
+      const ids = normalizeFunctionIds(function_ids);
+      if (ids.length === 0) return null;
+      const resolved = ids
+        .map((id) => functionIdMap.get(id))
+        .filter(Boolean)
+        .map((fid) => new ObjectId(fid));
+      return resolved.length > 0 ? resolved : null;
+    };
+
+    const pickDefined = (obj, keys) => Object.fromEntries(keys.filter((k) => obj[k] !== undefined).map((k) => [k, obj[k]]));
+
+    // Apply to root agent — batch all updates into single DB calls
+    const parent_updates = {};
+    const parent_function_ids_resolved = resolveFunctionIds(template_content?.function_ids);
+    if (parent_function_ids_resolved) parent_updates.function_ids = parent_function_ids_resolved;
+    const parent_pre_tools = resolvePreTools(template_content?.pre_tools);
+    if (parent_pre_tools) parent_updates.pre_tools = parent_pre_tools;
+    const parent_doc_ids = resolveDocIds(template_content?.doc_ids);
+    if (parent_doc_ids) parent_updates.doc_ids = parent_doc_ids;
+    if (Object.keys(parent_updates).length > 0) {
+      await ConfigurationServices.updateAgent(result.bridge._id.toString(), parent_updates);
+      await ConfigurationServices.updateAgent(null, parent_updates, create_version._id.toString());
     }
 
     const createdAgentsMap = new Map();
@@ -246,12 +360,14 @@ const createAgentFromTemplateController = async (req, res, next) => {
         if (ancestorIds.has(cycleKey)) {
           const existingBridgeId = createdAgentsMap.get(cycleKey);
           if (existingBridgeId) {
-            connected_agents[agent_name] = {
-              description: child_agent?.description,
-              variables: child_agent?.variables || {},
-              bridge_id: existingBridgeId
-            };
+            connected_agents[agent_name] = { bridge_id: existingBridgeId, ...pickDefined(child_agent, ["thread_id", "version_id"]) };
           }
+          continue;
+        }
+
+        // Same agent referenced by multiple parents — reuse already-created bridge
+        if (createdAgentsMap.has(cycleKey)) {
+          connected_agents[agent_name] = { bridge_id: createdAgentsMap.get(cycleKey), ...pickDefined(child_agent, ["thread_id", "version_id"]) };
           continue;
         }
 
@@ -264,6 +380,7 @@ const createAgentFromTemplateController = async (req, res, next) => {
         child_model_data.response_format = child_model_data.response_format || { type: "default", cred: {} };
         if (child_model_data.is_rich_text === undefined) child_model_data.is_rich_text = false;
         child_model_data.prompt = child_model_data.prompt || prompt;
+        child_model_data.tool_choice = "default";
 
         let child_service = child_details.service || service;
         const child_template_values = {};
@@ -288,18 +405,27 @@ const createAgentFromTemplateController = async (req, res, next) => {
         });
 
         const child_version = await agentVersionDbService.createAgentVersion(child_result.bridge);
-        await ConfigurationServices.updateAgent(child_result.bridge._id.toString(), { versions: [child_version._id.toString()] });
+        await ConfigurationServices.updateAgent(child_result.bridge._id.toString(), {
+          versions: [child_version._id.toString()],
+          published_version_id: child_version._id.toString()
+        });
         all_agent.push({ name: childNameSlug.name, slugName: childNameSlug.slugName });
         createdAgentsMap.set(cycleKey, child_result.bridge._id.toString());
 
-        const child_function_ids = normalizeFunctionIds(child_details.function_ids);
-        if (child_function_ids.length > 0) {
-          const cloned_function_ids = await cloneFunctionsForAgent(child_function_ids, org_id, child_result.bridge._id.toString());
-          if (cloned_function_ids.length > 0) {
-            const functionObjectIds = cloned_function_ids.map((fid) => new ObjectId(fid));
-            await ConfigurationServices.updateAgent(child_result.bridge._id.toString(), { function_ids: functionObjectIds });
-            await ConfigurationServices.updateAgent(null, { function_ids: functionObjectIds }, child_version._id.toString());
-          }
+        // Batch all child agent updates into single DB calls
+        const child_updates = {};
+        const child_function_ids_resolved = resolveFunctionIds(child_details.function_ids);
+        if (child_function_ids_resolved) child_updates.function_ids = child_function_ids_resolved;
+        const child_pre_tools = resolvePreTools(child_details.pre_tools);
+        if (child_pre_tools) child_updates.pre_tools = child_pre_tools;
+        if (child_details.connected_agent_details && Object.keys(child_details.connected_agent_details).length > 0) {
+          child_updates.connected_agent_details = child_details.connected_agent_details;
+        }
+        const child_doc_ids = resolveDocIds(child_details.doc_ids);
+        if (child_doc_ids) child_updates.doc_ids = child_doc_ids;
+        if (Object.keys(child_updates).length > 0) {
+          await ConfigurationServices.updateAgent(child_result.bridge._id.toString(), child_updates);
+          await ConfigurationServices.updateAgent(null, child_updates, child_version._id.toString());
         }
 
         if (child_details.child_agents && Object.keys(child_details.child_agents).length > 0) {
@@ -313,9 +439,8 @@ const createAgentFromTemplateController = async (req, res, next) => {
         }
 
         connected_agents[agent_name] = {
-          description: child_agent?.description,
-          variables: child_agent?.variables || {},
-          bridge_id: child_result.bridge._id.toString()
+          bridge_id: child_result.bridge._id.toString(),
+          ...pickDefined(child_agent, ["thread_id", "version_id"])
         };
       }
 
