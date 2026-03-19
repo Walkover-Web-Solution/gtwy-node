@@ -15,7 +15,7 @@ export const createRichUiTemplate = async (req, res, next) => {
   const initialVariables = variables ?? default_json ?? default_values;
   let schema = json_schema;
   if (!schema && template_format) {
-    schema = buildSchemaFromTemplateFormat(template_format, {}, initialVariables ?? {});
+    schema = buildSchemaFromTemplateFormat(template_format, {}, initialVariables ?? {}, { name, description });
   }
 
   const result = await createTemplate(
@@ -53,13 +53,14 @@ export const updateRichUiTemplate = async (req, res, next) => {
   } = req.profile;
   const is_public = req.body.is_public ? req.body.is_public : false;
 
-  const updateData = Object.fromEntries(
-    Object.entries(req.body).filter(([key, value]) => allowedUpdateFields.includes(key) && value != null)
-  );
+  const updateData = Object.fromEntries(Object.entries(req.body).filter(([key, value]) => allowedUpdateFields.includes(key) && value != null));
 
   if (updateData.template_format) {
     if (!updateData.json_schema) {
-      updateData.json_schema = buildSchemaFromTemplateFormat(updateData.template_format, {}, updateData.variables ?? updateData.default_json ?? {});
+      updateData.json_schema = buildSchemaFromTemplateFormat(updateData.template_format, {}, updateData.variables ?? updateData.default_json ?? {}, {
+        name: updateData.name,
+        description: updateData.description
+      });
     }
     if (!updateData.default_json && !updateData.default_values) {
       const regeneratedDefaults = buildDefaultValues(updateData.template_format);
