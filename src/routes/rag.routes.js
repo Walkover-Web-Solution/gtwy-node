@@ -12,7 +12,8 @@ import {
   getResourceChunks,
   getAllResourcesByCollectionId,
   getOrCreateDefaultCollections,
-  getResourcesByCollectionAndOwner
+  getResourcesByCollectionAndOwner,
+  deleteResourcesByCollectionAndOwner
 } from "../controllers/rag.controller.js";
 import { EmbeddecodeToken, middleware, checkAgentAccessMiddleware } from "../middlewares/middleware.js";
 import validate from "../middlewares/validate.middleware.js";
@@ -23,7 +24,8 @@ import {
   createResourceSchema,
   resourceIdSchema,
   updateResourceSchema,
-  getResourcesByCollectionQuerySchema
+  getResourcesByCollectionQuerySchema,
+  deleteResourcesByCollectionQuerySchema
 } from "../validation/joi_validation/rag.validation.js";
 
 const routes = express.Router();
@@ -37,6 +39,7 @@ routes.post("/collection", middleware, checkAgentAccessMiddleware, validate({ bo
 routes.get("/collections", middleware, getAllCollections);
 routes.get("/collection/:collectionId", middleware, validate({ params: collectionIdSchema }), getCollectionById);
 routes.get("/collection/:collectionId/resources", middleware, validate({ params: collectionIdSchema }), getAllResourcesByCollectionId);
+routes.delete("/collection/:id/resources", middleware, checkAgentAccessMiddleware, validate({ query: deleteResourcesByCollectionQuerySchema }), deleteResourcesByCollectionAndOwner);
 
 // Resource routes
 routes.get("/resource", middleware, getOrCreateDefaultCollections);
