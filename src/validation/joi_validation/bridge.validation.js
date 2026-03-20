@@ -386,13 +386,4 @@ const createThreadHistrorySchema = Joi.object({
   message_id: Joi.string()
 }).unknown(true);
 
-const subscribeSchema = Joi.object({
-  slugName: Joi.string().required().messages({
-    "string.empty": "slugName is required",
-    "any.required": "slugName is required"
-  }),
-  versionId: Joi.string().optional().allow(""),
-  helloId: Joi.string().optional().allow("")
-}).unknown(true);
-
-export { updateBridgeSchema, createThreadHistrorySchema, subscribeSchema };
+export { updateBridgeSchema, createThreadHistrorySchema };

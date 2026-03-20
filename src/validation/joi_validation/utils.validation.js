@@ -21,7 +21,16 @@ const callAi = {
   body: Joi.object()
     .keys({
       type: Joi.string()
-        .valid("structured_output", "gpt_memory", "improve_prompt", "optimize_prompt", "generate_test_cases", "generate_summary", "generate_json")
+        .valid(
+          "structured_output",
+          "gpt_memory",
+          "improve_prompt",
+          "optimize_prompt",
+          "generate_test_cases",
+          "generate_summary",
+          "generate_json",
+          "rich_ui_template"
+        )
         .required(),
       json_schema: Joi.alternatives().conditional("type", {
         is: "structured_output",
@@ -39,7 +48,8 @@ const callAi = {
         switch: [
           { is: "structured_output", then: Joi.string().optional() },
           { is: "gpt_memory", then: Joi.string().required() },
-          { is: "optimize_prompt", then: Joi.string().optional() }
+          { is: "optimize_prompt", then: Joi.string().optional() },
+          { is: "rich_ui_template", then: Joi.string().optional() }
         ],
         otherwise: Joi.forbidden()
       }),
@@ -79,10 +89,18 @@ const callAi = {
     .unknown(true)
 };
 
+const getAffiliateEmbedToken = {
+  body: Joi.object().keys({
+    organization: Joi.string().required(),
+    expires_in_hours: Joi.number().integer().min(1).optional(),
+    label: Joi.string().optional().allow("")
+  })
+};
+
 const generateToken = {
   body: Joi.object()
     .keys({
-      type: Joi.string().valid("rag", "org", "embed").required()
+      type: Joi.string().valid("rag", "org", "embed", "embed_preview", "rag_embed_preview", "chatbot_embed_preview").required()
     })
     .unknown(true)
 };
@@ -91,5 +109,6 @@ export default {
   clearRedisCache,
   getRedisCache,
   callAi,
-  generateToken
+  generateToken,
+  getAffiliateEmbedToken
 };

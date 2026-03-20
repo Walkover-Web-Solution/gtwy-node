@@ -6,12 +6,14 @@ import { bridge_ids, new_agent_service } from "../configs/constant.js";
 import Helper from "../services/utils/helper.utils.js";
 import { ObjectId } from "mongodb";
 import conversationDbService from "../db_services/conversation.service.js";
+import { getUniqueNameAndSlug } from "../utils/agentConfig.utils.js";
 const { storeSystemPrompt, addBulkUserEntries } = conversationDbService;
 import { getDefaultValuesController } from "../services/utils/getDefaultValue.js";
 import { purgeRelatedBridgeCaches } from "../services/utils/redis.utils.js";
 import { validateJsonSchemaConfiguration } from "../services/utils/common.utils.js";
 import { modelConfigDocument } from "../services/utils/loadModelConfigs.js";
 import { sendAgentCreatedWebhook } from "../services/utils/agentWebhook.utils.js";
+import { convertPromptToString } from "../utils/promptWrapper.utils.js";
 
 const createAgentController = async (req, res, next) => {
   try {
@@ -27,10 +29,48 @@ const createAgentController = async (req, res, next) => {
     let prompt =
       "Role: AI Bot\nObjective: Respond logically and clearly, maintaining a neutral, automated tone.\nGuidelines:\nIdentify the task or question first.\nProvide brief reasoning before the answer or action.\nKeep responses concise and contextually relevant.\nAvoid emotion, filler, or self-reference.\nUse examples or placeholders only when helpful.";
     let name = agents?.name || null;
+    let slugName = agents?.slugName || null;
     const meta = req.body.meta || null;
     let service = "openai";
     let model = "gpt-5-nano";
     let type = "chat";
+
+    // If no folder_data (Main User), use structured object format
+    if (!folder_data) {
+      prompt = {
+        role: "AI Bot",
+        goal: "Respond logically and clearly, maintaining a neutral, automated tone.",
+        instruction:
+          "Guidelines:\nIdentify the task or question first.\nProvide brief reasoning before the answer or action.\nKeep responses concise and contextually relevant.\nAvoid emotion, filler, or self-reference.\nUse examples or placeholders only when helpful."
+      };
+    }
+
+    // Check if folder has custom prompt configuration
+    if (folder_data?.config?.prompt) {
+      const folderPromptConfig = folder_data.config.prompt;
+      const useDefaultPrompt = folderPromptConfig.useDefaultPrompt !== false; // Default: true
+      // ✅ CASE 1: Use structured default object when default is ON
+      if (useDefaultPrompt) {
+        prompt = {
+          role: "AI Bot",
+          goal: "Respond logically and clearly, maintaining a neutral, automated tone.",
+          instruction:
+            "Guidelines:\nIdentify the task or question first.\nProvide brief reasoning before the answer or action.\nKeep responses concise and contextually relevant.\nAvoid emotion, filler, or self-reference.\nUse examples or placeholders only when helpful."
+        };
+      }
+
+      if (!useDefaultPrompt && folderPromptConfig.customPrompt) {
+        // CASE 2: Use Custom Prompt - build variables from non-hidden embedFields
+        const embedFields = Array.isArray(folderPromptConfig.embedFields) ? folderPromptConfig.embedFields : [];
+        const variables = embedFields.reduce((acc, field) => {
+          if (field.hidden === false) {
+            acc[field.name] = field.value;
+          }
+          return acc;
+        }, {});
+        prompt = { ...variables };
+      }
+    }
 
     if (agents.templateId) {
       const template_id = agents.templateId;
@@ -40,7 +80,10 @@ const createAgentController = async (req, res, next) => {
         req.statusCode = 404;
         return next();
       }
-      prompt = template_data.prompt || prompt;
+      // Only override if we don't have folder prompt config
+      if (!folder_data?.config?.prompt) {
+        prompt = template_data.prompt || prompt;
+      }
     }
 
     const all_agent_name = all_agent.map((agent) => agent.name);
@@ -57,39 +100,17 @@ const createAgentController = async (req, res, next) => {
         model = agent_data.model || model;
         service = agent_data.service || service;
         name = name || agent_data.name;
-        prompt = agent_data.system_prompt || prompt;
+        // Only override prompt if we don't have folder prompt config
+        if (!folder_data?.config?.prompt) {
+          prompt = agent_data.system_prompt || prompt;
+        }
         type = agent_data.type || type;
       }
     }
 
-    let slugName;
-
-    if (name) {
-      slugName = name;
-    } else {
-      let name_next_count = 1;
-      let slug_next_count = 1;
-
-      for (const agent of all_agent) {
-        name = name || "untitled_agent";
-        if (name.startsWith("untitled_agent") && agent.name.startsWith("untitled_agent_")) {
-          const num = parseInt(agent.name.replace("untitled_agent_", ""));
-          if (num >= name_next_count) name_next_count = num + 1;
-        } else if (agent.name === name) {
-          name_next_count += 1;
-        }
-
-        if (name.startsWith("untitled_agent") && agent.slugName.startsWith("untitled_agent_")) {
-          const num = parseInt(agent.slugName.replace("untitled_agent_", ""));
-          if (num >= slug_next_count) slug_next_count = num + 1;
-        } else if (agent.slugName === name) {
-          slug_next_count += 1;
-        }
-      }
-
-      slugName = `${name}_${slug_next_count}`;
-      name = `${name}_${name_next_count}`;
-    }
+    const nameSlugData = getUniqueNameAndSlug(name, all_agent);
+    slugName = slugName || nameSlugData.slugName;
+    name = nameSlugData.name;
 
     // Construct model data based on model configuration
     const keys_to_update = [
@@ -151,8 +172,10 @@ const createAgentController = async (req, res, next) => {
       }
     }
 
-    const agent_limit = agents.bridge_limit || 0;
-    const agent_usage = agents.bridge_usage || 0;
+    const agent_limit = agents.bridge_limit;
+    const agent_usage = agents.bridge_usage;
+    const agent_limit_reset_period = agents.bridge_limit_reset_period;
+    const agent_limit_start_date = agents.bridge_limit_start_date;
 
     const result = await ConfigurationServices.createAgent({
       configuration: model_data,
@@ -161,13 +184,14 @@ const createAgentController = async (req, res, next) => {
       service: service,
       bridgeType: agentType,
       org_id: org_id,
-      status: 1,
       gpt_memory: true,
       folder_id: folder_id,
       user_id: user_id,
       fall_back: fall_back,
       bridge_limit: agent_limit,
       bridge_usage: agent_usage,
+      bridge_limit_reset_period: agent_limit_reset_period,
+      bridge_limit_start_date: agent_limit_start_date,
       bridge_status: 1,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -185,9 +209,11 @@ const createAgentController = async (req, res, next) => {
     };
     req.statusCode = 200;
 
-    sendAgentCreatedWebhook(updated_agent_result.result, org_id).catch((err) => {
-      console.error("Webhook failed:", err);
-    });
+    if (!folder_id) {
+      sendAgentCreatedWebhook(updated_agent_result.result, org_id).catch((err) => {
+        console.error("Webhook failed:", err);
+      });
+    }
 
     return next();
   } catch (e) {
@@ -250,7 +276,8 @@ const updateAgentController = async (req, res, next) => {
   }
 
   if (new_configuration && new_configuration.prompt) {
-    const prompt_result = await storeSystemPrompt(new_configuration.prompt, org_id, parent_id || version_id);
+    const promptString = convertPromptToString(new_configuration.prompt);
+    const prompt_result = await storeSystemPrompt(promptString, org_id, parent_id || version_id);
     if (prompt_result && prompt_result.id) {
       new_configuration.system_prompt_version_id = prompt_result.id;
     }
@@ -279,8 +306,10 @@ const updateAgentController = async (req, res, next) => {
     "guardrails",
     "web_search_filters",
     "gtwy_web_search_filters",
-    "status",
-    "chatbot_auto_answers"
+    "chatbot_auto_answers",
+    "auto_model_select",
+    "cache_on",
+    "pre_tools"
   ];
 
   for (const field of simple_fields) {
@@ -291,6 +320,10 @@ const updateAgentController = async (req, res, next) => {
 
   if (body.bridge_limit !== undefined) update_fields.bridge_limit = body.bridge_limit;
   if (body.bridge_usage !== undefined) update_fields.bridge_usage = body.bridge_usage;
+  if (body.bridge_limit_reset_period !== undefined) {
+    update_fields.bridge_limit_reset_period = body.bridge_limit_reset_period;
+    update_fields.bridge_limit_start_date = new Date();
+  }
 
   if (page_config) update_fields.page_config = page_config;
   if (web_search_filter !== undefined) update_fields.web_search_filters = web_search_filter;

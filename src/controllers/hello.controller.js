@@ -1,5 +1,4 @@
 import ConfigurationServices from "../db_services/configuration.service.js";
-import { subscribeSchema } from "../validation/joi_validation/bridge.validation.js";
 import modelConfigService from "../db_services/modelConfig.service.js";
 
 export const subscribe = async (req, res, next) => {
@@ -8,14 +7,7 @@ export const subscribe = async (req, res, next) => {
   let data = {};
 
   if (!ispublic) {
-    const { error, value } = subscribeSchema.validate(req.body);
-    if (error) {
-      return res.status(400).json({
-        error: "Validation failed",
-        details: error.details.map((detail) => detail.message)
-      });
-    }
-    const { slugName, versionId } = value;
+    const { slugName, versionId } = req.body;
     const { org } = req.profile;
     data = await ConfigurationServices.getAgentBySlugname(org.id, slugName, versionId);
   } else {

@@ -8,7 +8,9 @@ const saveApikey = {
       service: Joi.string().valid("openai", "gemini", "anthropic", "groq", "open_router", "mistral", "ai_ml", "grok").required(),
       comment: Joi.string().allow("").optional(),
       apikey_limit: Joi.number().min(0).precision(6).optional(),
-      apikey_usage: Joi.number().min(0).precision(6).optional()
+      apikey_usage: Joi.number().min(0).precision(6).optional(),
+      apikey_limit_reset_period: Joi.string().valid("monthly", "weekly", "daily").optional(),
+      apikey_limit_start_date: Joi.date().optional()
     })
     .unknown(true)
 };
@@ -36,7 +38,9 @@ const updateApikey = {
       service: Joi.string().valid("openai", "gemini", "anthropic", "groq", "open_router", "mistral", "ai_ml", "grok").optional(),
       comment: Joi.string().allow("").optional(),
       apikey_limit: Joi.number().min(0).precision(6).optional(),
-      apikey_usage: Joi.number().min(0).precision(6).optional()
+      apikey_usage: Joi.number().min(0).precision(6).optional(),
+      apikey_limit_reset_period: Joi.string().valid("monthly", "weekly", "daily").optional(),
+      apikey_limit_start_date: Joi.date().optional()
     })
     .unknown(true)
 };

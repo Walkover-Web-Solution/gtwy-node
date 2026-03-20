@@ -403,7 +403,7 @@ async function findThreadHistoryFormatted(org_id, thread_id, bridge_id, sub_thre
 
     reversedLogs.forEach((log) => {
       // Create user message entry
-      if (log.user) {
+      if (log.user || log.user_urls) {
         formattedData.push({
           Id: log.id,
           content: log.user,
@@ -422,7 +422,7 @@ async function findThreadHistoryFormatted(org_id, thread_id, bridge_id, sub_thre
 
       // Create assistant message entry
       const assistantContent = log.updated_llm_message || log.llm_message || log.chatbot_message || "";
-      if (assistantContent) {
+      if (assistantContent || log.llm_urls) {
         formattedData.push({
           Id: log.id + "_llm",
           content: assistantContent,

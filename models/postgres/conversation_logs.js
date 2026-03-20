@@ -124,6 +124,10 @@ export default (sequelize, DataTypes) => {
       child_id: {
         type: DataTypes.STRING,
         allowNull: true
+      },
+      batch_data: {
+        type: DataTypes.JSONB,
+        allowNull: true
       }
     },
     {

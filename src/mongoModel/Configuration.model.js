@@ -183,6 +183,10 @@ const configuration = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  criteria_check: {
+    type: Object,
+    default: {}
+  },
   created_at: {
     type: Date,
     default: Date.now
@@ -209,11 +213,6 @@ const configuration = new mongoose.Schema({
   },
   slugName: {
     type: String,
-    required: true
-  },
-  status: {
-    type: Number,
-    default: 1,
     required: true
   },
   responseIds: {
@@ -264,6 +263,15 @@ const configuration = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  bridge_limit_reset_period: {
+    type: String,
+    enum: ["monthly", "weekly", "daily"],
+    default: "monthly"
+  },
+  bridge_limit_start_date: {
+    type: Date,
+    default: Date.now
+  },
   last_used: {
     type: Date,
     default: null
@@ -273,6 +281,14 @@ const configuration = new mongoose.Schema({
     default: undefined
   },
   chatbot_auto_answers: {
+    type: Boolean,
+    default: false
+  },
+  auto_model_select: {
+    type: Boolean,
+    default: false
+  },
+  cache_on: {
     type: Boolean,
     default: false
   }

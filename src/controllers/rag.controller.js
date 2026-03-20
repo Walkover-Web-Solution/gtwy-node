@@ -134,7 +134,7 @@ export const createCollection = async (req, res, next) => {
     // Prepare data for Hippocampus API
     const hippocampusPayload = {
       name,
-      settings: settings
+      settings: { ...settings, keepDuplicate: true }
     };
 
     // Call Hippocampus API to create collection

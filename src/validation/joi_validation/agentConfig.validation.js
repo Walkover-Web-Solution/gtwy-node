@@ -10,14 +10,39 @@ const createBridgeSchema = Joi.object({
     .optional(),
   bridgeType: Joi.string().valid("api", "chatbot").optional().default("api"),
   bridge_limit: Joi.number().min(0).optional(),
-  bridge_usage: Joi.number().min(0).optional()
+  bridge_usage: Joi.number().min(0).optional(),
+  bridge_limit_reset_period: Joi.string().valid("monthly", "weekly", "daily").optional(),
+  bridge_limit_start_date: Joi.date().optional()
 }).unknown(true); // Allow additional fields that might be added dynamically
 
 const updateBridgeSchema = Joi.object({
   configuration: Joi.object({
     model: Joi.string().optional(),
     type: Joi.string().valid("chat", "embedding", "completion", "fine-tune", "reasoning", "image").optional(),
-    prompt: Joi.alternatives().try(Joi.string().allow(""), Joi.array()).optional(),
+    prompt: Joi.alternatives()
+      .try(
+        Joi.string().allow(""),
+        Joi.array(),
+        Joi.object({
+          role: Joi.string().allow("").optional(),
+          goal: Joi.string().allow("").optional(),
+          instruction: Joi.string().allow("").optional(),
+          // Embed-specific fields
+          customPrompt: Joi.string().allow("").optional(),
+          embedFields: Joi.array()
+            .items(
+              Joi.object({
+                name: Joi.string().required(),
+                value: Joi.string().allow("").optional(),
+                type: Joi.string().valid("input", "textarea").optional(),
+                hidden: Joi.boolean().optional()
+              })
+            )
+            .optional(),
+          useDefaultPrompt: Joi.boolean().optional()
+        })
+      )
+      .optional(),
     system_prompt_version_id: Joi.string().optional(),
     fine_tune_model: Joi.object().optional(),
     response_format: Joi.object().optional(),
@@ -69,6 +94,8 @@ const updateBridgeSchema = Joi.object({
   gtwy_web_search_filters: Joi.alternatives().try(Joi.array().items(Joi.string()), Joi.object()).optional(),
   bridge_limit: Joi.number().min(0).optional(),
   bridge_usage: Joi.number().min(0).optional(),
+  bridge_limit_reset_period: Joi.string().valid("monthly", "weekly", "daily").optional(),
+  bridge_limit_start_date: Joi.date().optional(),
   page_config: Joi.object().optional(),
   variables_path: Joi.object().optional(),
   built_in_tools_data: Joi.object({
@@ -117,6 +144,16 @@ const modelNameParamSchema = Joi.object({
   })
 }).unknown(true);
 
+const createAgentFromTemplateParamSchema = Joi.object({
+  template_id: Joi.string()
+    .pattern(/^[0-9a-fA-F]{24}$/)
+    .required()
+    .messages({
+      "string.pattern.base": "template_id must be a valid MongoDB ObjectId",
+      "any.required": "template_id is required"
+    })
+});
+
 const cloneAgentSchema = Joi.object({
   agent_id: Joi.string()
     .pattern(/^[0-9a-fA-F]{24}$/)
@@ -135,6 +172,10 @@ const createAgent = {
   body: createBridgeSchema
 };
 
+const createAgentFromTemplate = {
+  params: createAgentFromTemplateParamSchema
+};
+
 const getAgentsByModel = {
   params: modelNameParamSchema
 };
@@ -148,10 +189,11 @@ const getAgent = {
 };
 
 // Export both the schemas and validation objects
-export { createBridgeSchema, updateBridgeSchema, bridgeIdParamSchema, modelNameParamSchema, cloneAgentSchema };
+export { createBridgeSchema, updateBridgeSchema, bridgeIdParamSchema, modelNameParamSchema, cloneAgentSchema, createAgentFromTemplateParamSchema };
 
 export default {
   createAgent,
+  createAgentFromTemplate,
   getAgentsByModel,
   cloneAgent,
   getAgent

@@ -1,6 +1,8 @@
 import ConfigurationServices from "../db_services/configuration.service.js";
 import testcaseDbservice from "../db_services/testcase.service.js";
 import gptMemoryService from "../services/utils/gptMemory.service.js";
+import { convertPromptToString } from "../utils/promptWrapper.utils.js";
+import { buildSchemaFromTemplateFormat } from "../utils/templateVariables.utils.js";
 
 const collectionNames = {
   ApikeyCredentials: "ApikeyCredentials",
@@ -25,7 +27,9 @@ const bridge_ids = {
   generate_description: "6800d48f7dfc8ddcc495f918",
   improve_prompt_optimizer: "68e4ac02739a8b89ba27b22a",
   generate_test_cases: "68e8d1fbf8c9ba2043cf7afd",
-  prompt_checker: "692ee19da04fbf2a132b252c"
+  prompt_checker: "692ee19da04fbf2a132b252c",
+  rich_ui_template: "6967b36c17a69473fa7fdb90",
+  canonicalizer: "6973200cf60dd5bf64eeb325"
 };
 
 const redis_keys = {
@@ -86,8 +90,8 @@ export const AI_OPERATION_CONFIG = {
       return { bridge: bridgeResult.bridges };
     },
     getPrompt: (context) => context.bridge.configuration?.prompt || "",
-    getVariables: (req) => ({ query: req.body.query || "" }),
-    getMessage: (req, context) => context.bridge.configuration?.prompt || "", // optimize_prompt uses prompt as message
+    getVariables: (req, context) => ({ query: req.body.query, fields: context.bridge.configuration?.prompt }),
+    getMessage: () => "optimize the prompt according the data contain in the fields",
     successMessage: "Prompt optimized successfully"
   },
   generate_summary: {
@@ -107,7 +111,7 @@ export const AI_OPERATION_CONFIG = {
           tools[tool.title] = tool.description;
         });
       }
-      let system_prompt = bridgeData.configuration?.prompt || "";
+      let system_prompt = convertPromptToString(bridgeData.configuration?.prompt) || "";
       if (Object.keys(tools).length > 0) {
         system_prompt += `Available tool calls :-  ${JSON.stringify(tools)}`;
       }
@@ -133,7 +137,7 @@ export const AI_OPERATION_CONFIG = {
       if (!bridgeResult.bridges) throw new Error("Bridge data not found");
       return { bridgeData: bridgeResult.bridges };
     },
-    getVariables: (req, context) => ({ system_prompt: context.bridgeData.configuration?.prompt || "" }),
+    getVariables: (req, context) => ({ system_prompt: convertPromptToString(context.bridgeData.configuration?.prompt) || "" }),
     getMessage: () =>
       "Generate 10 comprehensive test cases for this AI assistant based on its system prompt and available tools. Each test case should include a UserInput and ExpectedOutput.",
     postProcess: async (aiResult, req) => {
@@ -158,6 +162,123 @@ export const AI_OPERATION_CONFIG = {
     getVariables: (req) => req.body.variables, // Assuming variables are passed directly in body as 'variables' object based on original code
     getMessage: () => "improve the prompt",
     successMessage: "Prompt improved successfully"
+  },
+  rich_ui_template: {
+    bridgeIdConst: bridge_ids["rich_ui_template"],
+    getVariables: (req) => req.body,
+    getMessage: () => "generate the rich ui template",
+    successMessage: "Rich UI template generated successfully",
+    postProcess: async (aiResult) => {
+      let ui = null;
+      let variables = {};
+      let originalRawUi = null;
+      try {
+        const parsed = typeof aiResult === "string" ? JSON.parse(aiResult) : aiResult;
+        ui = parsed.ui || (parsed.type ? parsed : null);
+        variables = parsed.variables || parsed.data || parsed.default_json || {};
+        originalRawUi = JSON.parse(JSON.stringify(ui)); // copy raw template (unreplaced)
+
+        if (ui && Object.keys(variables).length > 0) {
+          // ─── Path resolver ─────────────────────────────────────────────────
+          const getValue = (obj, path) => {
+            if (!obj || !path) return undefined;
+            const keys = path.replace(/\[(\d+)\]/g, ".$1").split(".");
+            let val = obj;
+            for (const k of keys) {
+              if (val == null || typeof val !== "object") return undefined;
+              val = val[k];
+            }
+            return val;
+          };
+
+          // ─── Recursive resolver ────────────────────────────────────────────
+          const resolve = (node, context) => {
+            if (typeof node === "string") {
+              return node.replace(/\{\{([\w.[\]]+)\}\}/g, (match, path) => {
+                const val = getValue(context, path);
+                return val !== undefined ? String(val) : match;
+              });
+            }
+            if (Array.isArray(node)) {
+              return node.map((n) => resolve(n, context));
+            }
+            if (node && typeof node === "object") {
+              // ── Generic binding mode (new: itemTemplate + binding + itemAlias) ──
+              if (node.type === "ListView" && node.binding && node.itemTemplate) {
+                // binding may be a direct key ("rows") or a placeholder ("{{trips}}")
+                const bpMatch = typeof node.binding === "string"
+                  ? node.binding.match(/^\{\{([\w.]+)\}\}$/) : null;
+                const bindingKey = bpMatch ? bpMatch[1] : node.binding;
+                const listData = getValue(context, bindingKey);
+                if (Array.isArray(listData)) {
+                  const alias = node.itemAlias || "item";
+                  const siblingScope = Object.fromEntries(
+                    Object.entries(context).filter(([k]) => k !== bindingKey)
+                  );
+                  const resolvedChildren = listData.map((item) => {
+                    const itemContext = { ...context, ...siblingScope, [alias]: item };
+                    return resolve(node.itemTemplate, itemContext);
+                  });
+                  const rest = Object.fromEntries(Object.entries(node).filter(([k]) => !['itemTemplate','binding','itemAlias','idField'].includes(k)));
+                  return { ...rest, children: resolvedChildren };
+                }
+              }
+
+              // ── Legacy binding mode (children[0] as template, binding may be {{placeholder}}) ──
+              if (node.type === "ListView" && node.binding && !node.itemTemplate) {
+                // Unwrap "{{trips}}" → "trips", or use direct key "rows" as-is
+                const bpMatch = typeof node.binding === "string"
+                  ? node.binding.match(/^\{\{([\w.]+)\}\}$/) : null;
+                const bindingKey = bpMatch ? bpMatch[1] : node.binding;
+                const listData = getValue(context, bindingKey);
+                if (Array.isArray(listData) && node.children?.length > 0) {
+                  const itemTemplate = node.children[0];
+                  // Alias priority: node.itemAlias > node.key > ListViewItem.key > "item"
+                  let localKey = node.itemAlias || node.key;
+                  if (!localKey) {
+                    if (itemTemplate.key && typeof itemTemplate.key === "string") {
+                      const match = itemTemplate.key.match(/^\{\{([\w]+)\./);
+                      localKey = match ? match[1] : itemTemplate.key;
+                    } else {
+                      localKey = "item";
+                    }
+                  }
+                  const resolvedChildren = listData.map((item) => {
+                    const localContext = (item && typeof item === "object" && !Array.isArray(item))
+                      ? { ...context, ...item, [localKey]: item }
+                      : { ...context, [localKey]: item };
+                    return resolve(itemTemplate, localContext);
+                  });
+                  return { ...node, children: resolvedChildren };
+                }
+              }
+
+              // ── Normal object traversal ───────────────────────────────────
+              const newNode = {};
+              for (const [k, v] of Object.entries(node)) {
+                newNode[k] = resolve(v, context);
+              }
+              return newNode;
+            }
+            return node;
+          };
+
+          ui = resolve(ui, variables);
+        }
+      } catch (error) {
+        console.error("Error parsing rich UI template result:", error);
+      }
+
+      return {
+        success: true,
+        message: "Rich UI template generated successfully",
+        result: ui,              
+        ui,                      
+        variables,             
+        template_format: originalRawUi, 
+        json_schema: originalRawUi ? buildSchemaFromTemplateFormat(originalRawUi, {}, variables ?? {}) : null,
+      };
+    }
   },
   gpt_memory: {
     handler: async (req) => {

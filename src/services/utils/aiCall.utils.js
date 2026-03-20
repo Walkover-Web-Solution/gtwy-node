@@ -2,7 +2,15 @@ import axios from "axios";
 import { configDotenv } from "dotenv";
 configDotenv();
 
-async function callAiMiddleware(user, bridge_id, variables = {}, configuration = null, response_type = null, thread_id = null) {
+async function callAiMiddleware(
+  user,
+  bridge_id,
+  variables = {},
+  configuration = null,
+  response_type = null,
+  thread_id = null,
+  orchestrator_flag = false
+) {
   const requestBody = {
     user: user,
     bridge_id: bridge_id,
@@ -19,6 +27,10 @@ async function callAiMiddleware(user, bridge_id, variables = {}, configuration =
 
   if (thread_id !== null) {
     requestBody.thread_id = thread_id;
+  }
+
+  if (orchestrator_flag) {
+    requestBody.orchestrator_flag = orchestrator_flag;
   }
 
   try {
@@ -52,9 +64,9 @@ async function callAiMiddleware(user, bridge_id, variables = {}, configuration =
 
 async function getAiMiddlewareAgentData(bridge_id) {
   try {
-    const response = await axios.get(`https://api.gtwy.ai/api/v1/config/getbridges/${bridge_id}`, {
+    const response = await axios.get(`https://db.gtwy.ai/api/agent/${bridge_id}`, {
       headers: {
-        pauthkey: process.env.AI_MIDDLEWARE_PAUTH_KEY,
+        pauthkey: process.env.GTWY_PAUTH_KEY,
         "Content-Type": "application/json",
         "Accept-Encoding": "gzip"
       }

@@ -15,8 +15,8 @@ const getPrebuiltPrompts = async (req, res, next) => {
     if (!existingPromptIds.has(prebuiltPromptId)) {
       try {
         const bridgePrompt = await getAiMiddlewareAgentData(bridge_ids[prebuiltPromptId]);
-        if (bridgePrompt?.bridge?.configuration?.prompt) {
-          prebuiltPrompts.push({ [prebuiltPromptId]: bridgePrompt.bridge.configuration.prompt });
+        if (bridgePrompt?.agent?.configuration?.prompt) {
+          prebuiltPrompts.push({ [prebuiltPromptId]: bridgePrompt.agent.configuration.prompt });
         }
       } catch (error) {
         console.warn(`Failed to fetch bridge prompt ${prebuiltPromptId}: ${error.message}`);
@@ -60,8 +60,8 @@ const resetPrebuiltPrompts = async (req, res, next) => {
   const bridge_id = bridge_ids[prompt_id];
   const bridgePrompt = await getAiMiddlewareAgentData(bridge_id);
 
-  if (bridgePrompt.bridge.configuration.prompt) {
-    const originalPrompt = bridgePrompt.bridge.configuration.prompt;
+  if (bridgePrompt?.agent?.configuration?.prompt) {
+    const originalPrompt = bridgePrompt.agent.configuration.prompt;
     const updatedPrompt = await prebuiltPromptDbService.updatePrebuiltPromptService(org_id, prompt_id, {
       prompt: originalPrompt
     });

@@ -141,6 +141,36 @@ class Helper {
     return { paths, fields, required_params };
   }
 
+  /**
+   * Transforms fields structure by normalizing each field's properties
+   * and replacing 'required' with 'required_params'.
+   * @param {Object} fields - The fields object to transform
+   * @returns {Object} Transformed fields object with normalized structure, or {} if input is invalid
+   */
+
+  static transformFieldsStructure(props) {
+    if (!props || typeof props !== "object") return {};
+    const transformed = {};
+    for (const [key, val] of Object.entries(props)) {
+      if (val === null) {
+        transformed[key] = { description: "", type: "string", enum: [], required_params: [], parameter: {} };
+        continue;
+      }
+      transformed[key] = {
+        description: val.description || "",
+        type: val.type || "string",
+        enum: val.enum || [],
+        // Filters required array to only include keys that exist in transformed fields
+        required_params: Array.isArray(val.required) ? val.required : [],
+        parameter:
+          val.properties && typeof val.properties === "object" && Object.keys(val.properties).length > 0
+            ? Helper.transformFieldsStructure(val.properties)
+            : {}
+      };
+    }
+    return transformed;
+  }
+
   static generate_token(payload, accesskey) {
     return jwt.sign(payload, accesskey);
   }

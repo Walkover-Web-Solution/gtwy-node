@@ -75,7 +75,7 @@ const version = new mongoose.Schema({
   },
   tool_call_count: {
     type: Number,
-    default: 0
+    default: 3
   },
   agent_variables: {
     type: Object,
@@ -157,11 +157,6 @@ const version = new mongoose.Schema({
     type: Boolean,
     default: false
   },
-  status: {
-    type: Number,
-    default: 1,
-    required: true
-  },
   responseIds: {
     type: Array,
     default: []
@@ -193,6 +188,14 @@ const version = new mongoose.Schema({
     default: false
   },
   chatbot_auto_answers: {
+    type: Boolean,
+    default: false
+  },
+  auto_model_select: {
+    type: Boolean,
+    default: false
+  },
+  cache_on: {
     type: Boolean,
     default: false
   }

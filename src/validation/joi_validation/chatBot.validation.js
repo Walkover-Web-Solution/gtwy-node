@@ -3,11 +3,14 @@ import joiObjectId from "joi-objectid";
 Joi.objectId = joiObjectId(Joi);
 
 const subscribe = {
-  body: Joi.object()
-    .keys({
-      // Add any required fields for subscription
-    })
-    .unknown(true)
+  body: Joi.object({
+    slugName: Joi.string().required().messages({
+      "string.empty": "slugName is required",
+      "any.required": "slugName is required"
+    }),
+    versionId: Joi.string().optional().allow(""),
+    helloId: Joi.string().optional().allow("")
+  }).unknown(true)
 };
 
 const updateChatBotConfig = {

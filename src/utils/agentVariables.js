@@ -1,3 +1,4 @@
+import { convertPromptToString, extractVariables } from "./promptWrapper.utils.js";
 // Helper function to get required/optional variables in prompt
 function getReqOptVariablesInPrompt(prompt, variableState, variablePath) {
   function flattenValuesOnly(d) {
@@ -24,7 +25,7 @@ function getReqOptVariablesInPrompt(prompt, variableState, variablePath) {
   }
 
   // Extract variables from prompt
-  const promptVars = prompt.match(/{{(.*?)}}/g)?.map((match) => match.slice(2, -2)) || [];
+  const promptVars = extractVariables(convertPromptToString(prompt));
 
   // Determine status for prompt variables based on new structure
   const final = {};

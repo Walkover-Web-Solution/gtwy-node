@@ -10,7 +10,7 @@ import { deleteInCache } from "../cache_service/index.js";
 import { callAiMiddleware } from "../services/utils/aiCall.utils.js";
 import { redis_keys, bridge_ids } from "../configs/constant.js";
 import { getReqOptVariablesInPrompt, transformAgentVariableToToolCallFormat } from "../utils/agentVariables.js";
-
+import { convertPromptToString } from "../utils/promptWrapper.utils.js";
 const ObjectId = mongoose.Types.ObjectId;
 
 async function getVersion(version_id) {
@@ -29,7 +29,7 @@ async function getVersion(version_id) {
 async function createAgentVersion(data) {
   try {
     const agentVersionData = data.toObject ? data.toObject() : { ...data };
-    const keysToRemove = ["name", "slugName", "bridgeType", "status"];
+    const keysToRemove = ["name", "slugName", "bridgeType"];
     keysToRemove.forEach((key) => delete agentVersionData[key]);
 
     agentVersionData.is_drafted = true;
@@ -327,12 +327,16 @@ async function getPromptEnhancerPercentage(parentId, prompt) {
   try {
     if (!prompt) return null;
 
-    const promptEnhancerResult = await callAiMiddleware(prompt, bridge_ids["prompt_checker"]);
-
+    const promptEnhancerResult = await callAiMiddleware(prompt, bridge_ids["prompt_checker"], { user_prompt: prompt }, null, null, null, true);
+    const prompt_enhancer_percentage = promptEnhancerResult.OptimizationPotential;
+    const criteria_check = promptEnhancerResult.CriteriaCheck;
     // Update the document in the configurationModel
-    await configurationModel.updateOne({ _id: parentId }, { $set: { prompt_enhancer_percentage: promptEnhancerResult } });
+    await configurationModel.updateOne(
+      { _id: parentId },
+      { $set: { prompt_enhancer_percentage: prompt_enhancer_percentage, criteria_check: criteria_check } }
+    );
 
-    return promptEnhancerResult;
+    return { prompt_enhancer_percentage, criteria_check };
   } catch (error) {
     console.error("Error getting prompt enhancer percentage:", error);
     return null;
@@ -392,7 +396,7 @@ async function publish(org_id, version_id, user_id) {
   const previousPublishedVersionId = parentConfiguration.published_version_id;
 
   // Extract agent variables logic
-  const prompt = getVersionData.configuration?.prompt || "";
+  const prompt = convertPromptToString(getVersionData.configuration?.prompt || "");
   const variableState = getVersionData.variables_state || {};
   const variablePath = getVersionData.variables_path || {};
   const agentVariables = getReqOptVariablesInPrompt(prompt, variableState, variablePath);

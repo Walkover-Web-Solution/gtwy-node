@@ -2,25 +2,7 @@ import agentVersionDbService from "../db_services/agentVersion.service.js";
 import ConfigurationServices from "../db_services/configuration.service.js";
 import folderDbService from "../db_services/folder.service.js";
 import { modelConfigDocument } from "../services/utils/loadModelConfigs.js";
-import { callAiMiddleware } from "../services/utils/aiCall.utils.js";
-import { bridge_ids } from "../configs/constant.js";
-import { getServiceByModel } from "../services/utils/common.utils.js";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-let modelFeatures = {};
-try {
-  const featuresPath = path.join(__dirname, "../services/utils/model_features.json");
-  if (fs.existsSync(featuresPath)) {
-    modelFeatures = JSON.parse(fs.readFileSync(featuresPath, "utf8"));
-  }
-} catch (error) {
-  console.error("Error loading model features:", error);
-}
+import { selectBestModel } from "../services/utils/notDiamond.utils.js";
 
 const createVersion = async (req, res, next) => {
   const { version_id, version_description } = req.body;
@@ -152,7 +134,7 @@ const discardVersion = async (req, res, next) => {
   }
 
   const agentData = { ...bridgeDataResult.bridges };
-  const keysToRemove = ["name", "slugName", "bridgeType", "_id", "versions", "status", "apiCalls", "bridge_status"];
+  const keysToRemove = ["name", "slugName", "bridgeType", "_id", "versions", "apiCalls", "bridge_status"];
   keysToRemove.forEach((key) => delete agentData[key]);
 
   agentData.is_drafted = false;
@@ -199,51 +181,41 @@ const suggestModel = async (req, res, next) => {
     return next();
   }
 
-  const available_models = [];
-  const unavailable_models = [];
+  const llmProviders = [];
 
   for (const service in modelConfigDocument) {
     if (available_services.includes(service)) {
       for (const model in modelConfigDocument[service]) {
-        const modelConfig = modelConfigDocument[service][model];
-        const features = modelFeatures[model] || modelConfig?.validationConfig?.specification || {};
-        available_models.push({ [model]: features });
-      }
-    } else {
-      for (const model in modelConfigDocument[service]) {
-        const modelConfig = modelConfigDocument[service][model];
-        const features = modelFeatures[model] || modelConfig?.validationConfig?.specification || {};
-        unavailable_models.push({ [model]: features });
+        llmProviders.push({ provider: service, model });
       }
     }
+  }
+
+  if (llmProviders.length === 0) {
+    res.locals = {
+      success: false,
+      message: "No models available for the selected services",
+      data: { model: null, error: "No models available for the selected services" }
+    };
+    req.statusCode = 400;
+    return next();
   }
 
   const prompt = versionData.configuration?.prompt;
   const tool_calls = Object.values(versionData.apiCalls || {}).map((call) => ({ [call.title]: call.description }));
 
-  const message = JSON.stringify({ prompt: prompt, tool_calls: tool_calls });
-  const variables = {
-    available_models: JSON.stringify(available_models),
-    unavailable_models: JSON.stringify(unavailable_models)
+  const systemContent = JSON.stringify({
+    agent_system_prompt: prompt,
+    agent_tools: tool_calls
+  });
+
+  const result = await selectBestModel(systemContent, llmProviders);
+
+  res.locals = {
+    success: true,
+    message: "suggestion fetched successfully",
+    data: result
   };
-
-  const ai_response = await callAiMiddleware(message, bridge_ids["suggest_model"], variables);
-
-  const response = {
-    available: {
-      model: ai_response.best_model_from_available_models,
-      service: getServiceByModel(ai_response.best_model_from_available_models)
-    }
-  };
-
-  if (ai_response.best_model_from_unavailable_models) {
-    response.unavailable = {
-      model: ai_response.best_model_from_unavailable_models,
-      service: getServiceByModel(ai_response.best_model_from_unavailable_models)
-    };
-  }
-
-  res.locals = { success: true, message: "suggestion fetched successfully", data: response };
   req.statusCode = 200;
   return next();
 };

@@ -20,11 +20,16 @@ const clearRedisCache = async (req, res, next) => {
     req.statusCode = 200;
     return next();
   } else {
-    // Clear all keys with prefix
-    // scanCacheKeys('*') returns keys without prefix
+    // Clear all keys except protected patterns
+    const protectedPatterns = ["bridgeusedcost_", "folderusedcost_", "apikeyusedcost_", "blacklist:"];
+
     const keys = await scanCacheKeys("*");
-    if (keys && keys.length > 0) {
-      await deleteInCache(keys);
+    const keysToDelete = keys.filter((key) => {
+      return !protectedPatterns.some((pattern) => key.includes(pattern));
+    });
+
+    if (keysToDelete && keysToDelete.length > 0) {
+      await deleteInCache(keysToDelete);
     }
 
     res.locals = { message: "Redis cleared successfully" };
@@ -74,6 +79,15 @@ const generateToken = async (req, res, next) => {
     case "embed":
       return embedController.genrateToken(req, res, next);
 
+    case "embed_preview":
+      return embedController.genrateToken(req, res, next);
+
+    case "rag_embed_preview":
+      return embedController.genrateToken(req, res, next);
+
+    case "chatbot_embed_preview":
+      return embedController.genrateToken(req, res, next);
+
     default:
       res.locals = { success: false, message: `Invalid type: ${type}. Valid types are: rag, org, embed` };
       req.statusCode = 400;
@@ -119,10 +133,37 @@ const getCurrentOrgUsers = async (req, res, next) => {
   return next();
 };
 
+const getAffiliateEmbedToken = async (req, res, next) => {
+  const orgToken = process.env.AFFILIATE_ORG_TOKEN;
+  if (!orgToken) {
+    res.locals = { success: false, message: "AFFILIATE_ORG_TOKEN is not configured" };
+    req.statusCode = 500;
+    return next();
+  }
+
+  const { organization, expires_in_hours, label } = req.body;
+
+  const response = await fetch("https://apireftest.hostnsoft.com/api/v1/embed/token/generate", {
+    method: "POST",
+    headers: {
+      "X-Org-Token": orgToken,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ organization, expires_in_hours, label })
+  });
+
+  const data = await response.json();
+
+  res.locals = data;
+  req.statusCode = response.status;
+  return next();
+};
+
 export default {
   clearRedisCache,
   getRedisCache,
   callGtwy,
   generateToken,
-  getCurrentOrgUsers
+  getCurrentOrgUsers,
+  getAffiliateEmbedToken
 };

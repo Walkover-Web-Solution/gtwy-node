@@ -634,6 +634,7 @@ const getAgentsByUserId = async (orgId, userId, agent_id) => {
       service: 1,
       "configuration.model": 1,
       "configuration.prompt": 1,
+      "configuration.type": 1,
       bridgeType: 1,
       slugName: 1,
       variables_state: 1,
@@ -1160,9 +1161,10 @@ const getAllAgentsInOrg = async (org_id, folder_id, user_id, isEmbedUser) => {
       user_id: 1,
       "configuration.model": 1,
       "configuration.prompt": 1,
+      "configuration.type": 1,
+      "configuration.cache_on": 1,
       bridgeType: 1,
       slugName: 1,
-      status: 1,
       versions: 1,
       published_version_id: 1,
       total_tokens: 1,
@@ -1176,13 +1178,16 @@ const getAllAgentsInOrg = async (org_id, folder_id, user_id, isEmbedUser) => {
       deletedAt: 1,
       bridge_limit: 1,
       bridge_usage: 1,
+      bridge_limit_reset_period: 1,
+      bridge_limit_start_date: 1,
       last_used: 1,
       variables_path: 1,
       users: 1,
       createdAt: 1,
       updatedAt: 1,
       prompt_total_tokens: 1,
-      prompt_enhancer_percentage: 1
+      prompt_enhancer_percentage: 1,
+      criteria_check: 1
     })
     .sort({ createdAt: -1 })
     .lean();

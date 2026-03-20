@@ -1,10 +1,16 @@
 import dotenv from "dotenv";
 import logger from "../logger.js";
 import rabbitmqService from "../services/rabbitmq.service.js";
+import { logQueueProcessor } from "./logQueueConsumer.js";
 
 dotenv.config();
-const CONSUMER_ENABLED = process.env.CONSUMER_ENABLED?.toLowerCase() === "true";
-const CONSUMERS = [];
+const CONSUMERS = [
+  {
+    queueName: process.env.LOG_QUEUE_NAME,
+    process: logQueueProcessor,
+    batchSize: 1
+  }
+];
 
 class Consumer {
   constructor(obj, connectionString) {
@@ -55,11 +61,10 @@ class Consumer {
     });
   }
 }
-console.log(CONSUMER_ENABLED, process.env.DB_NAME, "CONSUMER  ADSF ");
-if (CONSUMER_ENABLED) {
-  (() => {
-    CONSUMERS.forEach((consumer) => {
-      new Consumer(consumer);
-    });
-  })();
+function init() {
+  CONSUMERS.forEach((consumer) => {
+    new Consumer(consumer);
+  });
 }
+
+init();

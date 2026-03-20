@@ -30,7 +30,7 @@ const createOrGetUser = async (checkToken, decodedToken, orgTokenFromDb) => {
     }
   };
   const proxyObject = {
-    feature_id: process.env.PROXY_USER_REFERENCE_ID,
+    feature_id: process.env.PUBLIC_REFERENCEID,
     Cuser: userDetails,
     company: orgDetials,
     role_id: process.env.PROXY_USER_ROLE_ID

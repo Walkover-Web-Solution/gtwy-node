@@ -17,6 +17,7 @@ router.get(
   agentConfigController.getAgentsAndVersionsByModelController
 );
 router.post("/token", middleware, validate(utilsValidation.generateToken), utilsController.generateToken);
+router.post("/affiliate/embed-token", middleware, validate(utilsValidation.getAffiliateEmbedToken), utilsController.getAffiliateEmbedToken);
 router.get("/users-details", middleware, utilsController.getCurrentOrgUsers);
 
 export default router;

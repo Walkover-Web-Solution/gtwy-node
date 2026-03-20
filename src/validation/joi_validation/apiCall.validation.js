@@ -61,9 +61,16 @@ const addPreTool = {
   body: Joi.object()
     .keys({
       version_id: Joi.string().optional(),
-      pre_tools: Joi.string().required().messages({
-        "any.required": "pre_tools is required"
-      }),
+      pre_tools: Joi.object()
+        .keys({
+          type: Joi.string().valid("custom_function", "query_refiner", "rag_knowledgebase", "gtwy_web_search").required(),
+          config: Joi.object().optional(),
+          args: Joi.object().optional()
+        })
+        .required()
+        .messages({
+          "any.required": "pre_tools is required"
+        }),
       status: Joi.string().valid("0", "1").required().messages({
         "any.required": "status is required",
         "any.only": 'status must be either "0" or "1"'
