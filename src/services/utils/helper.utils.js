@@ -148,37 +148,26 @@ class Helper {
    * @returns {Object} Transformed fields object with normalized structure, or {} if input is invalid
    */
 
-  static transformFieldsStructure(fields) {
-    if (!fields || typeof fields !== "object") return {};
-
+  static transformFieldsStructure(props) {
+    if (!props || typeof props !== "object") return {};
     const transformed = {};
-
-    for (const [key, value] of Object.entries(fields)) {
-      if (value === null) {
-        transformed[key] = {
-          description: "",
-          type: "string",
-          enum: [],
-          required_params: [],
-          parameter: {}
-        };
+    for (const [key, val] of Object.entries(props)) {
+      if (val === null) {
+        transformed[key] = { description: "", type: "string", enum: [], required_params: [], parameter: {} };
         continue;
       }
-
       transformed[key] = {
-        description: value.description || "",
-        type: value.type || "string",
-        enum: value.enum || [],
-        required_params: Array.isArray(value.required_params) ? value.required_params : Array.isArray(value.required) ? value.required : [],
-        parameter: value.parameter || {}
+        description: val.description || "",
+        type: val.type || "string",
+        enum: val.enum || [],
+        // Filters required array to only include keys that exist in transformed fields
+        required_params: Array.isArray(val.required) ? val.required : [],
+        parameter:
+          val.properties && typeof val.properties === "object" && Object.keys(val.properties).length > 0
+            ? Helper.transformFieldsStructure(val.properties)
+            : {}
       };
-
-      // Recursively transform nested parameters
-      if (value.parameter && Object.keys(value.parameter).length > 0) {
-        transformed[key].parameter = Helper.transformFieldsStructure(value.parameter);
-      }
     }
-
     return transformed;
   }
 

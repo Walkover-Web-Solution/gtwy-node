@@ -57,30 +57,23 @@ const deleteFunction = async (req, res, next) => {
 
 const createApi = async (req, res, next) => {
   try {
-    const { id: script_id, payload, status, title, desc } = req.body;
+    const { id: script_id, status, title, desc } = req.body;
     const org_id = req.profile.org.id;
     const folder_id = req.folder_id || null;
     const user_id = req.profile.user.id;
     const isEmbedUser = req.embed;
 
     if (status === "published" || status === "updated") {
-      const body_content = payload ? payload.body : null;
-      // const traversed_body = Helper.traverseBody(body_content);
+      const properties = req.body?.openaiToolJson?.function?.parameters?.properties || {};
+      const required = req.body?.openaiToolJson?.function?.parameters?.required || [];
 
-      let fields = body_content?.fields;
-      // const fields = traversed_body.fields || {};
-
-      // Transform 'required' to 'required_params' for each field
-      fields = Helper.transformFieldsStructure(fields);
-      const required_params = Object.keys(fields ?? {});
+      const fields = Helper.transformFieldsStructure(properties);
+      const required_params = required.filter((k) => fields[k]);
 
       const api_data = await service.getApiData(org_id, script_id, folder_id, user_id, isEmbedUser);
-
-      // Clean the title using makeFunctionName
       const cleanedTitle = Helper.makeFunctionName(title || script_id || "");
 
       const result = await service.saveApi(desc, org_id, folder_id, user_id, api_data, [], script_id, fields, cleanedTitle, required_params);
-
       if (result.success) {
         const responseData = result.api_data;
         responseData._id = responseData._id.toString();
