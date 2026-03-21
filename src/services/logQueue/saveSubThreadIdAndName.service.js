@@ -24,7 +24,7 @@ async function saveSubThreadIdAndName({ thread_id, sub_thread_id, org_id, thread
     }
 
     await Thread.findOneAndUpdate(
-      { org_id, thread_id, sub_thread_id },
+      { org_id, thread_id, sub_thread_id, bridge_id },
       {
         $set: { bridge_id, display_name: display_name || sub_thread_id },
         $setOnInsert: { org_id, thread_id, sub_thread_id, created_at: current_time }
