@@ -19,18 +19,18 @@ async function getAllApiCallsByOrgId(org_id, folder_id, user_id, isEmbedUser) {
             in: { $toString: "$$bridge_id" }
           }
         },
-        created_at: {
+        createdAt: {
           $cond: {
-            if: { $eq: [{ $type: "$created_at" }, "string"] },
-            then: "$created_at",
-            else: { $dateToString: { format: "%Y-%m-%d %H:%M:%S", date: "$created_at" } }
+            if: { $eq: [{ $type: "$createdAt" }, "string"] },
+            then: "$createdAt",
+            else: { $dateToString: { format: "%Y-%m-%d %H:%M:%S", date: "$createdAt" } }
           }
         },
-        updated_at: {
+        updatedAt: {
           $cond: {
-            if: { $eq: [{ $type: "$updated_at" }, "string"] },
-            then: "$updated_at",
-            else: { $dateToString: { format: "%Y-%m-%d %H:%M:%S", date: "$updated_at" } }
+            if: { $eq: [{ $type: "$updatedAt" }, "string"] },
+            then: "$updatedAt",
+            else: { $dateToString: { format: "%Y-%m-%d %H:%M:%S", date: "$updatedAt" } }
           }
         }
       }
@@ -139,7 +139,6 @@ async function saveApi(desc, org_id, folder_id, user_id, api_data, bridge_ids = 
     org_id: org_id,
     script_id: script_id,
     title: title,
-    status: 1,
     required_params: required_params
   };
 

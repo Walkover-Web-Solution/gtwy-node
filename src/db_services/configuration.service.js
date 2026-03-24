@@ -960,11 +960,11 @@ const updateAgents = async (version_id, agents, add = 1) => {
 };
 
 const updateAgentIdsInApiCalls = async (function_id, agent_id, add = 1) => {
-  const to_update = { $set: { status: 1 } };
+  const to_update = {};
   if (add === 1) {
-    to_update.$addToSet = { bridge_ids: new ObjectId(agent_id) };
+    to_update.$addToSet = { bridge_ids: agent_id };
   } else {
-    to_update.$pull = { bridge_ids: new ObjectId(agent_id) };
+    to_update.$pull = { bridge_ids: agent_id };
   }
 
   const data = await apiCallModel.findOneAndUpdate({ _id: new ObjectId(function_id) }, to_update, {

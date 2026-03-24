@@ -84,7 +84,6 @@ const createApi = async (req, res, next) => {
         res.locals = {
           message: "API saved successfully",
           success: true,
-          activated: true,
           data: responseData
         };
         req.statusCode = 200;
