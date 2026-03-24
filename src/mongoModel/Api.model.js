@@ -1,24 +1,21 @@
 import mongoose from "mongoose";
+
 const ApikeyCredentials = new mongoose.Schema({
   org_id: {
     type: String,
-    default: ""
+    required: true
   },
   name: {
     type: String,
-    default: ""
+    required: true
   },
   service: {
     type: String,
-    default: ""
+    required: true
   },
   apikey: {
     type: String,
-    default: ""
-  },
-  comment: {
-    type: String,
-    default: ""
+    required: true
   },
   folder_id: {
     type: String,
@@ -28,9 +25,13 @@ const ApikeyCredentials = new mongoose.Schema({
     type: String,
     default: ""
   },
+  bridge_ids: {
+    type: [String],
+    default: () => []
+  },
   version_ids: {
-    type: Array,
-    default: []
+    type: [String],
+    default: () => []
   },
   apikey_limit: {
     type: Number,
@@ -58,6 +59,8 @@ const ApikeyCredentials = new mongoose.Schema({
     default: null
   }
 });
+
 ApikeyCredentials.index({ name: 1, org_id: 1, folder_id: 1 }, { unique: true });
+
 const ApikeyCredential = mongoose.model("ApikeyCredentials", ApikeyCredentials);
 export default ApikeyCredential;

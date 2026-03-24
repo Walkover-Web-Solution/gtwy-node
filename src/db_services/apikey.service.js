@@ -4,14 +4,13 @@ import configurationModel from "../mongoModel/Configuration.model.js";
 import FolderModel from "../mongoModel/GtwyEmbed.model.js";
 
 const saveApikeyRecord = async (data) => {
-  const { org_id, apikey, service, name, comment, folder_id, user_id, apikey_limit = 0, apikey_limit_reset_period, apikey_limit_start_date } = data;
+  const { org_id, apikey, service, name, folder_id, user_id, apikey_limit = 0, apikey_limit_reset_period, apikey_limit_start_date } = data;
   const version_ids = [];
   const result = await new ApikeyCredential({
     org_id,
     apikey,
     service,
     name,
-    comment,
     folder_id,
     user_id,
     version_ids,
@@ -75,7 +74,6 @@ async function updateApikeyRecord(
   apikey = null,
   name = null,
   service = null,
-  comment = null,
   apikey_limit = 0,
   apikey_usage = -1,
   apikey_limit_reset_period = null
@@ -91,9 +89,6 @@ async function updateApikeyRecord(
     }
     if (service) {
       updateFields.service = service;
-    }
-    if (comment) {
-      updateFields.comment = comment;
     }
     if (apikey_limit >= 0) {
       updateFields.apikey_limit = apikey_limit;
