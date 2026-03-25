@@ -52,6 +52,15 @@ const redis_keys = {
   last_transffered_agent_: "last_transffered_agent_"
 };
 
+const embed_cache = {
+  ttl: 86400,
+  keys: {
+    folder: (folderId) => `embed:folder_${folderId}`,
+    org: (orgId) => `embed:org_${orgId}`,
+    user: (userId, orgId) => `embed:user_${userId}:${orgId}`
+  }
+};
+
 const cost_types = {
   bridge: "bridge",
   folder: "folder",
@@ -78,7 +87,7 @@ const new_agent_service = {
   grok: "grok-4-fast"
 };
 
-export { collectionNames, bridge_ids, redis_keys, cost_types, prebuilt_prompt_bridge_id, new_agent_service };
+export { collectionNames, bridge_ids, redis_keys, cost_types, prebuilt_prompt_bridge_id, new_agent_service, embed_cache };
 
 export const AI_OPERATION_CONFIG = {
   optimize_prompt: {
@@ -206,20 +215,19 @@ export const AI_OPERATION_CONFIG = {
               // ── Generic binding mode (new: itemTemplate + binding + itemAlias) ──
               if (node.type === "ListView" && node.binding && node.itemTemplate) {
                 // binding may be a direct key ("rows") or a placeholder ("{{trips}}")
-                const bpMatch = typeof node.binding === "string"
-                  ? node.binding.match(/^\{\{([\w.]+)\}\}$/) : null;
+                const bpMatch = typeof node.binding === "string" ? node.binding.match(/^\{\{([\w.]+)\}\}$/) : null;
                 const bindingKey = bpMatch ? bpMatch[1] : node.binding;
                 const listData = getValue(context, bindingKey);
                 if (Array.isArray(listData)) {
                   const alias = node.itemAlias || "item";
-                  const siblingScope = Object.fromEntries(
-                    Object.entries(context).filter(([k]) => k !== bindingKey)
-                  );
+                  const siblingScope = Object.fromEntries(Object.entries(context).filter(([k]) => k !== bindingKey));
                   const resolvedChildren = listData.map((item) => {
                     const itemContext = { ...context, ...siblingScope, [alias]: item };
                     return resolve(node.itemTemplate, itemContext);
                   });
-                  const rest = Object.fromEntries(Object.entries(node).filter(([k]) => !['itemTemplate','binding','itemAlias','idField'].includes(k)));
+                  const rest = Object.fromEntries(
+                    Object.entries(node).filter(([k]) => !["itemTemplate", "binding", "itemAlias", "idField"].includes(k))
+                  );
                   return { ...rest, children: resolvedChildren };
                 }
               }
@@ -227,8 +235,7 @@ export const AI_OPERATION_CONFIG = {
               // ── Legacy binding mode (children[0] as template, binding may be {{placeholder}}) ──
               if (node.type === "ListView" && node.binding && !node.itemTemplate) {
                 // Unwrap "{{trips}}" → "trips", or use direct key "rows" as-is
-                const bpMatch = typeof node.binding === "string"
-                  ? node.binding.match(/^\{\{([\w.]+)\}\}$/) : null;
+                const bpMatch = typeof node.binding === "string" ? node.binding.match(/^\{\{([\w.]+)\}\}$/) : null;
                 const bindingKey = bpMatch ? bpMatch[1] : node.binding;
                 const listData = getValue(context, bindingKey);
                 if (Array.isArray(listData) && node.children?.length > 0) {
@@ -244,9 +251,10 @@ export const AI_OPERATION_CONFIG = {
                     }
                   }
                   const resolvedChildren = listData.map((item) => {
-                    const localContext = (item && typeof item === "object" && !Array.isArray(item))
-                      ? { ...context, ...item, [localKey]: item }
-                      : { ...context, [localKey]: item };
+                    const localContext =
+                      item && typeof item === "object" && !Array.isArray(item)
+                        ? { ...context, ...item, [localKey]: item }
+                        : { ...context, [localKey]: item };
                     return resolve(itemTemplate, localContext);
                   });
                   return { ...node, children: resolvedChildren };
@@ -272,11 +280,11 @@ export const AI_OPERATION_CONFIG = {
       return {
         success: true,
         message: "Rich UI template generated successfully",
-        result: ui,              
-        ui,                      
-        variables,             
-        template_format: originalRawUi, 
-        json_schema: originalRawUi ? buildSchemaFromTemplateFormat(originalRawUi, {}, variables ?? {}) : null,
+        result: ui,
+        ui,
+        variables,
+        template_format: originalRawUi,
+        json_schema: originalRawUi ? buildSchemaFromTemplateFormat(originalRawUi, {}, variables ?? {}) : null
       };
     }
   },
