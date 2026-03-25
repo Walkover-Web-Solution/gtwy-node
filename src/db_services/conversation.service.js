@@ -430,15 +430,21 @@ async function getUserUpdates(org_id, version_id, page = 1, pageSize = 10, users
         whereConditions.type = { [Sequelize.Op.in]: filters.types };
       }
 
+      const timeCondition = {};
       if (filters.date_from) {
-        whereConditions.time = { [Sequelize.Op.gte]: new Date(filters.date_from) };
+        const from = new Date(filters.date_from);
+        if (!isNaN(from.getTime())) {
+          timeCondition[Sequelize.Op.gte] = from;
+        }
       }
-
       if (filters.date_to) {
-        whereConditions.time = {
-          ...whereConditions.time,
-          [Sequelize.Op.lte]: new Date(filters.date_to)
-        };
+        const to = new Date(filters.date_to);
+        if (!isNaN(to.getTime())) {
+          timeCondition[Sequelize.Op.lte] = to;
+        }
+      }
+      if (Object.keys(timeCondition).length > 0) {
+        whereConditions.time = timeCondition;
       }
 
       const history = await models.pg.user_bridge_config_history.findAll({
