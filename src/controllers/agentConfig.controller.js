@@ -479,6 +479,7 @@ const updateAgentController = async (req, res, next) => {
   }
 
   // Build user history entries
+  const agent_versions = !version_id && agent.versions ? agent.versions : [];
   for (const key in body) {
     const value = body[key];
     const history_entry = {
@@ -492,6 +493,11 @@ const updateAgentController = async (req, res, next) => {
     if (key === "configuration") {
       for (const config_key in value) {
         user_history.push({ ...history_entry, type: config_key });
+      }
+    } else if (!version_id && agent_versions.length > 0) {
+      // Agent-level update (e.g. name): push history for each version
+      for (const vid of agent_versions) {
+        user_history.push({ ...history_entry, version_id: String(vid), type: key });
       }
     } else {
       user_history.push({ ...history_entry, type: key });
