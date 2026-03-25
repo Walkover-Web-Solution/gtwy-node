@@ -58,34 +58,34 @@ async function saveOrchestratorHistory(orchestratorLogData) {
   if (!orchestratorLogData) return;
 
   try {
-    await models.pg.conversation_logs.create({
+    await models.pg.orchestrator_conversation_logs.create({
       llm_message: orchestratorLogData.llm_message ?? null,
+      reasoning: orchestratorLogData.reasoning ?? null,
       user: orchestratorLogData.user ?? null,
       chatbot_message: orchestratorLogData.chatbot_message ?? null,
       updated_llm_message: orchestratorLogData.updated_llm_message ?? null,
       prompt: orchestratorLogData.prompt ?? null,
       error: orchestratorLogData.error ?? null,
-      user_feedback: 0,
-      tools_call_data: orchestratorLogData.tools_call_data ?? [],
-      message_id: JSON.stringify(orchestratorLogData.message_id ?? {}),
+      tools_call_data: orchestratorLogData.tools_call_data ?? {},
+      message_id: orchestratorLogData.message_id ?? null,
       sub_thread_id: orchestratorLogData.sub_thread_id ?? null,
       thread_id: orchestratorLogData.thread_id ?? null,
-      version_id: JSON.stringify(orchestratorLogData.version_id ?? {}),
-      bridge_id: JSON.stringify(orchestratorLogData.bridge_id ?? {}),
-      user_urls: orchestratorLogData.user_urls ?? [],
-      llm_urls: orchestratorLogData.llm_urls ?? [],
+      version_id: orchestratorLogData.version_id ?? null,
+      bridge_id: orchestratorLogData.bridge_id ?? null,
+      image_urls: orchestratorLogData.image_urls ?? orchestratorLogData.user_urls ?? [],
+      urls: orchestratorLogData.urls ?? orchestratorLogData.llm_urls ?? [],
       AiConfig: orchestratorLogData.AiConfig ?? null,
       fallback_model: orchestratorLogData.fallback_model ?? null,
       org_id: orchestratorLogData.org_id ?? null,
       service: orchestratorLogData.service ?? null,
       model: orchestratorLogData.model ?? null,
-      status: orchestratorLogData.status ?? false,
+      status: orchestratorLogData.status ?? {},
       tokens: orchestratorLogData.tokens ?? null,
       variables: orchestratorLogData.variables ?? null,
       latency: orchestratorLogData.latency ?? null,
       firstAttemptError: orchestratorLogData.firstAttemptError ?? null,
       finish_reason: orchestratorLogData.finish_reason ?? null,
-      batch_data: { agents_path: orchestratorLogData.agents_path ?? [], is_orchestrator: true }
+      agents_path: orchestratorLogData.agents_path ?? []
     });
   } catch (err) {
     logger.error(`Error saving orchestrator history (thread_id=${orchestratorLogData.thread_id}): ${err.message}`);
@@ -103,6 +103,7 @@ async function saveBatchHistory(entries) {
   try {
     const rows = entries.map((data) => ({
       llm_message: data.llm_message ?? null,
+      reasoning: data.reasoning ?? null,
       user: data.user ?? null,
       chatbot_message: data.chatbot_message ?? null,
       updated_llm_message: null,
