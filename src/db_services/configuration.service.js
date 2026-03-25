@@ -494,36 +494,6 @@ const getApiCallById = async (apiId) => {
     };
   }
 };
-const addResponseIdinAgent = async (agentId, orgId, responseId, responseRefId) => {
-  try {
-    const agents = await configurationModel.findOneAndUpdate(
-      {
-        _id: agentId
-      },
-      {
-        $addToSet: {
-          responseIds: responseId
-        },
-        $set: {
-          responseRef: responseRefId
-        }
-      },
-      {
-        new: true
-      }
-    );
-    return {
-      success: true,
-      bridges: agents
-    };
-  } catch (error) {
-    console.log("error:", error);
-    return {
-      success: false,
-      error: "something went wrong!!"
-    };
-  }
-};
 
 // add action  or update the previous action in agent
 
@@ -657,24 +627,6 @@ const getAgentsByUserId = async (orgId, userId, agent_id) => {
   } catch (error) {
     console.error("Error fetching agents:", error);
     return { success: false, error: "Agent not found!!" };
-  }
-};
-
-const removeResponseIdinAgent = async (agentId, orgId, responseId) => {
-  try {
-    const agents = await configurationModel.findOneAndUpdate(
-      { _id: agentId },
-      {
-        $pull: {
-          responseIds: responseId
-        }
-      },
-      { new: true }
-    );
-    return { success: true, bridges: agents };
-  } catch (error) {
-    console.log("error:", error);
-    return { success: false, error: "something went wrong!!" };
   }
 };
 
@@ -1259,8 +1211,6 @@ export default {
   restoreAgent,
   getApiCallById,
   getAgentsWithSelectedData,
-  addResponseIdinAgent,
-  removeResponseIdinAgent,
   getAgentBySlugname,
   findChatbotOfAgent,
   getAgentIdBySlugname,
