@@ -8,8 +8,7 @@ const createAlert = {
     .keys({
       webhookConfiguration: Joi.object({
         url: Joi.string().uri().optional(),
-        headers: Joi.object().optional(),
-        user_url: Joi.string().uri().optional()
+        headers: Joi.object().optional()
       })
         .unknown(true)
         .required()
@@ -65,8 +64,7 @@ const updateAlert = {
     .keys({
       webhookConfiguration: Joi.object({
         url: Joi.string().uri().optional(),
-        headers: Joi.object().optional(),
-        user_url: Joi.string().uri().optional()
+        headers: Joi.object().optional()
       })
         .unknown(true)
         .optional(),
