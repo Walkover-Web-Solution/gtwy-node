@@ -290,7 +290,26 @@ const getAllUserUpdates = async (req, res, next) => {
   const org_id = req?.profile?.org?.id || req?.profile?.org_id;
   let page = parseInt(req.query.page) || null;
   let pageSize = parseInt(req.query.limit) || null;
-  const userData = await conversationDbService.getUserUpdates(org_id, version_id, page, pageSize);
+
+  // Extract filter parameters
+  const filters = {
+    user_ids: req.query.user_ids
+      ? req.query.user_ids
+          .split(",")
+          .map((id) => id.trim())
+          .filter(Boolean)
+      : [],
+    types: req.query.types
+      ? req.query.types
+          .split(",")
+          .map((type) => type.trim())
+          .filter(Boolean)
+      : [],
+    date_from: req.query.date_from || null,
+    date_to: req.query.date_to || null
+  };
+
+  const userData = await conversationDbService.getUserUpdates(org_id, version_id, page, pageSize, [], filters);
   res.locals = { userData, success: true };
   req.statusCode = 200;
   return next();
