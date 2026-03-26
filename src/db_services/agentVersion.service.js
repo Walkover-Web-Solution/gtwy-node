@@ -474,7 +474,7 @@ async function publish(org_id, version_id, user_id) {
   return { success: true, message: "Version published successfully" };
 }
 
-async function getAllConnectedAgents(id, org_id, type) {
+async function getAllConnectedAgents(id, org_id, type, key = "orchestral") {
   const agentsMap = {};
   const visited = new Set();
 
@@ -499,9 +499,55 @@ async function getAllConnectedAgents(id, org_id, type) {
     }
   }
 
-  async function processAgent(agentId, parentIds = [], docType = null) {
-    if (visited.has(agentId)) {
-      if (parentIds && agentsMap[agentId]) {
+  // Find all agents that reference a given agent as a child (i.e., find parents)
+  async function findParentAgents(agentId) {
+    const parents = [];
+
+    // Search in bridges (configurationModel) for agents that have this agent in connected_agents
+    const bridgeParents = await configurationModel
+      .find({
+        org_id,
+        $or: [{ [`connected_agents.${agentId}`]: { $exists: true } }, { "connected_agents": { $elemMatch: { $or: [{ version_id: agentId }, { bridge_id: agentId }] } } }]
+      })
+      .lean();
+
+    for (const parent of bridgeParents) {
+      const connectedAgents = parent.connected_agents || {};
+      for (const [, info] of Object.entries(connectedAgents)) {
+        if (info && (info.version_id === agentId || info.bridge_id === agentId)) {
+          parents.push({ id: parent._id.toString(), type: "bridge" });
+          break;
+        }
+      }
+    }
+
+    // Search in versions (bridgeVersionModel) for agents that have this agent in connected_agents
+    const versionParents = await bridgeVersionModel
+      .find({
+        org_id,
+        $or: [{ [`connected_agents.${agentId}`]: { $exists: true } }, { "connected_agents": { $elemMatch: { $or: [{ version_id: agentId }, { bridge_id: agentId }] } } }]
+      })
+      .lean();
+
+    for (const parent of versionParents) {
+      const connectedAgents = parent.connected_agents || {};
+      for (const [, info] of Object.entries(connectedAgents)) {
+        if (info && (info.version_id === agentId || info.bridge_id === agentId)) {
+          parents.push({ id: parent._id.toString(), type: "version" });
+          break;
+        }
+      }
+    }
+
+    return parents;
+  }
+
+  async function processAgent(agentId, parentIds = [], docType = null, direction = "down") {
+    const visitKey = `${agentId}-${direction}`;
+
+    if (visited.has(visitKey)) {
+      // Agent already visited in this direction, just update parent references if needed
+      if (parentIds && parentIds.length > 0 && agentsMap[agentId]) {
         parentIds.forEach((pid) => {
           if (!agentsMap[agentId].parentAgents.includes(pid)) {
             agentsMap[agentId].parentAgents.push(pid);
@@ -511,7 +557,7 @@ async function getAllConnectedAgents(id, org_id, type) {
       return;
     }
 
-    visited.add(agentId);
+    visited.add(visitKey);
     const { doc, type: actualType } = await fetchDocument(agentId, docType);
 
     if (!doc) {
@@ -523,17 +569,29 @@ async function getAllConnectedAgents(id, org_id, type) {
     const threadId = connectedAgentDetails.thread_id || false;
     const description = connectedAgentDetails.description;
 
-    agentsMap[agentId] = {
-      agent_name: agentName,
-      parentAgents: parentIds || [],
-      childAgents: [],
-      thread_id: threadId,
-      document_type: actualType
-    };
-    if (description) agentsMap[agentId].description = description;
+    // Initialize or update agent entry in map
+    if (!agentsMap[agentId]) {
+      agentsMap[agentId] = {
+        agent_name: agentName,
+        parentAgents: parentIds || [],
+        childAgents: [],
+        thread_id: threadId,
+        document_type: actualType
+      };
+      if (description) agentsMap[agentId].description = description;
+    } else {
+      // Update parent references if this agent already exists
+      if (parentIds && parentIds.length > 0) {
+        parentIds.forEach((pid) => {
+          if (!agentsMap[agentId].parentAgents.includes(pid)) {
+            agentsMap[agentId].parentAgents.push(pid);
+          }
+        });
+      }
+    }
 
+    // Process children (connected_agents)
     const connectedAgents = doc.connected_agents || {};
-
     for (const [, info] of Object.entries(connectedAgents)) {
       if (!info) {
         continue;
@@ -545,12 +603,31 @@ async function getAllConnectedAgents(id, org_id, type) {
           agentsMap[agentId].childAgents.push(childId);
         }
         const childType = info.version_id ? "version" : "bridge";
-        await processAgent(childId, [agentId], childType);
+        await processAgent(childId, [agentId], childType, "down");
+      }
+    }
+
+    // For "flow" key, also traverse parent agents
+    if (key === "flow" && direction !== "down-only") {
+      const parentAgentsList = await findParentAgents(agentId);
+      for (const parent of parentAgentsList) {
+        if (!agentsMap[parent.id]) {
+          // Process parent agent (going "up")
+          await processAgent(parent.id, [], parent.type, "up");
+        }
+        // Ensure the parent-child relationship is properly set
+        if (agentsMap[parent.id] && !agentsMap[parent.id].childAgents.includes(agentId)) {
+          agentsMap[parent.id].childAgents.push(agentId);
+        }
+        if (agentsMap[agentId] && !agentsMap[agentId].parentAgents.includes(parent.id)) {
+          agentsMap[agentId].parentAgents.push(parent.id);
+        }
       }
     }
   }
 
-  await processAgent(id, null, type);
+  // Start processing from the given agent
+  await processAgent(id, [], type, key === "flow" ? "both" : "down");
 
   return agentsMap;
 }
