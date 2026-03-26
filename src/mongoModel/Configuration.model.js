@@ -296,5 +296,6 @@ const configuration = new mongoose.Schema({
 
 configuration.index({ org_id: 1, slugName: 1 }, { unique: true });
 configuration.index({ deletedAt: 1 }, { expireAfterSeconds: 2592000 }); // TTL index for 30 days (1 month)
+configuration.index({ org_id: 1, deletedAt: 1 });
 const configurationModel = mongoose.model("configuration", configuration);
 export default configurationModel;

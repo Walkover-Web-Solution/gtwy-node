@@ -10,5 +10,4 @@ router.post("/", middleware, checkAgentAccessMiddleware, validate(apikeyValidati
 router.get("/", middleware, apikeyController.getAllApikeys);
 router.put("/:apikey_id", middleware, checkAgentAccessMiddleware, validate(apikeyValidation.updateApikey), apikeyController.updateApikey);
 router.delete("/", middleware, checkAgentAccessMiddleware, validate(apikeyValidation.deleteApikey), apikeyController.deleteApikey);
-
 export default router;
