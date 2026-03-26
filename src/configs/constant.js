@@ -153,7 +153,7 @@ export const AI_OPERATION_CONFIG = {
     bridgeIdConst: bridge_ids["structured_output_optimizer"],
     prebuiltKey: "structured_output_optimizer",
     getVariables: (req) => ({ json_schema: req.body.json_schema, query: req.body.query }),
-    getMessage: () => "create the json shcmea accroding to the dummy json explained in system prompt.",
+    getMessage: () => "create the json schema according to the dummy json explained in system prompt.",
     successMessage: "Structured output optimized successfully" // Or whatever default success message is appropriate, though callAiMiddleware returns result directly usually
   },
   improve_prompt: {
