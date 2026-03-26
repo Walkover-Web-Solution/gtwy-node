@@ -5,6 +5,8 @@ import apiCallModel from "../mongoModel/ApiCall.model.js";
 import { ObjectId } from "mongodb";
 import { getUniqueNameAndSlug, normalizeFunctionIds, cloneFunctionsForAgent } from "../utils/agentConfig.utils.js";
 import { copyResourceToOrgUtil } from "../utils/rag.utils.js";
+import { callAiMiddleware } from "../services/utils/aiCall.utils.js";
+import { bridge_ids } from "../configs/constant.js";
 
 const allTemplates = async (req, res, next) => {
   const result = await templateService.getAll();
@@ -41,7 +43,8 @@ const FILTER_BRIDGE_EXCLUDE_KEYS = new Set([
   "parent_id",
   "published_version_id",
   "versions",
-  "is_drafted"
+  "is_drafted",
+  "response_format"
 ]);
 
 export function filterBridge(data) {
@@ -154,16 +157,26 @@ const createTemplate = async (req, res, next) => {
   if (bridge.connected_agents && Object.keys(bridge.connected_agents).length > 0) {
     bridge.child_agents = await buildConnectedAgents(bridge.connected_agents, new Set([agent_id]));
   }
+  const user = "Validate the template";
+  const isValid = await callAiMiddleware(user, bridge_ids["template_validator"], { template: bridge, templateName, email: req.profile?.user?.email });
 
   // Save the template
-  const template = await templateService.saveTemplate(bridge, templateName);
-
-  res.locals = {
-    success: true,
-    result: template
-  };
-  req.statusCode = 200;
-  return next();
+  if (isValid?.status) {
+    const template = await templateService.saveTemplate(bridge, templateName);
+    res.locals = {
+      success: true,
+      result: template
+    };
+    req.statusCode = 200;
+    return next();
+  } else {
+    res.locals = {
+      success: false,
+      message: "Failed to convert agent to template."
+    };
+    req.statusCode = 400;
+    return next();
+  }
 };
 
 const createAgentFromTemplateController = async (req, res, next) => {
