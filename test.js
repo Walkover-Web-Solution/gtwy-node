@@ -14,7 +14,7 @@ function remapConnectedAgents(connected_agents) {
   const remapped = {};
 
   for (const [key, agent_info] of entries) {
-    const bridgeId = agent_info?.bridge_id?.toString ? agent_info.bridge_id.toString() : agent_info?.bridge_id;
+    const bridgeId = agent_info?.bridge_id?.toString() ?? agent_info?.bridge_id;
 
     if (isObjectId(key)) {
       // Already keyed by bridge_id — keep as-is
@@ -53,14 +53,16 @@ async function migrateConnectedAgents() {
       .toArray();
     totalConfigs = configs.length;
 
+    const configOps = [];
     for (const doc of configs) {
       const remapped = remapConnectedAgents(doc.connected_agents);
       if (remapped) {
-        await configurations.updateOne({ _id: doc._id }, { $set: { connected_agents: remapped } });
+        configOps.push({ updateOne: { filter: { _id: doc._id }, update: { $set: { connected_agents: remapped } } } });
         updatedConfigs++;
         console.log(`  Config ${doc._id}: remapped keys [${Object.keys(doc.connected_agents).join(", ")}] → [${Object.keys(remapped).join(", ")}]`);
       }
     }
+    if (configOps.length) await configurations.bulkWrite(configOps);
 
     // --- Migrate bridge versions ---
     console.log("\nMigrating bridge versions...");
@@ -69,14 +71,16 @@ async function migrateConnectedAgents() {
       .toArray();
     totalVersions = versions.length;
 
+    const versionOps = [];
     for (const doc of versions) {
       const remapped = remapConnectedAgents(doc.connected_agents);
       if (remapped) {
-        await bridgeversions.updateOne({ _id: doc._id }, { $set: { connected_agents: remapped } });
+        versionOps.push({ updateOne: { filter: { _id: doc._id }, update: { $set: { connected_agents: remapped } } } });
         updatedVersions++;
         console.log(`  Version ${doc._id}: remapped keys [${Object.keys(doc.connected_agents).join(", ")}] → [${Object.keys(remapped).join(", ")}]`);
       }
     }
+    if (versionOps.length) await bridgeversions.bulkWrite(versionOps);
 
     console.log("\n" + "=".repeat(60));
     console.log("Migration Summary:");
