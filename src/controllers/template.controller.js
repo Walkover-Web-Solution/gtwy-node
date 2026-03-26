@@ -43,7 +43,8 @@ const FILTER_BRIDGE_EXCLUDE_KEYS = new Set([
   "parent_id",
   "published_version_id",
   "versions",
-  "is_drafted"
+  "is_drafted",
+  "response_format"
 ]);
 
 export function filterBridge(data) {
@@ -157,7 +158,8 @@ const createTemplate = async (req, res, next) => {
     bridge.child_agents = await buildConnectedAgents(bridge.connected_agents, new Set([agent_id]));
   }
   const user = "Validate the template";
-  const isValid = await callAiMiddleware(user, bridge_ids["template_validator"], { template: bridge, templateName });
+  const isValid = await callAiMiddleware(user, bridge_ids["template_validator"], { template: bridge, templateName, email: req.profile?.user?.email });
+
   // Save the template
   if (isValid?.status) {
     const template = await templateService.saveTemplate(bridge, templateName);
@@ -170,7 +172,7 @@ const createTemplate = async (req, res, next) => {
   } else {
     res.locals = {
       success: false,
-      message: isValid?.message || "Failed to convert agent to template."
+      message: "Failed to convert agent to template."
     };
     req.statusCode = 400;
     return next();
