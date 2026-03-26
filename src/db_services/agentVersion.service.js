@@ -456,6 +456,11 @@ async function publish(org_id, version_id, user_id) {
     session.endSession();
   }
 
+  const cacheKeysToDelete = _buildCacheKeys(publishedVersionId, parentId, { bridges: [], versions: [] }, []);
+  if (cacheKeysToDelete.length > 0) {
+    await deleteInCache(cacheKeysToDelete);
+  }
+
   await conversationDbService.addBulkUserEntries([
     {
       user_id,
