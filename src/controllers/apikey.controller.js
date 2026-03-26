@@ -15,7 +15,7 @@ import { redis_keys, cost_types, new_agent_service } from "../configs/constant.j
 import { cleanupCache } from "../services/utils/redis.utils.js";
 
 const saveApikey = async (req, res, next) => {
-  const { service, name, comment, apikey_limit = 0, apikey_limit_reset_period, apikey_limit_start_date } = req.body;
+  const { service, name, apikey_limit = 0, apikey_limit_reset_period, apikey_limit_start_date } = req.body;
   const org_id = req.profile?.org?.id;
   const folder_id = req.profile?.extraDetails?.folder_id;
   const user_id = req.profile.user.id;
@@ -31,7 +31,6 @@ const saveApikey = async (req, res, next) => {
     apikey,
     service,
     name,
-    comment,
     folder_id,
     user_id,
     apikey_limit,
@@ -118,7 +117,7 @@ const getAllApikeys = async (req, res, next) => {
 
 const updateApikey = async (req, res, next) => {
   let apikey = req.body.apikey;
-  const { name, comment, service, apikey_limit = 0, apikey_usage = -1, apikey_limit_reset_period } = req.body;
+  const { name, service, apikey_limit = 0, apikey_usage = -1, apikey_limit_reset_period } = req.body;
   const { apikey_id: apikey_object_id } = req.params;
 
   // Check API key validity if provided
@@ -132,7 +131,6 @@ const updateApikey = async (req, res, next) => {
     apikey,
     name,
     service,
-    comment,
     apikey_limit,
     apikey_usage,
     apikey_limit_reset_period
