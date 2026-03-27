@@ -1,8 +1,10 @@
-import { genrateToken } from "../utils/rag.utils.js";
-import { generateAuthToken, generateIdentifier } from "../services/utils/utility.service.js";
-import { createProxyToken, getOrganizationById, updateOrganizationData } from "../services/proxy.service.js";
-import axios from "axios";
-import ragCollectionService from "../db_services/ragCollection.service.js";
+import { genrateToken } from '../utils/rag.utils.js';
+import { generateAuthToken, generateIdentifier } from '../services/utils/utility.service.js';
+import { createProxyToken, getOrganizationById, updateOrganizationData } from '../services/proxy.service.js';
+import axios from 'axios';
+import ragCollectionService from '../db_services/ragCollection.service.js';
+import configurationService from '../db_services/configuration.service.js';
+import agentVersionService from '../db_services/agentVersion.service.js';
 
 export const ragEmbedUserLogin = async (req, res, next) => {
   const { name: embeduser_name, email: embeduser_email } = req.isGtwyUser ? {} : req.Embed;
@@ -380,35 +382,49 @@ export const updateResourceInCollection = async (req, res, next) => {
 };
 
 export const deleteResourceFromCollection = async (req, res, next) => {
-  try {
-    const { id } = req.params;
+    try {
+        const { id } = req.params;
+        
+        const hippocampusUrl = 'http://hippocampus.gtwy.ai';
+        const hippocampusApiKey = process.env.HIPPOCAMPUS_API_KEY;
+        
+        const response = await axios.delete(`${hippocampusUrl}/resource/${id}`, {
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': hippocampusApiKey
+            }
+        });
+        
+         // If external deletion was successful
+        if (response.status === 200) {
+            // Remove from configurations and versions
+            try {
+                await Promise.all([
+                    configurationService.removeResourceReference(id),
+                    agentVersionService.removeResourceReference(id)
+                ]);
+            } catch (cleanupError) {
+                console.error('Error cleaning up resource references:', cleanupError);
+                // We don't fail the request if cleanup fails, but we log it
+            }
+        }
 
-    const hippocampusUrl = "http://hippocampus.gtwy.ai";
-    const hippocampusApiKey = process.env.HIPPOCAMPUS_API_KEY;
-
-    const response = await axios.delete(`${hippocampusUrl}/resource/${id}`, {
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": hippocampusApiKey
-      }
-    });
-
-    res.locals = {
-      success: true,
-      message: "Resource deleted successfully",
-      data: response.data
-    };
-    req.statusCode = 200;
-    return next();
-  } catch (error) {
-    console.error("Error deleting resource:", error);
-    res.locals = {
-      success: false,
-      error: error.response?.data || error.message
-    };
-    req.statusCode = error.response?.status || 500;
-    return next();
-  }
+        res.locals = {
+            "success": true,
+            "message": "Resource deleted successfully",
+            "data": response.data
+        };
+        req.statusCode = 200;
+        return next();
+    } catch (error) {
+        console.error('Error deleting resource:', error);
+        res.locals = {
+            "success": false,
+            "error": error.response?.data || error.message
+        };
+        req.statusCode = error.response?.status || 500;
+        return next();
+    }
 };
 
 export const getResourceChunks = async (req, res, next) => {

@@ -555,17 +555,34 @@ async function getAllConnectedAgents(id, org_id, type) {
   return agentsMap;
 }
 
+const removeResourceReference = async (resourceId) => {
+    try {
+        const result = await bridgeVersionModel.updateMany(
+            { "doc_ids.resource_id": resourceId },
+            { $pull: { doc_ids: { resource_id: resourceId } } }
+        );
+        return {
+            success: true,
+            modifiedCount: result.modifiedCount
+        };
+    } catch (error) {
+        console.error("Error removing resource reference from agent versions:", error);
+        throw error;
+    }
+};
+
 export default {
-  getVersion,
-  createAgentVersion,
-  createBridgeVersion: createAgentVersion, // Keep alias for backward compatibility
-  updateAgents,
-  updateBridges: updateAgents, // Keep alias for backward compatibility
-  getVersionWithTools,
-  publish,
-  deleteAgentVersion,
-  deleteBridgeVersion: deleteAgentVersion, // Keep alias for backward compatibility
-  makeQuestion,
-  getAllConnectedAgents,
-  _buildCacheKeys
+    getVersion,
+    createAgentVersion,
+    createBridgeVersion: createAgentVersion, // Keep alias for backward compatibility
+    updateAgents,
+    updateBridges: updateAgents, // Keep alias for backward compatibility
+    getVersionWithTools,
+    publish,
+    deleteAgentVersion,
+    deleteBridgeVersion: deleteAgentVersion, // Keep alias for backward compatibility
+    makeQuestion,
+    getAllConnectedAgents,
+    _buildCacheKeys,
+    removeResourceReference
 };
