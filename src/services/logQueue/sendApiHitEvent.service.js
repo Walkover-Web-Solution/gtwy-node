@@ -3,18 +3,18 @@ import logger from "../../logger.js";
 
 async function sendApiHitEvent({ message_id, org_id }) {
   try {
-    const url = process.env.EVENTS_API_URL;
-    const api_key = process.env.EVENTS_API_KEY;
-    const code = process.env.EVENTS_API_CODE;
+    const baseUrl = process.env.BILLING_API_URL;
+    const api_key = process.env.BILLING_API_KEY;
+    const code = process.env.BILLING_EVENT_CODE;
 
-    if (!url || !api_key || !code) return;
+    if (!baseUrl || !api_key || !code) return;
 
     await axios.post(
-      url,
+      `${baseUrl}/events`,
       {
         event: {
           transaction_id: message_id,
-          external_subscription_id: String(org_id),
+          external_subscription_id: `sub_${org_id}`,
           code
         }
       },
