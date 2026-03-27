@@ -34,6 +34,26 @@ const deleteUserModelConfigurationQuerySchema = Joi.object({
   })
 }).unknown(true);
 
+const bulkUpdateModelFilterSchema = Joi.object().min(1).unknown(true);
+
+const bulkUpdateUserModelConfigurationBodySchema = Joi.object({
+  models: Joi.array()
+    .items(
+      Joi.object({
+        model_name: Joi.string()
+          .pattern(/^[^\s]+$/)
+          .message("model_name must not contain spaces")
+          .required()
+      }).required()
+    )
+    .min(1)
+    .optional(),
+  filter: bulkUpdateModelFilterSchema.optional(),
+  change: Joi.object().min(1).required()
+})
+  .or("models", "filter")
+  .unknown(true);
+
 // Legacy schema for backward compatibility
 const UserModelConfigSchema = Joi.object({
   org_id: Joi.string().required(),
@@ -49,4 +69,10 @@ const UserModelConfigSchema = Joi.object({
   validationConfig: Joi.object().unknown(true).required()
 }).unknown(true);
 
-export { modelConfigSchema, UserModelConfigSchema, saveUserModelConfigurationBodySchema, deleteUserModelConfigurationQuerySchema };
+export {
+  modelConfigSchema,
+  UserModelConfigSchema,
+  saveUserModelConfigurationBodySchema,
+  deleteUserModelConfigurationQuerySchema,
+  bulkUpdateUserModelConfigurationBodySchema
+};
