@@ -593,33 +593,35 @@ const getAgentIdBySlugname = async (orgId, slugName) => {
 };
 const getAgentBySlugname = async (orgId, slugName, versionId) => {
   try {
-    const hello_id = await configurationModel
-      .findOne({
-        slugName: slugName,
-        org_id: orgId
-      })
-      .select({ hello_id: 1, "configuration.model": 1, service: 1, apikey_object_id: 1 })
-      .lean();
+    const query = { slugName, org_id: orgId };
+    const fields = { hello_id: 1, "configuration.model": 1, "configuration.stream": 1, service: 1, apikey_object_id: 1 };
 
-    const modelConfig = await versionModel
-      .findOne({
-        _id: new ObjectId(versionId)
-      })
-      .select({ "configuration.model": 1, service: 1, apikey_object_id: 1 })
-      .lean();
+    const agentData = await configurationModel.findOne(query).select(fields).lean();
+    if (!agentData)
+      return {
+        success: false,
+        error: "Agent not found"
+      };
 
-    const model = versionId ? modelConfig.configuration : hello_id?.configuration;
-    const service = versionId ? modelConfig.service : hello_id?.service;
-    const apikey_object_id = versionId ? modelConfig.apikey_object_id : hello_id?.apikey_object_id;
+    let versionData = null;
+    if (versionId) {
+      versionData = await versionModel
+        .findOne({ _id: new ObjectId(versionId) })
+        .select(fields)
+        .lean();
+    }
 
-    if (!hello_id) return false;
-
-    return { hello_id, modelConfig: model, apikey_object_id, service };
+    const source = versionData || agentData;
+    return {
+      hello_id: agentData.hello_id,
+      modelConfig: source.configuration,
+      service: source.service,
+      apikey_object_id: source.apikey_object_id
+    };
   } catch (error) {
-    console.log("error:", error);
     return {
       success: false,
-      error: "something went wrong!!"
+      error: `getAgentBySlugname error: ${error}`
     };
   }
 };
@@ -968,11 +970,11 @@ const updateAgents = async (version_id, agents, add = 1) => {
 };
 
 const updateAgentIdsInApiCalls = async (function_id, agent_id, add = 1) => {
-  const to_update = { $set: { status: 1 } };
+  const to_update = {};
   if (add === 1) {
-    to_update.$addToSet = { bridge_ids: new ObjectId(agent_id) };
+    to_update.$addToSet = { bridge_ids: agent_id };
   } else {
-    to_update.$pull = { bridge_ids: new ObjectId(agent_id) };
+    to_update.$pull = { bridge_ids: agent_id };
   }
 
   const data = await apiCallModel.findOneAndUpdate({ _id: new ObjectId(function_id) }, to_update, {

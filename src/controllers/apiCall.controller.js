@@ -2,6 +2,8 @@ import service from "../db_services/apiCall.service.js";
 import { validateRequiredParams } from "../services/utils/apiCall.utils.js";
 import ConfigurationServices from "../db_services/configuration.service.js";
 import Helper from "../services/utils/helper.utils.js";
+import agentVersionService from "../db_services/agentVersion.service.js";
+import { deleteInCache } from "../cache_service/index.js";
 
 const getAllApiCalls = async (req, res, next) => {
   const org_id = req.profile?.org?.id;
@@ -36,6 +38,12 @@ const updateApiCalls = async (req, res, next) => {
   };
 
   const updated_function = await service.updateApiCallByFunctionId(org_id, function_id, data_to_update);
+
+  const bridge_ids = updated_function?.data?.bridge_ids || [];
+  if (bridge_ids.length > 0) {
+    const keys_to_delete = bridge_ids.flatMap((id) => agentVersionService._buildCacheKeys(id, id, { bridges: [], versions: [] }, []));
+    deleteInCache(keys_to_delete);
+  }
 
   res.locals = {
     success: true,
@@ -84,7 +92,6 @@ const createApi = async (req, res, next) => {
         res.locals = {
           message: "API saved successfully",
           success: true,
-          activated: true,
           data: responseData
         };
         req.statusCode = 200;

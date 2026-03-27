@@ -209,3 +209,8 @@ export async function removeClientUser(userId, companyId, featureId) {
     throw error;
   }
 }
+
+export async function getOrganizationOwner(orgId) {
+  const org = await getOrganizationById(orgId);
+  return org?.created_by?.toString() || null;
+}

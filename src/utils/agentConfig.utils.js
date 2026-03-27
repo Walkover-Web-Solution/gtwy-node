@@ -68,8 +68,7 @@ const cloneFunctionsForAgent = async (function_ids, org_id, agent_id) => {
       await apiCallModel.updateOne(
         { _id: existing_api_call._id },
         {
-          $addToSet: { bridge_ids: new ObjectId(agent_id) },
-          $set: { status: 1, updated_at: new Date() }
+          $addToSet: { bridge_ids: agent_id.toString() }
         }
       );
       cloned_function_ids.push(existing_api_call._id.toString());
@@ -102,8 +101,7 @@ const cloneFunctionsForAgent = async (function_ids, org_id, agent_id) => {
         delete new_api_call._id;
         new_api_call.org_id = org_id;
         new_api_call.script_id = duplicate_data.data.id;
-        new_api_call.bridge_ids = [new ObjectId(agent_id)];
-        new_api_call.updated_at = new Date();
+        new_api_call.bridge_ids = [agent_id.toString()];
 
         const new_api_call_result = await new apiCallModel(new_api_call).save();
         cloned_function_ids.push(new_api_call_result._id.toString());
@@ -115,8 +113,7 @@ const cloneFunctionsForAgent = async (function_ids, org_id, agent_id) => {
       const new_api_call = { ...original_api_call };
       delete new_api_call._id;
       new_api_call.org_id = org_id;
-      new_api_call.bridge_ids = [new ObjectId(agent_id)];
-      new_api_call.updated_at = new Date();
+      new_api_call.bridge_ids = [agent_id.toString()];
 
       const new_api_call_result = await new apiCallModel(new_api_call).save();
       cloned_function_ids.push(new_api_call_result._id.toString());
