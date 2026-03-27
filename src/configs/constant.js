@@ -29,7 +29,8 @@ const bridge_ids = {
   generate_test_cases: "68e8d1fbf8c9ba2043cf7afd",
   prompt_checker: "692ee19da04fbf2a132b252c",
   rich_ui_template: "6967b36c17a69473fa7fdb90",
-  canonicalizer: "6973200cf60dd5bf64eeb325"
+  canonicalizer: "6973200cf60dd5bf64eeb325",
+  template_validator: "69c134229df6d4d2d1dd2ae5"
 };
 
 const redis_keys = {
@@ -154,7 +155,7 @@ export const AI_OPERATION_CONFIG = {
     bridgeIdConst: bridge_ids["structured_output_optimizer"],
     prebuiltKey: "structured_output_optimizer",
     getVariables: (req) => ({ json_schema: req.body.json_schema, query: req.body.query }),
-    getMessage: () => "create the json shcmea accroding to the dummy json explained in system prompt.",
+    getMessage: () => "create the json schema according to the dummy json explained in system prompt.",
     successMessage: "Structured output optimized successfully" // Or whatever default success message is appropriate, though callAiMiddleware returns result directly usually
   },
   improve_prompt: {
@@ -206,20 +207,19 @@ export const AI_OPERATION_CONFIG = {
               // ── Generic binding mode (new: itemTemplate + binding + itemAlias) ──
               if (node.type === "ListView" && node.binding && node.itemTemplate) {
                 // binding may be a direct key ("rows") or a placeholder ("{{trips}}")
-                const bpMatch = typeof node.binding === "string"
-                  ? node.binding.match(/^\{\{([\w.]+)\}\}$/) : null;
+                const bpMatch = typeof node.binding === "string" ? node.binding.match(/^\{\{([\w.]+)\}\}$/) : null;
                 const bindingKey = bpMatch ? bpMatch[1] : node.binding;
                 const listData = getValue(context, bindingKey);
                 if (Array.isArray(listData)) {
                   const alias = node.itemAlias || "item";
-                  const siblingScope = Object.fromEntries(
-                    Object.entries(context).filter(([k]) => k !== bindingKey)
-                  );
+                  const siblingScope = Object.fromEntries(Object.entries(context).filter(([k]) => k !== bindingKey));
                   const resolvedChildren = listData.map((item) => {
                     const itemContext = { ...context, ...siblingScope, [alias]: item };
                     return resolve(node.itemTemplate, itemContext);
                   });
-                  const rest = Object.fromEntries(Object.entries(node).filter(([k]) => !['itemTemplate','binding','itemAlias','idField'].includes(k)));
+                  const rest = Object.fromEntries(
+                    Object.entries(node).filter(([k]) => !["itemTemplate", "binding", "itemAlias", "idField"].includes(k))
+                  );
                   return { ...rest, children: resolvedChildren };
                 }
               }
@@ -227,8 +227,7 @@ export const AI_OPERATION_CONFIG = {
               // ── Legacy binding mode (children[0] as template, binding may be {{placeholder}}) ──
               if (node.type === "ListView" && node.binding && !node.itemTemplate) {
                 // Unwrap "{{trips}}" → "trips", or use direct key "rows" as-is
-                const bpMatch = typeof node.binding === "string"
-                  ? node.binding.match(/^\{\{([\w.]+)\}\}$/) : null;
+                const bpMatch = typeof node.binding === "string" ? node.binding.match(/^\{\{([\w.]+)\}\}$/) : null;
                 const bindingKey = bpMatch ? bpMatch[1] : node.binding;
                 const listData = getValue(context, bindingKey);
                 if (Array.isArray(listData) && node.children?.length > 0) {
@@ -244,9 +243,10 @@ export const AI_OPERATION_CONFIG = {
                     }
                   }
                   const resolvedChildren = listData.map((item) => {
-                    const localContext = (item && typeof item === "object" && !Array.isArray(item))
-                      ? { ...context, ...item, [localKey]: item }
-                      : { ...context, [localKey]: item };
+                    const localContext =
+                      item && typeof item === "object" && !Array.isArray(item)
+                        ? { ...context, ...item, [localKey]: item }
+                        : { ...context, [localKey]: item };
                     return resolve(itemTemplate, localContext);
                   });
                   return { ...node, children: resolvedChildren };
@@ -272,11 +272,11 @@ export const AI_OPERATION_CONFIG = {
       return {
         success: true,
         message: "Rich UI template generated successfully",
-        result: ui,              
-        ui,                      
-        variables,             
-        template_format: originalRawUi, 
-        json_schema: originalRawUi ? buildSchemaFromTemplateFormat(originalRawUi, {}, variables ?? {}) : null,
+        result: ui,
+        ui,
+        variables,
+        template_format: originalRawUi,
+        json_schema: originalRawUi ? buildSchemaFromTemplateFormat(originalRawUi, {}, variables ?? {}) : null
       };
     }
   },
@@ -299,5 +299,11 @@ export const AI_OPERATION_CONFIG = {
         memory
       };
     }
+  },
+  template_validator: {
+    bridgeIdConst: bridge_ids["template_validator"],
+    getVariables: (req) => req.body,
+    getMessage: () => "validate the template",
+    successMessage: "Template validated successfully"
   }
 };

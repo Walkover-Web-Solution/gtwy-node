@@ -1,8 +1,7 @@
-import { alerts_Model } from "../mongoModel/Alerts.model.js";
-
+import AlertModel from "../mongoModel/Alerting.model.js";
 async function get_webhook_data(org_id) {
   try {
-    const webhook_data = await alerts_Model.find({
+    const webhook_data = await AlertModel.find({
       org_id: org_id
     });
     return {

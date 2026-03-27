@@ -1,6 +1,6 @@
 import ChatbotDbService from "../db_services/chatBot.service.js";
-import responseTypeService from "../db_services/responseType.service.js";
 import configurationService from "../db_services/configuration.service.js";
+import { getOrganizationById, updateOrganizationData } from "../services/proxy.service.js";
 import token from "../services/commonService/generateToken.js";
 import { generateIdentifier } from "../services/utils/utility.service.js";
 import { generateToken } from "../services/utils/users.service.js";
@@ -48,14 +48,11 @@ const getAllChatBots = async (req, res, next) => {
   }
 
   chatbots = await ChatbotDbService.getAll(org_id);
-  const { chatBot } = await responseTypeService.getAll(org_id);
-
-  let accessKey;
-  if (chatBot?.orgAcessToken) {
-    accessKey = chatBot?.orgAcessToken;
-  } else {
-    const org = await responseTypeService.createOrgToken(org_id, generateIdentifier(32));
-    accessKey = org.orgData.orgAcessToken;
+  const orgData = (await getOrganizationById(org_id)) || {};
+  let accessKey = orgData?.meta?.orgAccessToken;
+  if (!accessKey) {
+    accessKey = generateIdentifier(32);
+    await updateOrganizationData(org_id, { meta: { ...(orgData?.meta || {}), orgAccessToken: accessKey } });
   }
 
   const chatbot_token = token.generateToken({
@@ -159,15 +156,14 @@ const loginUser = async (req, res, next) => {
 
 const createOrgToken = async (req, res, next) => {
   const orgId = req.profile.org.id;
-  const { chatBot } = await responseTypeService.getAll(orgId);
-  if (chatBot?.orgAcessToken) {
-    res.locals = chatBot;
-    req.statusCode = 200;
-    return next();
+  const orgData = await getOrganizationById(orgId);
+  let orgAccessToken = orgData?.meta?.orgAccessToken;
+  if (!orgAccessToken) {
+    orgAccessToken = generateIdentifier(32);
+    await updateOrganizationData(orgId, { meta: { ...(orgData?.meta || {}), orgAccessToken } });
   }
-  const org = await responseTypeService.createOrgToken(orgId, generateIdentifier(32));
-  res.locals = org?.success ? org.orgData : { success: false, message: "Failed to create org token" };
-  req.statusCode = org?.success ? 200 : 404;
+  res.locals = { orgAccessToken };
+  req.statusCode = 200;
   return next();
 };
 

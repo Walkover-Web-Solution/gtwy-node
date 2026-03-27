@@ -14,9 +14,10 @@ const clearRedisCache = async (req, res, next) => {
     const identifiers = ids ? ids : id;
     await deleteInCache(identifiers);
 
-    const message = Array.isArray(identifiers) ? `Redis Keys cleared successfully (${identifiers.length} keys)` : "Redis Key cleared successfully";
+    const clearedKeys = Array.isArray(identifiers) ? identifiers : [identifiers];
+    const message = clearedKeys.length > 1 ? `Redis Keys cleared successfully (${clearedKeys.length} keys)` : "Redis Key cleared successfully";
 
-    res.locals = { message };
+    res.locals = { message, cleared_keys: clearedKeys, count: clearedKeys.length };
     req.statusCode = 200;
     return next();
   } else {
@@ -27,12 +28,20 @@ const clearRedisCache = async (req, res, next) => {
     const keysToDelete = keys.filter((key) => {
       return !protectedPatterns.some((pattern) => key.includes(pattern));
     });
+    const skippedKeys = keys.filter((key) => {
+      return protectedPatterns.some((pattern) => key.includes(pattern));
+    });
 
     if (keysToDelete && keysToDelete.length > 0) {
       await deleteInCache(keysToDelete);
     }
 
-    res.locals = { message: "Redis cleared successfully" };
+    res.locals = {
+      message: "Redis cleared successfully",
+      cleared_keys: keysToDelete,
+      skipped_keys: skippedKeys,
+      count: keysToDelete.length
+    };
     req.statusCode = 200;
     return next();
   }

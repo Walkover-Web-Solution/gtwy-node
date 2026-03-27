@@ -45,11 +45,16 @@ export default (sequelize, DataTypes) => {
       },
       latency: DataTypes.FLOAT,
       success: DataTypes.BOOLEAN,
-      cost: DataTypes.FLOAT
+      cost: DataTypes.FLOAT,
+      time_zone: {
+        type: DataTypes.STRING,
+        allowNull: true
+      }
     },
     {
       sequelize,
       modelName: "raw_data",
+      tableName: "metrics_raw_data",
       timestamps: false
     }
   );

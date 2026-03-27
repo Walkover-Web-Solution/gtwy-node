@@ -15,7 +15,7 @@ import { redis_keys, cost_types, new_agent_service } from "../configs/constant.j
 import { cleanupCache } from "../services/utils/redis.utils.js";
 
 const saveApikey = async (req, res, next) => {
-  const { service, name, comment, apikey_limit = 0, apikey_limit_reset_period, apikey_limit_start_date } = req.body;
+  const { service, name, apikey_limit = 0, apikey_limit_reset_period, apikey_limit_start_date } = req.body;
   const org_id = req.profile?.org?.id;
   const folder_id = req.profile?.extraDetails?.folder_id;
   const user_id = req.profile.user.id;
@@ -31,7 +31,6 @@ const saveApikey = async (req, res, next) => {
     apikey,
     service,
     name,
-    comment,
     folder_id,
     user_id,
     apikey_limit,
@@ -118,7 +117,7 @@ const getAllApikeys = async (req, res, next) => {
 
 const updateApikey = async (req, res, next) => {
   let apikey = req.body.apikey;
-  const { name, comment, service, apikey_limit = 0, apikey_usage = -1, apikey_limit_reset_period } = req.body;
+  const { name, service, apikey_limit = 0, apikey_usage = -1, apikey_limit_reset_period } = req.body;
   const { apikey_id: apikey_object_id } = req.params;
 
   // Check API key validity if provided
@@ -132,7 +131,6 @@ const updateApikey = async (req, res, next) => {
     apikey,
     name,
     service,
-    comment,
     apikey_limit,
     apikey_usage,
     apikey_limit_reset_period
@@ -170,13 +168,34 @@ const updateApikey = async (req, res, next) => {
 };
 
 const deleteApikey = async (req, res, next) => {
-  const { apikey_object_id } = req.body;
-  const org_id = req.profile.org.id;
+  const { apikey_object_id, service } = req.body;
 
-  const apikeys_data = await apikeyService.findApikeyById(apikey_object_id);
-  let version_ids = apikeys_data?.version_ids || [];
-  const service = apikeys_data?.service;
-  await apikeyService.findVersionsByIds(version_ids, service);
+  const org_id = req.profile.org.id;
+  // Check if API key is in use
+  const usageCheck = await apikeyService.checkApikeyUsage(apikey_object_id, org_id, service);
+  if (!usageCheck.success) {
+    res.locals = {
+      success: false,
+      message: usageCheck.error
+    };
+    req.statusCode = 400;
+    return next();
+  }
+
+  if (usageCheck.isInUse) {
+    res.locals = {
+      success: false,
+      message: "Cannot delete API key as it is currently in use",
+      isInUse: true,
+      usageDetails: {
+        agents: usageCheck.agents,
+        versions: usageCheck.versions
+      }
+    };
+    req.statusCode = 400;
+    return next();
+  }
+
   const result = await apikeyService.removeApikeyById(apikey_object_id, org_id);
 
   if (result.success) {

@@ -26,6 +26,10 @@ export default (sequelize, DataTypes) => {
         type: DataTypes.TEXT,
         allowNull: true
       },
+      reasoning: {
+        type: DataTypes.TEXT,
+        allowNull: true
+      },
       user: {
         type: DataTypes.TEXT,
         allowNull: true

@@ -8,7 +8,6 @@ import { deleteInCache, findInCache } from "../cache_service/index.js";
 import { cost_types, redis_keys } from "../configs/constant.js";
 import { generateAuthToken } from "../services/utils/utility.service.js";
 import jwt from "jsonwebtoken";
-import responseTypeService from "../db_services/responseType.service.js";
 
 const embedLogin = async (req, res) => {
   const { name: embeduser_name, email: embeduser_email } = req.Embed;
@@ -191,8 +190,6 @@ const updateEmbed = async (req, res, next) => {
 const genrateToken = async (req, res, next) => {
   let gtwyAccessToken;
   const data = await getOrganizationById(req.profile.org.id);
-  const { chatBot } = await responseTypeService.getAll(req.profile.org.id);
-
   gtwyAccessToken = data?.meta?.gtwyAccessToken;
   if (!gtwyAccessToken) {
     gtwyAccessToken = generateIdentifier(32);
@@ -233,7 +230,7 @@ const genrateToken = async (req, res, next) => {
       chatbot_id: folder_id,
       user_id
     };
-    const orgAccessToken = chatBot?.orgAcessToken;
+    const orgAccessToken = data?.meta?.orgAccessToken;
     if (orgAccessToken) {
       embedToken = jwt.sign(payload, orgAccessToken, { algorithm: "HS256" });
     }

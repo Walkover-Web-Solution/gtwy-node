@@ -1,6 +1,8 @@
 import apiCallModel from "../mongoModel/ApiCall.model.js";
 import versionModel from "../mongoModel/BridgeVersion.model.js";
 import mongoose from "mongoose";
+import { deleteInCache } from "../cache_service/index.js";
+import agentVersionService from "../db_services/agentVersion.service.js";
 
 async function getAllApiCallsByOrgId(org_id, folder_id, user_id, isEmbedUser) {
   let query = { org_id: org_id };
@@ -19,18 +21,18 @@ async function getAllApiCallsByOrgId(org_id, folder_id, user_id, isEmbedUser) {
             in: { $toString: "$$bridge_id" }
           }
         },
-        created_at: {
+        createdAt: {
           $cond: {
-            if: { $eq: [{ $type: "$created_at" }, "string"] },
-            then: "$created_at",
-            else: { $dateToString: { format: "%Y-%m-%d %H:%M:%S", date: "$created_at" } }
+            if: { $eq: [{ $type: "$createdAt" }, "string"] },
+            then: "$createdAt",
+            else: { $dateToString: { format: "%Y-%m-%d %H:%M:%S", date: "$createdAt" } }
           }
         },
-        updated_at: {
+        updatedAt: {
           $cond: {
-            if: { $eq: [{ $type: "$updated_at" }, "string"] },
-            then: "$updated_at",
-            else: { $dateToString: { format: "%Y-%m-%d %H:%M:%S", date: "$updated_at" } }
+            if: { $eq: [{ $type: "$updatedAt" }, "string"] },
+            then: "$updatedAt",
+            else: { $dateToString: { format: "%Y-%m-%d %H:%M:%S", date: "$updatedAt" } }
           }
         }
       }
@@ -139,7 +141,6 @@ async function saveApi(desc, org_id, folder_id, user_id, api_data, bridge_ids = 
     org_id: org_id,
     script_id: script_id,
     title: title,
-    status: 1,
     required_params: required_params
   };
 
@@ -176,6 +177,11 @@ async function saveApi(desc, org_id, folder_id, user_id, api_data, bridge_ids = 
   if (api_data && api_data._id) {
     // Update existing
     const updatedApi = await apiCallModel.findOneAndUpdate({ _id: api_data._id }, { $set: updateData }, { new: true, upsert: true }).lean();
+    const ids_to_purge = updatedApi?.bridge_ids || [];
+    if (ids_to_purge.length > 0) {
+      const keys_to_delete = ids_to_purge.flatMap((id) => agentVersionService._buildCacheKeys(id, id, { bridges: [], versions: [] }, []));
+      deleteInCache(keys_to_delete);
+    }
     return { success: true, api_data: updatedApi };
   } else {
     // Create new
