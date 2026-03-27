@@ -107,7 +107,7 @@ const createTemplate = async (req, res, next) => {
   const buildConnectedAgents = async (connected_agents, ancestorIds = new Set()) => {
     const result = {};
     for (const [key, agent] of Object.entries(connected_agents)) {
-      const agentBridgeId = agent.bridge_id?.toString?.() || agent.bridge_id;
+      const agentBridgeId = agent.bridge_id?.toString() ?? agent.bridge_id;
       if (!agentBridgeId) continue;
 
       if (ancestorIds.has(agentBridgeId)) {
@@ -384,7 +384,7 @@ const createAgentFromTemplateController = async (req, res, next) => {
     }
 
     const createdAgentsMap = new Map();
-    const rootBridgeId = template_content._id?.toString?.() || template_content._id;
+    const rootBridgeId = template_content._id?.toString() ?? template_content._id;
     if (rootBridgeId) {
       createdAgentsMap.set(rootBridgeId, result.bridge._id.toString());
     }
@@ -394,20 +394,21 @@ const createAgentFromTemplateController = async (req, res, next) => {
       const connected_agents = {};
 
       for (const [agent_name, child_agent] of Object.entries(child_agents_map)) {
-        const templateBridgeId = child_agent?.bridge_id?.toString?.() || child_agent?.bridge_id;
+        const templateBridgeId = child_agent?.bridge_id?.toString() ?? child_agent?.bridge_id;
         const cycleKey = templateBridgeId || agent_name;
 
         if (ancestorIds.has(cycleKey)) {
           const existingBridgeId = createdAgentsMap.get(cycleKey);
           if (existingBridgeId) {
-            connected_agents[agent_name] = { bridge_id: existingBridgeId, ...pickDefined(child_agent, ["thread_id", "version_id"]) };
+            connected_agents[existingBridgeId] = { bridge_id: existingBridgeId, ...pickDefined(child_agent, ["thread_id", "version_id"]) };
           }
           continue;
         }
 
         // Same agent referenced by multiple parents — reuse already-created bridge
         if (createdAgentsMap.has(cycleKey)) {
-          connected_agents[agent_name] = { bridge_id: createdAgentsMap.get(cycleKey), ...pickDefined(child_agent, ["thread_id", "version_id"]) };
+          const reusedId = createdAgentsMap.get(cycleKey);
+          connected_agents[reusedId] = { bridge_id: reusedId, ...pickDefined(child_agent, ["thread_id", "version_id"]) };
           continue;
         }
 
@@ -480,8 +481,9 @@ const createAgentFromTemplateController = async (req, res, next) => {
           );
         }
 
-        connected_agents[agent_name] = {
-          bridge_id: child_result.bridge._id.toString(),
+        const newChildBridgeId = child_result.bridge._id.toString();
+        connected_agents[newChildBridgeId] = {
+          bridge_id: newChildBridgeId,
           ...pickDefined(child_agent, ["thread_id", "version_id"])
         };
       }

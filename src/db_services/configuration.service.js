@@ -153,24 +153,24 @@ const cloneAgentToOrg = async (agent_id, to_shift_org_id, cloned_agents_map = nu
     const connected_agents_info = [];
 
     if (original_config.connected_agents) {
-      for (const [agent_name, agent_info] of Object.entries(original_config.connected_agents)) {
+      for (const [, agent_info] of Object.entries(original_config.connected_agents)) {
         const connected_agent_id = agent_info.bridge_id;
         if (connected_agent_id) {
           try {
             const connected_result = await cloneAgentToOrg(connected_agent_id, to_shift_org_id, cloned_agents_map, depth + 1);
 
             if (connected_result) {
-              cloned_connected_agents[agent_name] = {
-                bridge_id: connected_result.new_bridge_id
+              cloned_connected_agents[connected_result.new_bridge_id] = {
+                bridge_id: connected_result.new_bridge_id,
+                ...(agent_info.thread_id !== undefined && { thread_id: agent_info.thread_id })
               };
               connected_agents_info.push({
-                agent_name: agent_name,
                 original_bridge_id: connected_agent_id,
                 new_bridge_id: connected_result.new_bridge_id
               });
             }
           } catch (e) {
-            console.error(`Error cloning connected agent ${agent_name} (agent_id: ${connected_agent_id}):`, e);
+            console.error(`Error cloning connected agent (agent_id: ${connected_agent_id}):`, e);
           }
         }
       }
@@ -181,9 +181,14 @@ const cloneAgentToOrg = async (agent_id, to_shift_org_id, cloned_agents_map = nu
       const original_version = await versionModel.findOne({ _id: new ObjectId(version_id) }).lean();
       if (original_version && original_version.connected_agents) {
         const version_connected_agents = {};
-        for (const [agent_name] of Object.entries(original_version.connected_agents)) {
-          if (cloned_connected_agents[agent_name]) {
-            version_connected_agents[agent_name] = cloned_connected_agents[agent_name];
+        for (const [, v_agent_info] of Object.entries(original_version.connected_agents)) {
+          const old_id = v_agent_info.bridge_id;
+          const matched = connected_agents_info.find((c) => c.original_bridge_id === old_id);
+          if (matched) {
+            version_connected_agents[matched.new_bridge_id] = {
+              bridge_id: matched.new_bridge_id,
+              ...(v_agent_info.thread_id !== undefined && { thread_id: v_agent_info.thread_id })
+            };
           }
         }
 
@@ -929,18 +934,21 @@ const updateBuiltInTools = async (version_id, tool, add = 1) => {
 const updateAgents = async (version_id, agents, add = 1) => {
   let to_update;
   if (add === 1) {
-    // Add or update the connected agents
+    // Add or update the connected agents keyed by bridge_id, agent name stored inside
     const setFields = {};
-    for (const [agent_name, agent_info] of Object.entries(agents)) {
-      agent_info.thread_id = true;
-      setFields[`connected_agents.${agent_name}`] = agent_info;
+    for (const [, agent_info] of Object.entries(agents)) {
+      const key = agent_info.bridge_id?.toString() ?? agent_info.bridge_id;
+      if (!key) continue;
+      if (agent_info.thread_id === undefined) agent_info.thread_id = true;
+      setFields[`connected_agents.${key}`] = { ...agent_info };
     }
     to_update = { $set: setFields };
   } else {
-    // Remove the specified connected agents
+    // Remove the specified connected agents by bridge_id
     const unsetFields = {};
-    for (const agent_name of Object.keys(agents)) {
-      unsetFields[`connected_agents.${agent_name}`] = "";
+    for (const [, agent_info] of Object.entries(agents)) {
+      const key = agent_info.bridge_id?.toString() ?? agent_info.bridge_id;
+      if (key) unsetFields[`connected_agents.${key}`] = "";
     }
     to_update = { $unset: unsetFields };
   }

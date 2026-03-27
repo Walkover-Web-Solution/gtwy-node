@@ -394,10 +394,10 @@ const updateAgentController = async (req, res, next) => {
     if (connected_agents) {
       const op = agent_status === "1" ? 1 : 0;
       if (op === 0) {
-        for (const agent_name in connected_agents) {
-          const agent_info = connected_agents[agent_name];
-          if (agent_info.agent_id && current_variables_path[agent_info.agent_id]) {
-            delete current_variables_path[agent_info.agent_id];
+        for (const agent_info of Object.values(connected_agents)) {
+          const key = agent_info.bridge_id?.toString() ?? agent_info.bridge_id;
+          if (key && current_variables_path[key]) {
+            delete current_variables_path[key];
             update_fields.variables_path = current_variables_path;
           }
         }
