@@ -2,8 +2,6 @@ import jwt from "jsonwebtoken";
 import { getOrganizationById } from "../services/proxy.service.js";
 import { encryptString, reportLoginFailure } from "../services/utils/utility.service.js";
 import { createOrGetUser } from "../utils/proxy.utils.js";
-import { storeInCache, findInCache, deleteInCache } from "../cache_service/index.js";
-import { embed_cache } from "../configs/constant.js";
 
 const GtwyEmbeddecodeToken = async (req, res, next) => {
   const token = req?.get("Authorization");
@@ -17,51 +15,14 @@ const GtwyEmbeddecodeToken = async (req, res, next) => {
       return res.status(401).json({ message: "unauthorized user, user id, folder id or org id not provided" });
     }
     if (decodedToken) {
-      const cacheKeyOrg = embed_cache.keys.org(decodedToken.org_id);
-      let orgTokenFromDb = null;
-
-      const cachedOrg = await findInCache(cacheKeyOrg);
-      if (cachedOrg) {
-        try {
-          orgTokenFromDb = JSON.parse(cachedOrg);
-        } catch {
-          await deleteInCache(cacheKeyOrg);
-          orgTokenFromDb = null;
-        }
-      }
-
-      if (!orgTokenFromDb) {
-        orgTokenFromDb = await getOrganizationById(decodedToken?.org_id);
-        if (orgTokenFromDb) {
-          await storeInCache(cacheKeyOrg, orgTokenFromDb, embed_cache.ttl);
-        }
-      }
-
+      const orgTokenFromDb = await getOrganizationById(decodedToken?.org_id);
       const orgToken = orgTokenFromDb?.meta?.gtwyAccessToken;
       if (orgToken) {
         const checkToken = jwt.verify(token, orgToken);
         if (checkToken) {
           if (checkToken.user_id) checkToken.user_id = encryptString(checkToken.user_id);
 
-          const cacheKeyUser = embed_cache.keys.user(decodedToken.user_id, decodedToken.org_id);
-          let proxyUserData = null;
-
-          const cachedUser = await findInCache(cacheKeyUser);
-          if (cachedUser) {
-            try {
-              proxyUserData = JSON.parse(cachedUser);
-            } catch {
-              await deleteInCache(cacheKeyUser);
-              proxyUserData = null;
-            }
-          }
-
-          if (!proxyUserData) {
-            const { proxyResponse, name, email } = await createOrGetUser(checkToken, decodedToken, orgTokenFromDb);
-            proxyUserData = { proxyResponse, name, email };
-            await storeInCache(cacheKeyUser, proxyUserData, embed_cache.ttl);
-          }
-
+          const proxyUserData = await createOrGetUser(checkToken, decodedToken, orgTokenFromDb);
           const { proxyResponse, name, email } = proxyUserData;
           req.Embed = {
             ...checkToken,
