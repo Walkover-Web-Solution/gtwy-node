@@ -54,16 +54,19 @@ async function processLogQueueMessage(messages) {
     });
   }
 
-  if (!messages["validateResponse"]?.alert_flag) {
-    await sendApiHitEvent({
-      message_id: messages["validateResponse"]?.message_id,
-      org_id: messages["validateResponse"]?.org_id
-    });
+  if (messages["validateResponse"]) {
+    if (!messages["validateResponse"]?.alert_flag) {
+      await sendApiHitEvent({
+        message_id: messages["validateResponse"]?.message_id,
+        org_id: messages["validateResponse"]?.org_id
+      });
+    }
+    await validateResponse(messages["validateResponse"]);
   }
 
-  await validateResponse(messages["validateResponse"]);
-  await totalTokenCalculation(messages["total_token_calculation"]);
-
+  if (messages["total_token_calculation"]) {
+    await totalTokenCalculation(messages["total_token_calculation"]);
+  }
   if (messages["check_handle_gpt_memory"]?.gpt_memory) {
     await handleGptMemory(messages["handle_gpt_memory"]);
   }
@@ -72,8 +75,9 @@ async function processLogQueueMessage(messages) {
     await chatbotSuggestions(messages["chatbot_suggestions"]);
   }
 
-  await saveFilesToRedis(messages["save_files_to_redis"]);
-
+  if (messages["save_files_to_redis"]) {
+    await saveFilesToRedis(messages["save_files_to_redis"]);
+  }
   if (messages.broadcast_response_webhook) {
     await broadcastResponseWebhook(messages["broadcast_response_webhook"]);
   }
