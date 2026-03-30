@@ -91,8 +91,10 @@ const createAgentController = async (req, res, next) => {
     let agent_data = {};
 
     if (purpose) {
+      const environment = String(process.env.ENVIROMENT || "").toUpperCase() === "PRODUCTION" ? "prod" : "test";
       const variables = {
         purpose: purpose,
+        environment: environment,
         all_bridge_names: all_agent_name,
         token: req.headers.authorization,
         fields: folder_data
