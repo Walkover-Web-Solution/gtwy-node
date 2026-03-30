@@ -103,17 +103,34 @@ async function findRecentThreadsByBridgeId(org_id, bridge_id, filters, user_feed
 
     // Add keyword search across recommended columns
     if (filters?.keyword?.length > 0 && filters?.keyword !== "") {
-      const keywordConditions = {
-        [Sequelize.Op.or]: [
-          { message_id: { [Sequelize.Op.iLike]: `%${filters.keyword}%` } },
-          { thread_id: { [Sequelize.Op.iLike]: `%${filters.keyword}%` } },
-          { sub_thread_id: { [Sequelize.Op.iLike]: `%${filters.keyword}%` } },
-          { llm_message: { [Sequelize.Op.iLike]: `%${filters.keyword}%` } },
-          { user: { [Sequelize.Op.iLike]: `%${filters.keyword}%` } },
-          { chatbot_message: { [Sequelize.Op.iLike]: `%${filters.keyword}%` } },
-          { updated_llm_message: { [Sequelize.Op.iLike]: `%${filters.keyword}%` } }
-        ]
-      };
+      const escapedKeyword = filters.keyword.replace(/'/g, "''");
+      let keywordConditions;
+
+      const searchableColumns = ["message_id", "thread_id", "sub_thread_id", "llm_message", "user", "chatbot_message", "updated_llm_message"];
+      const filterBy = filters?.filter_by;
+
+      if (filterBy === "variables") {
+        keywordConditions = {
+          [Sequelize.Op.or]: [
+            Sequelize.literal(
+              `EXISTS (SELECT 1 FROM jsonb_each_text("conversation_logs"."variables") AS kv WHERE kv.value ILIKE '%${escapedKeyword}%')`
+            )
+          ]
+        };
+      } else if (filterBy && filterBy !== "all" && searchableColumns.includes(filterBy)) {
+        keywordConditions = {
+          [Sequelize.Op.or]: [{ [filterBy]: { [Sequelize.Op.iLike]: `%${filters.keyword}%` } }]
+        };
+      } else {
+        keywordConditions = {
+          [Sequelize.Op.or]: [
+            ...searchableColumns.map((col) => ({ [col]: { [Sequelize.Op.iLike]: `%${filters.keyword}%` } })),
+            Sequelize.literal(
+              `EXISTS (SELECT 1 FROM jsonb_each_text("conversation_logs"."variables") AS kv WHERE kv.value ILIKE '%${escapedKeyword}%')`
+            )
+          ]
+        };
+      }
       whereConditions[Sequelize.Op.and] = [keywordConditions];
     }
 
