@@ -3,27 +3,20 @@ import { MongoClient } from "mongodb";
 const MONGODB_URI = "mongodb+srv://admin:Uc0sjm9jpLMsSGn5@cluster0.awdsppv.mongodb.net/AI_Middleware-test";
 
 // A valid bridge_id is a 24-char hex ObjectId string
-const isObjectId = (str) => typeof str === "string" && /^[a-f\d]{24}$/i.test(str);
 
 function remapConnectedAgents(connected_agents) {
   if (!connected_agents || typeof connected_agents !== "object") return null;
-  const entries = Object.entries(connected_agents);
-  if (entries.length === 0) return null;
+  if (Object.keys(connected_agents).length === 0) return null;
 
   let changed = false;
   const remapped = {};
 
-  for (const [key, agent_info] of entries) {
+  for (const agent_info of Object.values(connected_agents)) {
     const bridgeId = agent_info?.bridge_id?.toString() ?? agent_info?.bridge_id;
 
-    if (isObjectId(key)) {
-      // Already keyed by bridge_id — keep as-is
-      remapped[key] = agent_info;
-    } else if (bridgeId) {
-      // Keyed by agent name — remap to bridge_id
-      remapped[bridgeId] = agent_info;
-      changed = true;
-    }
+    // Keyed by agent name — remap to bridge_id
+    remapped[bridgeId] = agent_info;
+    changed = true;
     // No bridge_id — drop orphaned entry
   }
 
