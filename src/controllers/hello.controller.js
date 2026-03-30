@@ -23,7 +23,13 @@ export const subscribe = async (req, res, next) => {
   const modelConfigData = await modelConfigService.getModelConfigsByNameAndService(model, service);
   const validationConfig = modelConfigData[0]?.validationConfig || {};
 
-  const mode = [validationConfig.files && "files", validationConfig.vision && "vision", modelConfig?.stream === true && "stream"].filter(Boolean);
+  const mode = [
+    validationConfig.files && "files",
+    validationConfig.vision && "vision",
+    modelConfig?.stream === true && "stream",
+    modelConfig?.response_type?.is_template && "widget",
+    modelConfig?.type === "image" && "image_model"
+  ].filter(Boolean);
 
   const supportedServices = apikey_object_id ? Object.keys(apikey_object_id) : [];
 
