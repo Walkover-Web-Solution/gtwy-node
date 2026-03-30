@@ -399,6 +399,16 @@ async function publish(org_id, version_id, user_id) {
   const prompt = convertPromptToString(getVersionData.configuration?.prompt || "");
   const variableState = getVersionData.variables_state || {};
   const variablePath = getVersionData.variables_path || {};
+
+  if (Array.isArray(getVersionData.pre_tools)) {
+    getVersionData.pre_tools.forEach((tool) => {
+      if (tool.type === "custom_function" && tool.config && tool.config.script_id && tool.args) {
+        variablePath[tool.config.script_id] = variablePath[tool.config.script_id] || {};
+        Object.assign(variablePath[tool.config.script_id], tool.args);
+      }
+    });
+  }
+
   const agentVariables = getReqOptVariablesInPrompt(prompt, variableState, variablePath);
   const transformedAgentVariables = transformAgentVariableToToolCallFormat(agentVariables);
 

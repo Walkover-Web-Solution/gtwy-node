@@ -5,20 +5,19 @@ function getReqOptVariablesInPrompt(prompt, variableState, variablePath) {
     const result = {};
     for (const value of Object.values(d)) {
       if (typeof value === "object" && value !== null) {
-        Object.assign(result, flattenDict(value));
+        Object.assign(result, extractPrimitiveValues(value));
       }
     }
     return result;
   }
 
-  function flattenDict(d, parentKey = "") {
+  function extractPrimitiveValues(d) {
     const flat = {};
-    for (const [k, v] of Object.entries(d)) {
-      const newKey = parentKey ? `${parentKey}.${k}` : k;
+    for (const v of Object.values(d)) {
       if (typeof v === "object" && v !== null) {
-        Object.assign(flat, flattenDict(v, newKey));
-      } else {
-        flat[newKey] = "required";
+        Object.assign(flat, extractPrimitiveValues(v));
+      } else if (typeof v === "string" && v !== "") {
+        flat[v] = "required";
       }
     }
     return flat;
