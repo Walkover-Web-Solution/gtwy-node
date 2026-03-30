@@ -381,10 +381,10 @@ async function get_latency_report_data(org_ids, reportType) {
       continue;
     }
 
-    // Create a map of message_id to raw_data for quick lookup
+    // Create a map of message_id to latency (float) for quick lookup
     const rawDataMap = new Map();
     for (const r of rawData) {
-      if (r.latency) {
+      if (r.latency != null) {
         rawDataMap.set(r.message_id, r.latency);
       }
     }
@@ -399,16 +399,7 @@ async function get_latency_report_data(org_ids, reportType) {
       if (!bridge_id) continue;
 
       const latency = rawDataMap.get(message_id);
-      if (!latency) continue;
-
-      // Calculate function time logs total
-      let functionTimeTotal = 0;
-      if (latency.function_time_logs && Array.isArray(latency.function_time_logs)) {
-        functionTimeTotal = latency.function_time_logs.reduce((sum, log) => sum + (log.time_taken || 0), 0);
-      }
-
-      // Calculate actual latency (overall_time - model_execution_time - function_time_logs)
-      const actualLatency = latency.over_all_time - latency.model_execution_time - functionTimeTotal;
+      if (latency == null) continue;
 
       // Initialize or update bridge stats
       if (!bridgeLatencyStats.has(bridge_id)) {
@@ -419,7 +410,7 @@ async function get_latency_report_data(org_ids, reportType) {
       }
 
       const stats = bridgeLatencyStats.get(bridge_id);
-      stats.totalLatency += actualLatency;
+      stats.totalLatency += latency;
       stats.count++;
     }
 
