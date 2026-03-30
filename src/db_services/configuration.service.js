@@ -564,7 +564,15 @@ const getAgentIdBySlugname = async (orgId, slugName) => {
 const getAgentBySlugname = async (orgId, slugName, versionId) => {
   try {
     const query = { slugName, org_id: orgId };
-    const fields = { hello_id: 1, "configuration.model": 1, "configuration.stream": 1, service: 1, apikey_object_id: 1 };
+    const fields = {
+      hello_id: 1,
+      "configuration.model": 1,
+      "configuration.stream": 1,
+      "configuration.type": 1,
+      "configuration.response_type": 1,
+      service: 1,
+      apikey_object_id: 1
+    };
 
     const agentData = await configurationModel.findOne(query).select(fields).lean();
     if (!agentData)

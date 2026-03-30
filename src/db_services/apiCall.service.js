@@ -187,7 +187,7 @@ async function saveApi(desc, org_id, folder_id, user_id, api_data, bridge_ids = 
     // Create new
     updateData.bridge_ids = bridge_ids;
     const newApi = await apiCallModel.create(updateData);
-    return { success: true, api_data: newApi.toObject() };
+    return { success: true, api_data: newApi };
   }
 }
 
