@@ -137,7 +137,8 @@ const createAgentController = async (req, res, next) => {
       "tool_choice",
       "size",
       "quality",
-      "style"
+      "style",
+      "reasoning"
     ];
 
     // Use AI configuration if purpose exists and valid, otherwise build manually
