@@ -192,10 +192,11 @@ const createAgentController = async (req, res, next) => {
       }
     }
 
-    const agent_limit = agents.bridge_limit;
-    const agent_usage = agents.bridge_usage;
-    const agent_limit_reset_period = agents.bridge_limit_reset_period;
-    const agent_limit_start_date = agents.bridge_limit_start_date;
+    const agent_limit = agents.agent_limit || {};
+    const bridge_limit = agent_limit.limit;
+    const bridge_usage = agent_limit.usage;
+    const bridge_limit_reset_period = agent_limit.reset_period;
+    const bridge_limit_start_date = agent_limit.start_date;
 
     const useAiData = purpose && Object.keys(agent_data).length > 0;
     const aiVal = (aiField, fallback) => (useAiData ? (aiField ?? fallback) : fallback);
@@ -212,10 +213,12 @@ const createAgentController = async (req, res, next) => {
       folder_id: folder_id,
       user_id: user_id,
       fall_back: aiVal(agent_data?.fall_back, fall_back),
-      bridge_limit: agent_limit,
-      bridge_usage: agent_usage,
-      bridge_limit_reset_period: agent_limit_reset_period,
-      bridge_limit_start_date: agent_limit_start_date,
+      agent_limit: {
+        limit: bridge_limit,
+        usage: bridge_usage,
+        reset_period: bridge_limit_reset_period,
+        start_date: bridge_limit_start_date
+      },
       bridge_status: 1,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -342,11 +345,20 @@ const updateAgentController = async (req, res, next) => {
     }
   }
 
-  if (body.bridge_limit !== undefined) update_fields.bridge_limit = body.bridge_limit;
-  if (body.bridge_usage !== undefined) update_fields.bridge_usage = body.bridge_usage;
-  if (body.bridge_limit_reset_period !== undefined) {
-    update_fields.bridge_limit_reset_period = body.bridge_limit_reset_period;
-    update_fields.bridge_limit_start_date = new Date();
+  // Handle agent_limit updates
+  if (body.agent_limit !== undefined) {
+    update_fields.agent_limit = {};
+
+    if (body.agent_limit.limit !== undefined) {
+      update_fields.agent_limit.limit = body.agent_limit.limit;
+    }
+    if (body.agent_limit.usage !== undefined) {
+      update_fields.agent_limit.usage = body.agent_limit.usage;
+    }
+    if (body.agent_limit.reset_period !== undefined) {
+      update_fields.agent_limit.reset_period = body.agent_limit.reset_period;
+      update_fields.agent_limit.start_date = new Date();
+    }
   }
 
   if (page_config) update_fields.page_config = page_config;
@@ -531,7 +543,7 @@ const updateAgentController = async (req, res, next) => {
   await addBulkUserEntries(user_history);
 
   try {
-    await purgeRelatedBridgeCaches(agent_id, body.bridge_usage !== undefined ? body.bridge_usage : -1);
+    await purgeRelatedBridgeCaches(agent_id, body.agent_limit?.usage !== undefined ? body.agent_limit.usage : -1);
   } catch (e) {
     console.error(`Failed clearing agent related cache on update: ${e}`);
   }
