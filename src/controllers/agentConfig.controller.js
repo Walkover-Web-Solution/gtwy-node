@@ -285,8 +285,13 @@ const updateAgentController = async (req, res, next) => {
     }
   }
 
-  if (body.connected_agent_details) {
-    update_fields.connected_agent_details = body.connected_agent_details;
+  // Handle agent_info updates
+  if (body.agent_info) {
+    const filteredAgentInfo = Object.fromEntries(Object.entries(body.agent_info).filter(([, value]) => value !== undefined));
+    update_fields.agent_info = {
+      ...update_fields.agent_info,
+      ...filteredAgentInfo
+    };
   }
 
   if (body.apikey_object_id) {
@@ -321,7 +326,6 @@ const updateAgentController = async (req, res, next) => {
     "gpt_memory",
     "gpt_memory_context",
     "doc_ids",
-    "variables_state",
     "IsstarterQuestionEnable",
     "name",
     "bridgeType",
