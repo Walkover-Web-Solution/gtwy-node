@@ -97,14 +97,15 @@ const createAgentController = async (req, res, next) => {
         environment: environment,
         all_bridge_names: all_agent_name,
         token: req.headers.authorization,
-        fields: folder_data
-          ? folder_data?.config?.prompt?.embedFields
-              ?.filter((field) => !field.hidden)
-              ?.reduce((acc, field) => {
-                acc[field.name] = field.value || "";
-                return acc;
-              }, {}) || { role: "", goal: "", instruction: "" }
-          : { role: "", goal: "", instruction: "" }
+        fields:
+          folder_data && folder_data?.config?.prompt?.useDefaultPrompt === false
+            ? folder_data?.config?.prompt?.embedFields
+                ?.filter((field) => !field.hidden)
+                ?.reduce((acc, field) => {
+                  acc[field.name] = field.value || "";
+                  return acc;
+                }, {}) || { role: "", goal: "", instruction: "" }
+            : { role: "", goal: "", instruction: "" }
       };
       const user = "Generate Agent Configuration according to the given user purpose.";
       const res_data = await callAiMiddleware(user, bridge_ids["create_bridge_using_ai"], variables);
