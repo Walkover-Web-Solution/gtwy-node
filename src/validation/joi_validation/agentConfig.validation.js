@@ -69,7 +69,18 @@ const updateBridgeSchema = Joi.object({
   apikey_object_id: Joi.object()
     .pattern(Joi.string(), Joi.string().pattern(/^[0-9a-fA-F]{24}$/))
     .optional(),
-  connected_agent_details: Joi.object().optional(),
+  agent_info: Joi.object({
+    prompt_total_tokens: Joi.number().min(0).optional(),
+    availability: Joi.string().valid("public", "private").optional(),
+    connected_agent_details: Joi.object({
+      description: Joi.string().allow("").optional(),
+      agent_variables: Joi.object({
+        fields: Joi.object().optional(),
+        required_params: Joi.array().optional()
+      }).optional()
+    }).optional(),
+    variables_state: Joi.object().optional()
+  }).optional(),
   bridge_status: Joi.number().valid(0, 1).optional(),
   bridge_summary: Joi.string().allow("").optional(),
   expected_qna: Joi.array().optional(),
@@ -79,7 +90,6 @@ const updateBridgeSchema = Joi.object({
   gpt_memory: Joi.boolean().optional(),
   gpt_memory_context: Joi.number().optional(),
   doc_ids: Joi.array().items(Joi.string()).optional(),
-  variables_state: Joi.object().optional(),
   IsstarterQuestionEnable: Joi.boolean().optional(),
   name: Joi.string().optional(),
   bridgeType: Joi.string().valid("api", "chatbot").optional(),
