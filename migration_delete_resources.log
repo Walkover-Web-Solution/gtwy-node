@@ -1,0 +1,3485 @@
+Starting RAG Resources Deletion Migration
+================================================================================
+Timestamp: 2026-01-13T12:43:59.733Z
+Database: AI_Middleware-test
+Hippocampus URL: http://hippocampus.gtwy.ai
+API Key configured: Yes
+================================================================================
+Connecting to MongoDB...
+Connected to MongoDB successfully
+Using database: AI_Middleware-test
+
+Fetching all rag_collections...
+Found 219 collections
+
+[1/219] Processing collection: high_accuracy (ID: 6960fd6ee330d7fee10eb6bf)
+  Org ID: 56419
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[2/219] Processing collection: moderate (ID: 6960fd6ee330d7fee10eb6c1)
+  Org ID: 56419
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[3/219] Processing collection: fastest (ID: 6960fd6fe330d7fee10eb6c3)
+  Org ID: 56419
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[4/219] Processing collection: high_accuracy (ID: 6960fdb8622bbf78640e4589)
+  Org ID: 56380
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[5/219] Processing collection: moderate (ID: 6960fdb90d061fadb366e133)
+  Org ID: 56380
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[6/219] Processing collection: fastest (ID: 6960fdb9193b6491ce9ba713)
+  Org ID: 56380
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[7/219] Processing collection: high_accuracy (ID: 6960ff8c193b6491ce9ba716)
+  Org ID: 12701
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[8/219] Processing collection: moderate (ID: 6960ff8d193b6491ce9ba718)
+  Org ID: 12701
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[9/219] Processing collection: fastest (ID: 6960ff8d193b6491ce9ba71a)
+  Org ID: 12701
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[10/219] Processing collection: high_accuracy (ID: 696100fbe330d7fee10eb6cc)
+  Org ID: 51876
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[11/219] Processing collection: moderate (ID: 696100fce330d7fee10eb6ce)
+  Org ID: 51876
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[12/219] Processing collection: fastest (ID: 696100fce330d7fee10eb6d0)
+  Org ID: 51876
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[13/219] Processing collection: high_accuracy (ID: 69610122622bbf78640e458d)
+  Org ID: 57610
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[14/219] Processing collection: moderate (ID: 69610122622bbf78640e458f)
+  Org ID: 57610
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[15/219] Processing collection: fastest (ID: 69610123622bbf78640e4591)
+  Org ID: 57610
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[16/219] Processing collection: high_accuracy (ID: 696101270d061fadb366e139)
+  Org ID: 17636
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[17/219] Processing collection: moderate (ID: 696101270d061fadb366e13b)
+  Org ID: 17636
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[18/219] Processing collection: fastest (ID: 696101280d061fadb366e13d)
+  Org ID: 17636
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[19/219] Processing collection: high_accuracy (ID: 696102da193b6491ce9ba722)
+  Org ID: 57616
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[20/219] Processing collection: moderate (ID: 696102da193b6491ce9ba724)
+  Org ID: 57616
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[21/219] Processing collection: fastest (ID: 696102da193b6491ce9ba726)
+  Org ID: 57616
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[22/219] Processing collection: high_accuracy (ID: 696102e3e330d7fee10eb6de)
+  Org ID: 8537
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[23/219] Processing collection: moderate (ID: 696102e3e330d7fee10eb6e0)
+  Org ID: 8537
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[24/219] Processing collection: fastest (ID: 696102e3e330d7fee10eb6e2)
+  Org ID: 8537
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[25/219] Processing collection: high_accuracy (ID: 69610414622bbf78640e459a)
+  Org ID: 20678
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[26/219] Processing collection: moderate (ID: 69610414622bbf78640e459c)
+  Org ID: 20678
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[27/219] Processing collection: fastest (ID: 69610414622bbf78640e459e)
+  Org ID: 20678
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[28/219] Processing collection: high_accuracy (ID: 6961052e193b6491ce9ba731)
+  Org ID: 53226
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[29/219] Processing collection: moderate (ID: 6961052e193b6491ce9ba733)
+  Org ID: 53226
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[30/219] Processing collection: fastest (ID: 6961052e193b6491ce9ba735)
+  Org ID: 53226
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[31/219] Processing collection: high_accuracy (ID: 696107d2193b6491ce9ba73d)
+  Org ID: 55559
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[32/219] Processing collection: moderate (ID: 696107d2193b6491ce9ba73f)
+  Org ID: 55559
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[33/219] Processing collection: fastest (ID: 696107d2193b6491ce9ba741)
+  Org ID: 55559
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[34/219] Processing collection: high_accuracy (ID: 6961080f622bbf78640e45af)
+  Org ID: 55562
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[35/219] Processing collection: moderate (ID: 6961080f622bbf78640e45b1)
+  Org ID: 55562
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[36/219] Processing collection: fastest (ID: 6961080f622bbf78640e45b3)
+  Org ID: 55562
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[37/219] Processing collection: high_accuracy (ID: 696119d2e330d7fee10eb70e)
+  Org ID: 57266
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[38/219] Processing collection: moderate (ID: 696119d2e330d7fee10eb710)
+  Org ID: 57266
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[39/219] Processing collection: fastest (ID: 696119d2e330d7fee10eb712)
+  Org ID: 57266
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[40/219] Processing collection: high_accuracy (ID: 6961ee0de330d7fee10eb8a4)
+  Org ID: 57688
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[41/219] Processing collection: moderate (ID: 6961ee0de330d7fee10eb8a6)
+  Org ID: 57688
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[42/219] Processing collection: fastest (ID: 6961ee0ee330d7fee10eb8a8)
+  Org ID: 57688
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[43/219] Processing collection: high_accuracy (ID: 6961ee55622bbf78640e4746)
+  Org ID: 57402
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[44/219] Processing collection: moderate (ID: 6961ee56622bbf78640e4748)
+  Org ID: 57402
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[45/219] Processing collection: fastest (ID: 6961ee56622bbf78640e474a)
+  Org ID: 57402
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[46/219] Processing collection: high_accuracy (ID: 6961ee73e330d7fee10eb8ad)
+  Org ID: 57689
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[47/219] Processing collection: moderate (ID: 6961ee73e330d7fee10eb8af)
+  Org ID: 57689
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[48/219] Processing collection: fastest (ID: 6961ee73e330d7fee10eb8b1)
+  Org ID: 57689
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[49/219] Processing collection: high_accuracy (ID: 6961ef54e330d7fee10eb8b9)
+  Org ID: 57690
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[50/219] Processing collection: moderate (ID: 6961ef55e330d7fee10eb8bb)
+  Org ID: 57690
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[51/219] Processing collection: fastest (ID: 6961ef55e330d7fee10eb8bd)
+  Org ID: 57690
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[52/219] Processing collection: high_accuracy (ID: 6961f1ac193b6491ce9ba903)
+  Org ID: 57657
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[53/219] Processing collection: moderate (ID: 6961f1ac193b6491ce9ba905)
+  Org ID: 57657
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[54/219] Processing collection: fastest (ID: 6961f1ac193b6491ce9ba907)
+  Org ID: 57657
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[55/219] Processing collection: high_accuracy (ID: 6961f26d193b6491ce9ba90c)
+  Org ID: 56261
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[56/219] Processing collection: moderate (ID: 6961f26d193b6491ce9ba90e)
+  Org ID: 56261
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[57/219] Processing collection: fastest (ID: 6961f26d193b6491ce9ba910)
+  Org ID: 56261
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[58/219] Processing collection: high_accuracy (ID: 6961fb11494dd9a2cb75ea24)
+  Org ID: 14549
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[59/219] Processing collection: high_accuracy (ID: 6961fb79588a5c91b45bbdfa)
+  Org ID: 13488
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[60/219] Processing collection: high_accuracy (ID: 6961fb7f588a5c91b45bbdfc)
+  Org ID: 14793
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[61/219] Processing collection: high_accuracy (ID: 6961fb8b588a5c91b45bbdfe)
+  Org ID: 14979
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[62/219] Processing collection: high_accuracy (ID: 6961fb95588a5c91b45bbe00)
+  Org ID: 9094
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[63/219] Processing collection: high_accuracy (ID: 6961fbab588a5c91b45bbe02)
+  Org ID: 15501
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[64/219] Processing collection: high_accuracy (ID: 6961fd480d061fadb366e32c)
+  Org ID: 8538
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[65/219] Processing collection: moderate (ID: 6961fd480d061fadb366e32e)
+  Org ID: 8538
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[66/219] Processing collection: fastest (ID: 6961fd480d061fadb366e330)
+  Org ID: 8538
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[67/219] Processing collection: high_accuracy (ID: 69620ef1de61b2e250ab877f)
+  Org ID: 1453
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[68/219] Processing collection: high_accuracy (ID: 69620ef4de61b2e250ab8781)
+  Org ID: 15890
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[69/219] Processing collection: high_accuracy (ID: 69620f0ede61b2e250ab8783)
+  Org ID: 15901
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[70/219] Processing collection: high_accuracy (ID: 69620f10de61b2e250ab8785)
+  Org ID: 13534
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[71/219] Processing collection: high_accuracy (ID: 69620f1dde61b2e250ab8787)
+  Org ID: 8269
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[72/219] Processing collection: high_accuracy (ID: 69620f24de61b2e250ab8789)
+  Org ID: 15046
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[73/219] Processing collection: high_accuracy (ID: 6962137264c184bc74630251)
+  Org ID: 16713
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[74/219] Processing collection: high_accuracy (ID: 6962138164c184bc74630253)
+  Org ID: 8131
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[75/219] Processing collection: high_accuracy (ID: 6962138a64c184bc74630255)
+  Org ID: 15750
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[76/219] Processing collection: high_accuracy (ID: 696215a664c184bc74630257)
+  Org ID: 10363
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[77/219] Processing collection: high_accuracy (ID: 696215a864c184bc74630259)
+  Org ID: 15670
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[78/219] Processing collection: high_accuracy (ID: 696215b064c184bc7463025b)
+  Org ID: 16168
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[79/219] Processing collection: high_accuracy (ID: 6962166d64c184bc7463025d)
+  Org ID: 16186
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[80/219] Processing collection: high_accuracy (ID: 6962168a64c184bc7463025f)
+  Org ID: 17463
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[81/219] Processing collection: high_accuracy (ID: 6962169c64c184bc74630261)
+  Org ID: 16155
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[82/219] Processing collection: high_accuracy (ID: 696216a364c184bc74630263)
+  Org ID: 17538
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[83/219] Processing collection: high_accuracy (ID: 696216d264c184bc74630265)
+  Org ID: 7114
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[84/219] Processing collection: high_accuracy (ID: 696216d364c184bc74630267)
+  Org ID: 17336
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[85/219] Processing collection: high_accuracy (ID: 6962179864c184bc74630269)
+  Org ID: 17603
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[86/219] Processing collection: high_accuracy (ID: 69621a9464c184bc7463026b)
+  Org ID: 18096
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[87/219] Processing collection: high_accuracy (ID: 69621a9964c184bc7463026d)
+  Org ID: 16896
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[88/219] Processing collection: high_accuracy (ID: 69621aa264c184bc7463026f)
+  Org ID: 10364
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[89/219] Processing collection: high_accuracy (ID: 69621aa464c184bc74630271)
+  Org ID: 18136
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[90/219] Processing collection: high_accuracy (ID: 69621aaa64c184bc74630273)
+  Org ID: 17548
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[91/219] Processing collection: high_accuracy (ID: 69621abd64c184bc74630275)
+  Org ID: 17626
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[92/219] Processing collection: high_accuracy (ID: 69621ac164c184bc74630277)
+  Org ID: 18442
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[93/219] Processing collection: high_accuracy (ID: 69621ac964c184bc74630279)
+  Org ID: 18504
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[94/219] Processing collection: high_accuracy (ID: 69621acf64c184bc7463027b)
+  Org ID: 18503
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[95/219] Processing collection: high_accuracy (ID: 69621ad064c184bc7463027d)
+  Org ID: 20725
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[96/219] Processing collection: high_accuracy (ID: 69621ad164c184bc7463027f)
+  Org ID: 15127
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[97/219] Processing collection: high_accuracy (ID: 69621ad364c184bc74630281)
+  Org ID: 18126
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[98/219] Processing collection: high_accuracy (ID: 69621ada64c184bc74630283)
+  Org ID: 17647
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[99/219] Processing collection: high_accuracy (ID: 69621b5d64c184bc74630285)
+  Org ID: 48874
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[100/219] Processing collection: high_accuracy (ID: 69621b6264c184bc74630287)
+  Org ID: 48821
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[101/219] Processing collection: high_accuracy (ID: 69621bc964c184bc74630289)
+  Org ID: 34603
+  Resources count: 690
+  [1/690] Deleting resource: 68c30a725f77782b66768a69
+    ✓ Successfully deleted
+  [2/690] Deleting resource: 68c30a7d54325eb110e34bed
+    ✓ Successfully deleted
+  [3/690] Deleting resource: 68c30a7d54325eb110e34bee
+    ✓ Successfully deleted
+  [4/690] Deleting resource: 68c30a7d54325eb110e34bef
+    ✓ Successfully deleted
+  [5/690] Deleting resource: 68c30a7d54325eb110e34bf0
+    ✓ Successfully deleted
+  [6/690] Deleting resource: 68c30a8c5f77782b66768a6c
+    ✓ Successfully deleted
+  [7/690] Deleting resource: 68c30ac354325eb110e34c22
+    ✓ Successfully deleted
+  [8/690] Deleting resource: 68c30ac354325eb110e34c23
+    ✓ Successfully deleted
+  [9/690] Deleting resource: 68c30ac354325eb110e34c25
+    ✓ Successfully deleted
+  [10/690] Deleting resource: 68c30ac354325eb110e34c24
+    ✓ Successfully deleted
+  [11/690] Deleting resource: 68c3101127dcfce99b737ecc
+    ✓ Successfully deleted
+  [12/690] Deleting resource: 68c3101e54325eb110e34c9f
+    ✓ Successfully deleted
+  [13/690] Deleting resource: 68c3101e54325eb110e34ca0
+    ✓ Successfully deleted
+  [14/690] Deleting resource: 68c3101e54325eb110e34ca1
+    ✓ Successfully deleted
+  [15/690] Deleting resource: 68c3101e54325eb110e34ca2
+    ✓ Successfully deleted
+  [16/690] Deleting resource: 68c3101e54325eb110e34ca3
+    ✓ Successfully deleted
+  [17/690] Deleting resource: 68c3101e54325eb110e34ca4
+    ✓ Successfully deleted
+  [18/690] Deleting resource: 68c3101e54325eb110e34ca5
+    ✓ Successfully deleted
+  [19/690] Deleting resource: 68c3101e54325eb110e34ca6
+    ✓ Successfully deleted
+  [20/690] Deleting resource: 68c3101e54325eb110e34ca7
+    ✓ Successfully deleted
+  [21/690] Deleting resource: 68c3101e54325eb110e34ca8
+    ✓ Successfully deleted
+  [22/690] Deleting resource: 68c3101e54325eb110e34ca9
+    ✓ Successfully deleted
+  [23/690] Deleting resource: 68c3101e54325eb110e34caa
+    ✓ Successfully deleted
+  [24/690] Deleting resource: 68c3101e54325eb110e34cab
+    ✓ Successfully deleted
+  [25/690] Deleting resource: 68c3101e54325eb110e34cac
+    ✓ Successfully deleted
+  [26/690] Deleting resource: 68c3101e54325eb110e34cad
+    ✓ Successfully deleted
+  [27/690] Deleting resource: 68c3101e54325eb110e34cae
+    ✓ Successfully deleted
+  [28/690] Deleting resource: 68c3101e54325eb110e34caf
+    ✓ Successfully deleted
+  [29/690] Deleting resource: 68c3101e54325eb110e34cb0
+    ✓ Successfully deleted
+  [30/690] Deleting resource: 68c3101e54325eb110e34cb1
+    ✓ Successfully deleted
+  [31/690] Deleting resource: 68c3101e54325eb110e34cb2
+    ✓ Successfully deleted
+  [32/690] Deleting resource: 68c3101e54325eb110e34cb3
+    ✓ Successfully deleted
+  [33/690] Deleting resource: 68c3101e54325eb110e34cb4
+    ✓ Successfully deleted
+  [34/690] Deleting resource: 68c3101e54325eb110e34cb6
+    ✓ Successfully deleted
+  [35/690] Deleting resource: 68c3101e54325eb110e34cb7
+    ✓ Successfully deleted
+  [36/690] Deleting resource: 68c3101e54325eb110e34cb8
+    ✓ Successfully deleted
+  [37/690] Deleting resource: 68c3101e54325eb110e34cb9
+    ✓ Successfully deleted
+  [38/690] Deleting resource: 68c3101e54325eb110e34cba
+    ✓ Successfully deleted
+  [39/690] Deleting resource: 68c3101e54325eb110e34cbb
+    ✓ Successfully deleted
+  [40/690] Deleting resource: 68c3101e54325eb110e34cbc
+    ✓ Successfully deleted
+  [41/690] Deleting resource: 68c3101e54325eb110e34cbd
+    ✓ Successfully deleted
+  [42/690] Deleting resource: 68c3101e54325eb110e34cbe
+    ✓ Successfully deleted
+  [43/690] Deleting resource: 68c3101e54325eb110e34cbf
+    ✓ Successfully deleted
+  [44/690] Deleting resource: 68c3101e54325eb110e34cc0
+    ✓ Successfully deleted
+  [45/690] Deleting resource: 68c3101e54325eb110e34cc1
+    ✓ Successfully deleted
+  [46/690] Deleting resource: 68c3101e54325eb110e34cc2
+    ✓ Successfully deleted
+  [47/690] Deleting resource: 68c3101e54325eb110e34cc3
+    ✓ Successfully deleted
+  [48/690] Deleting resource: 68c3101e54325eb110e34cc4
+    ✓ Successfully deleted
+  [49/690] Deleting resource: 68c3101e54325eb110e34cc5
+    ✓ Successfully deleted
+  [50/690] Deleting resource: 68c3101e54325eb110e34cc6
+    ✓ Successfully deleted
+  [51/690] Deleting resource: 68c3101e54325eb110e34cc7
+    ✓ Successfully deleted
+  [52/690] Deleting resource: 68c3101e54325eb110e34cc8
+    ✓ Successfully deleted
+  [53/690] Deleting resource: 68c3101e54325eb110e34cca
+    ✓ Successfully deleted
+  [54/690] Deleting resource: 68c3101e54325eb110e34ccb
+    ✓ Successfully deleted
+  [55/690] Deleting resource: 68c3101e54325eb110e34ccd
+    ✓ Successfully deleted
+  [56/690] Deleting resource: 68c3101e54325eb110e34ccf
+    ✓ Successfully deleted
+  [57/690] Deleting resource: 68c3101e54325eb110e34cd0
+    ✓ Successfully deleted
+  [58/690] Deleting resource: 68c3101e54325eb110e34cd1
+    ✓ Successfully deleted
+  [59/690] Deleting resource: 68c3101e54325eb110e34cd3
+    ✓ Successfully deleted
+  [60/690] Deleting resource: 68c3101e54325eb110e34cd4
+    ✓ Successfully deleted
+  [61/690] Deleting resource: 68c3101e54325eb110e34cd5
+    ✓ Successfully deleted
+  [62/690] Deleting resource: 68c3101e54325eb110e34cd7
+    ✓ Successfully deleted
+  [63/690] Deleting resource: 68c3101e54325eb110e34cd8
+    ✓ Successfully deleted
+  [64/690] Deleting resource: 68c3101e54325eb110e34cd9
+    ✓ Successfully deleted
+  [65/690] Deleting resource: 68c3101e54325eb110e34cda
+    ✓ Successfully deleted
+  [66/690] Deleting resource: 68c3101e54325eb110e34cdb
+    ✓ Successfully deleted
+  [67/690] Deleting resource: 68c3101e54325eb110e34cdc
+    ✓ Successfully deleted
+  [68/690] Deleting resource: 68c3101e54325eb110e34cdd
+    ✓ Successfully deleted
+  [69/690] Deleting resource: 68c3101e54325eb110e34cde
+    ✓ Successfully deleted
+  [70/690] Deleting resource: 68c3101e54325eb110e34cdf
+    ✓ Successfully deleted
+  [71/690] Deleting resource: 68c3101e54325eb110e34ce0
+    ✓ Successfully deleted
+  [72/690] Deleting resource: 68c3101e54325eb110e34ce1
+    ✓ Successfully deleted
+  [73/690] Deleting resource: 68c3101e54325eb110e34ce2
+    ✓ Successfully deleted
+  [74/690] Deleting resource: 68c3101e54325eb110e34ce3
+    ✓ Successfully deleted
+  [75/690] Deleting resource: 68c3101e54325eb110e34ce4
+    ✓ Successfully deleted
+  [76/690] Deleting resource: 68c3101e54325eb110e34ce5
+    ✓ Successfully deleted
+  [77/690] Deleting resource: 68c3101e54325eb110e34ce6
+    ✓ Successfully deleted
+  [78/690] Deleting resource: 68c3101e54325eb110e34ce7
+    ✓ Successfully deleted
+  [79/690] Deleting resource: 68c3101e54325eb110e34ce8
+    ✓ Successfully deleted
+  [80/690] Deleting resource: 68c3101e54325eb110e34ce9
+    ✓ Successfully deleted
+  [81/690] Deleting resource: 68c3101e54325eb110e34cea
+    ✓ Successfully deleted
+  [82/690] Deleting resource: 68c3101e54325eb110e34ceb
+    ✓ Successfully deleted
+  [83/690] Deleting resource: 68c3101e54325eb110e34cec
+    ✓ Successfully deleted
+  [84/690] Deleting resource: 68c3101e54325eb110e34ced
+    ✓ Successfully deleted
+  [85/690] Deleting resource: 68c3101e54325eb110e34cee
+    ✓ Successfully deleted
+  [86/690] Deleting resource: 68c3101e54325eb110e34cef
+    ✓ Successfully deleted
+  [87/690] Deleting resource: 68c3101e54325eb110e34cf0
+    ✓ Successfully deleted
+  [88/690] Deleting resource: 68c3101e54325eb110e34cf1
+    ✓ Successfully deleted
+  [89/690] Deleting resource: 68c3101e54325eb110e34cf2
+    ✓ Successfully deleted
+  [90/690] Deleting resource: 68c3101e54325eb110e34cf3
+    ✓ Successfully deleted
+  [91/690] Deleting resource: 68c3101e54325eb110e34cf4
+    ✓ Successfully deleted
+  [92/690] Deleting resource: 68c3101e54325eb110e34cf5
+    ✓ Successfully deleted
+  [93/690] Deleting resource: 68c3101e54325eb110e34cf6
+    ✓ Successfully deleted
+  [94/690] Deleting resource: 68c3101e54325eb110e34cf7
+    ✓ Successfully deleted
+  [95/690] Deleting resource: 68c3101e54325eb110e34cf8
+    ✓ Successfully deleted
+  [96/690] Deleting resource: 68c3101e54325eb110e34cf9
+    ✓ Successfully deleted
+  [97/690] Deleting resource: 68c3101e54325eb110e34cfa
+    ✓ Successfully deleted
+  [98/690] Deleting resource: 68c3101e54325eb110e34cfb
+    ✓ Successfully deleted
+  [99/690] Deleting resource: 68c3101e54325eb110e34cfc
+    ✓ Successfully deleted
+  [100/690] Deleting resource: 68c3101e54325eb110e34cfd
+    ✓ Successfully deleted
+  [101/690] Deleting resource: 68c3101e54325eb110e34cfe
+    ✓ Successfully deleted
+  [102/690] Deleting resource: 68c3101e54325eb110e34cff
+    ✓ Successfully deleted
+  [103/690] Deleting resource: 68c3101e54325eb110e34d00
+    ✓ Successfully deleted
+  [104/690] Deleting resource: 68c3101e54325eb110e34d01
+    ✓ Successfully deleted
+  [105/690] Deleting resource: 68c3101e54325eb110e34d02
+    ✓ Successfully deleted
+  [106/690] Deleting resource: 68c3101e54325eb110e34d03
+    ✓ Successfully deleted
+  [107/690] Deleting resource: 68c3101e54325eb110e34d04
+    ✓ Successfully deleted
+  [108/690] Deleting resource: 68c3101e54325eb110e34d05
+    ✓ Successfully deleted
+  [109/690] Deleting resource: 68c3101e54325eb110e34d06
+    ✓ Successfully deleted
+  [110/690] Deleting resource: 68c3101e54325eb110e34d07
+    ✓ Successfully deleted
+  [111/690] Deleting resource: 68c3101e54325eb110e34d08
+    ✓ Successfully deleted
+  [112/690] Deleting resource: 68c3101e54325eb110e34d09
+    ✓ Successfully deleted
+  [113/690] Deleting resource: 68c3101e54325eb110e34d0a
+    ✓ Successfully deleted
+  [114/690] Deleting resource: 68c3101e54325eb110e34d0b
+    ✓ Successfully deleted
+  [115/690] Deleting resource: 68c3101e54325eb110e34d0c
+    ✓ Successfully deleted
+  [116/690] Deleting resource: 68c3101e54325eb110e34d0d
+    ✓ Successfully deleted
+  [117/690] Deleting resource: 68c3101e54325eb110e34d0e
+    ✓ Successfully deleted
+  [118/690] Deleting resource: 68c3101e54325eb110e34d0f
+    ✓ Successfully deleted
+  [119/690] Deleting resource: 68c3101e54325eb110e34d10
+    ✓ Successfully deleted
+  [120/690] Deleting resource: 68c3101e54325eb110e34d11
+    ✓ Successfully deleted
+  [121/690] Deleting resource: 68c3101e54325eb110e34d12
+    ✓ Successfully deleted
+  [122/690] Deleting resource: 68c3101e54325eb110e34d13
+    ✓ Successfully deleted
+  [123/690] Deleting resource: 68c3101e54325eb110e34d14
+    ✓ Successfully deleted
+  [124/690] Deleting resource: 68c3101e54325eb110e34d15
+    ✓ Successfully deleted
+  [125/690] Deleting resource: 68c3101e54325eb110e34d16
+    ✓ Successfully deleted
+  [126/690] Deleting resource: 68c3101e54325eb110e34d17
+    ✓ Successfully deleted
+  [127/690] Deleting resource: 68c3101e54325eb110e34d18
+    ✓ Successfully deleted
+  [128/690] Deleting resource: 68c3101e54325eb110e34d19
+    ✓ Successfully deleted
+  [129/690] Deleting resource: 68c3101e54325eb110e34d1a
+    ✓ Successfully deleted
+  [130/690] Deleting resource: 68c3101e54325eb110e34d1b
+    ✓ Successfully deleted
+  [131/690] Deleting resource: 68c3101e54325eb110e34d1c
+    ✓ Successfully deleted
+  [132/690] Deleting resource: 68c3101e54325eb110e34d1d
+    ✓ Successfully deleted
+  [133/690] Deleting resource: 68c3101e54325eb110e34d1e
+    ✓ Successfully deleted
+  [134/690] Deleting resource: 68c3101e54325eb110e34d1f
+    ✓ Successfully deleted
+  [135/690] Deleting resource: 68c3101e54325eb110e34d20
+    ✓ Successfully deleted
+  [136/690] Deleting resource: 68c3101e54325eb110e34d21
+    ✓ Successfully deleted
+  [137/690] Deleting resource: 68c3101e54325eb110e34d22
+    ✓ Successfully deleted
+  [138/690] Deleting resource: 68c3101e54325eb110e34d23
+    ✓ Successfully deleted
+  [139/690] Deleting resource: 68c3120327dcfce99b737edb
+    ✓ Successfully deleted
+  [140/690] Deleting resource: 68c3124f27dcfce99b737ede
+    ✓ Successfully deleted
+  [141/690] Deleting resource: 68c312b827dcfce99b737ee2
+    ✓ Successfully deleted
+  [142/690] Deleting resource: 68c312ca27dcfce99b737ee5
+    ✓ Successfully deleted
+  [143/690] Deleting resource: 68c3130927dcfce99b737ee8
+    ✓ Successfully deleted
+  [144/690] Deleting resource: 68c3133127dcfce99b737eeb
+    ✓ Successfully deleted
+  [145/690] Deleting resource: 68c313e927dcfce99b737ef5
+    ✓ Successfully deleted
+  [146/690] Deleting resource: 68c3146127dcfce99b737f0d
+    ✓ Successfully deleted
+  [147/690] Deleting resource: 68c314b327dcfce99b737f16
+    ✓ Successfully deleted
+  [148/690] Deleting resource: 68c314f127dcfce99b737f1a
+    ✓ Successfully deleted
+  [149/690] Deleting resource: 68c3152e27dcfce99b737f24
+    ✓ Successfully deleted
+  [150/690] Deleting resource: 68c3154c27dcfce99b737f31
+    ✓ Successfully deleted
+  [151/690] Deleting resource: 68c3160654325eb110e352df
+    ✓ Successfully deleted
+  [152/690] Deleting resource: 68c3160654325eb110e352e0
+    ✓ Successfully deleted
+  [153/690] Deleting resource: 68c3160654325eb110e352e1
+    ✓ Successfully deleted
+  [154/690] Deleting resource: 68c3160654325eb110e352e2
+    ✓ Successfully deleted
+  [155/690] Deleting resource: 68c3160654325eb110e352e3
+    ✓ Successfully deleted
+  [156/690] Deleting resource: 68c3160654325eb110e352e4
+    ✓ Successfully deleted
+  [157/690] Deleting resource: 68c3160654325eb110e352e5
+    ✓ Successfully deleted
+  [158/690] Deleting resource: 68c3160654325eb110e352e6
+    ✓ Successfully deleted
+  [159/690] Deleting resource: 68c3160654325eb110e352e7
+    ✓ Successfully deleted
+  [160/690] Deleting resource: 68c3160654325eb110e352e8
+    ✓ Successfully deleted
+  [161/690] Deleting resource: 68c3160654325eb110e352e9
+    ✓ Successfully deleted
+  [162/690] Deleting resource: 68c3160654325eb110e352ea
+    ✓ Successfully deleted
+  [163/690] Deleting resource: 68c3160654325eb110e352eb
+    ✓ Successfully deleted
+  [164/690] Deleting resource: 68c3160654325eb110e352ec
+    ✓ Successfully deleted
+  [165/690] Deleting resource: 68c3160654325eb110e352ed
+    ✓ Successfully deleted
+  [166/690] Deleting resource: 68c3160654325eb110e352ee
+    ✓ Successfully deleted
+  [167/690] Deleting resource: 68c3160654325eb110e352ef
+    ✓ Successfully deleted
+  [168/690] Deleting resource: 68c3160654325eb110e352f0
+    ✓ Successfully deleted
+  [169/690] Deleting resource: 68c3160654325eb110e352f1
+    ✓ Successfully deleted
+  [170/690] Deleting resource: 68c3160654325eb110e352f2
+    ✓ Successfully deleted
+  [171/690] Deleting resource: 68c3160654325eb110e352f3
+    ✓ Successfully deleted
+  [172/690] Deleting resource: 68c3160654325eb110e352f4
+    ✓ Successfully deleted
+  [173/690] Deleting resource: 68c3160654325eb110e352f6
+    ✓ Successfully deleted
+  [174/690] Deleting resource: 68c3160654325eb110e352f7
+    ✓ Successfully deleted
+  [175/690] Deleting resource: 68c3160654325eb110e352f8
+    ✓ Successfully deleted
+  [176/690] Deleting resource: 68c3160654325eb110e352f9
+    ✓ Successfully deleted
+  [177/690] Deleting resource: 68c3160654325eb110e352fa
+    ✓ Successfully deleted
+  [178/690] Deleting resource: 68c3160654325eb110e352fb
+    ✓ Successfully deleted
+  [179/690] Deleting resource: 68c3160654325eb110e352fc
+    ✓ Successfully deleted
+  [180/690] Deleting resource: 68c3160654325eb110e352fd
+    ✓ Successfully deleted
+  [181/690] Deleting resource: 68c3160654325eb110e352fe
+    ✓ Successfully deleted
+  [182/690] Deleting resource: 68c3160654325eb110e352ff
+    ✓ Successfully deleted
+  [183/690] Deleting resource: 68c3160654325eb110e35301
+    ✓ Successfully deleted
+  [184/690] Deleting resource: 68c3160654325eb110e35302
+    ✓ Successfully deleted
+  [185/690] Deleting resource: 68c3160654325eb110e35303
+    ✓ Successfully deleted
+  [186/690] Deleting resource: 68c3160654325eb110e35304
+    ✓ Successfully deleted
+  [187/690] Deleting resource: 68c3160654325eb110e35305
+    ✓ Successfully deleted
+  [188/690] Deleting resource: 68c3160654325eb110e35306
+    ✓ Successfully deleted
+  [189/690] Deleting resource: 68c3160654325eb110e35307
+    ✓ Successfully deleted
+  [190/690] Deleting resource: 68c3160654325eb110e35308
+    ✓ Successfully deleted
+  [191/690] Deleting resource: 68c3160654325eb110e35309
+    ✓ Successfully deleted
+  [192/690] Deleting resource: 68c3160654325eb110e3530a
+    ✓ Successfully deleted
+  [193/690] Deleting resource: 68c3160654325eb110e3530b
+    ✓ Successfully deleted
+  [194/690] Deleting resource: 68c3160654325eb110e3530c
+    ✓ Successfully deleted
+  [195/690] Deleting resource: 68c3160654325eb110e3530d
+    ✓ Successfully deleted
+  [196/690] Deleting resource: 68c3160654325eb110e3530e
+    ✓ Successfully deleted
+  [197/690] Deleting resource: 68c3160654325eb110e3530f
+    ✓ Successfully deleted
+  [198/690] Deleting resource: 68c3160654325eb110e35310
+    ✓ Successfully deleted
+  [199/690] Deleting resource: 68c3160654325eb110e35311
+    ✓ Successfully deleted
+  [200/690] Deleting resource: 68c3160654325eb110e35312
+    ✓ Successfully deleted
+  [201/690] Deleting resource: 68c3160654325eb110e35313
+    ✓ Successfully deleted
+  [202/690] Deleting resource: 68c3160654325eb110e35314
+    ✓ Successfully deleted
+  [203/690] Deleting resource: 68c3160654325eb110e35315
+    ✓ Successfully deleted
+  [204/690] Deleting resource: 68c3160654325eb110e35317
+    ✓ Successfully deleted
+  [205/690] Deleting resource: 68c3160654325eb110e35318
+    ✓ Successfully deleted
+  [206/690] Deleting resource: 68c3160654325eb110e3531a
+    ✓ Successfully deleted
+  [207/690] Deleting resource: 68c3160654325eb110e3531c
+    ✓ Successfully deleted
+  [208/690] Deleting resource: 68c3160654325eb110e3531d
+    ✓ Successfully deleted
+  [209/690] Deleting resource: 68c3160654325eb110e3531e
+    ✓ Successfully deleted
+  [210/690] Deleting resource: 68c3160654325eb110e35320
+    ✓ Successfully deleted
+  [211/690] Deleting resource: 68c3160654325eb110e35321
+    ✓ Successfully deleted
+  [212/690] Deleting resource: 68c3160654325eb110e35322
+    ✓ Successfully deleted
+  [213/690] Deleting resource: 68c3160654325eb110e35324
+    ✓ Successfully deleted
+  [214/690] Deleting resource: 68c3160654325eb110e35325
+    ✓ Successfully deleted
+  [215/690] Deleting resource: 68c3160654325eb110e35327
+    ✓ Successfully deleted
+  [216/690] Deleting resource: 68c3160654325eb110e35328
+    ✓ Successfully deleted
+  [217/690] Deleting resource: 68c3160654325eb110e35329
+    ✓ Successfully deleted
+  [218/690] Deleting resource: 68c3160654325eb110e3532a
+    ✓ Successfully deleted
+  [219/690] Deleting resource: 68c3160654325eb110e3532b
+    ✓ Successfully deleted
+  [220/690] Deleting resource: 68c3160654325eb110e3532c
+    ✓ Successfully deleted
+  [221/690] Deleting resource: 68c3160654325eb110e3532d
+    ✓ Successfully deleted
+  [222/690] Deleting resource: 68c3160654325eb110e3532e
+    ✓ Successfully deleted
+  [223/690] Deleting resource: 68c3160654325eb110e3532f
+    ✓ Successfully deleted
+  [224/690] Deleting resource: 68c3160654325eb110e35330
+    ✓ Successfully deleted
+  [225/690] Deleting resource: 68c3160654325eb110e35331
+    ✓ Successfully deleted
+  [226/690] Deleting resource: 68c3160654325eb110e35332
+    ✓ Successfully deleted
+  [227/690] Deleting resource: 68c3160654325eb110e35333
+    ✓ Successfully deleted
+  [228/690] Deleting resource: 68c3160654325eb110e35334
+    ✓ Successfully deleted
+  [229/690] Deleting resource: 68c3160654325eb110e35335
+    ✓ Successfully deleted
+  [230/690] Deleting resource: 68c3160654325eb110e35336
+    ✓ Successfully deleted
+  [231/690] Deleting resource: 68c3160654325eb110e35337
+    ✓ Successfully deleted
+  [232/690] Deleting resource: 68c3160654325eb110e35338
+    ✓ Successfully deleted
+  [233/690] Deleting resource: 68c3160654325eb110e35339
+    ✓ Successfully deleted
+  [234/690] Deleting resource: 68c3160654325eb110e3533a
+    ✓ Successfully deleted
+  [235/690] Deleting resource: 68c3160654325eb110e3533b
+    ✓ Successfully deleted
+  [236/690] Deleting resource: 68c3160654325eb110e3533c
+    ✓ Successfully deleted
+  [237/690] Deleting resource: 68c3160654325eb110e3533d
+    ✓ Successfully deleted
+  [238/690] Deleting resource: 68c3160654325eb110e3533e
+    ✓ Successfully deleted
+  [239/690] Deleting resource: 68c3160654325eb110e3533f
+    ✓ Successfully deleted
+  [240/690] Deleting resource: 68c3160654325eb110e35340
+    ✓ Successfully deleted
+  [241/690] Deleting resource: 68c3160654325eb110e35341
+    ✓ Successfully deleted
+  [242/690] Deleting resource: 68c3160654325eb110e35342
+    ✓ Successfully deleted
+  [243/690] Deleting resource: 68c3160654325eb110e35343
+    ✓ Successfully deleted
+  [244/690] Deleting resource: 68c3160654325eb110e35344
+    ✓ Successfully deleted
+  [245/690] Deleting resource: 68c3160654325eb110e35345
+    ✓ Successfully deleted
+  [246/690] Deleting resource: 68c3160654325eb110e35346
+    ✓ Successfully deleted
+  [247/690] Deleting resource: 68c3160654325eb110e35347
+    ✓ Successfully deleted
+  [248/690] Deleting resource: 68c3160654325eb110e35348
+    ✓ Successfully deleted
+  [249/690] Deleting resource: 68c3160654325eb110e35349
+    ✓ Successfully deleted
+  [250/690] Deleting resource: 68c3160654325eb110e3534a
+    ✓ Successfully deleted
+  [251/690] Deleting resource: 68c3160654325eb110e3534b
+    ✓ Successfully deleted
+  [252/690] Deleting resource: 68c3160654325eb110e3534c
+    ✓ Successfully deleted
+  [253/690] Deleting resource: 68c3160654325eb110e3534d
+    ✓ Successfully deleted
+  [254/690] Deleting resource: 68c3160654325eb110e3534e
+    ✓ Successfully deleted
+  [255/690] Deleting resource: 68c3160654325eb110e3534f
+    ✓ Successfully deleted
+  [256/690] Deleting resource: 68c3160654325eb110e35350
+    ✓ Successfully deleted
+  [257/690] Deleting resource: 68c3160654325eb110e35351
+    ✓ Successfully deleted
+  [258/690] Deleting resource: 68c3160654325eb110e35352
+    ✓ Successfully deleted
+  [259/690] Deleting resource: 68c3160654325eb110e35353
+    ✓ Successfully deleted
+  [260/690] Deleting resource: 68c3160654325eb110e35354
+    ✓ Successfully deleted
+  [261/690] Deleting resource: 68c3160654325eb110e35355
+    ✓ Successfully deleted
+  [262/690] Deleting resource: 68c3160654325eb110e35356
+    ✓ Successfully deleted
+  [263/690] Deleting resource: 68c3160654325eb110e35357
+    ✓ Successfully deleted
+  [264/690] Deleting resource: 68c3160654325eb110e35358
+    ✓ Successfully deleted
+  [265/690] Deleting resource: 68c3160654325eb110e35359
+    ✓ Successfully deleted
+  [266/690] Deleting resource: 68c3160654325eb110e3535a
+    ✓ Successfully deleted
+  [267/690] Deleting resource: 68c3160654325eb110e3535b
+    ✓ Successfully deleted
+  [268/690] Deleting resource: 68c3160654325eb110e3535c
+    ✓ Successfully deleted
+  [269/690] Deleting resource: 68c3160654325eb110e3535d
+    ✓ Successfully deleted
+  [270/690] Deleting resource: 68c3160654325eb110e3535e
+    ✓ Successfully deleted
+  [271/690] Deleting resource: 68c3160654325eb110e3535f
+    ✓ Successfully deleted
+  [272/690] Deleting resource: 68c3160654325eb110e35360
+    ✓ Successfully deleted
+  [273/690] Deleting resource: 68c3160654325eb110e35361
+    ✓ Successfully deleted
+  [274/690] Deleting resource: 68c3160654325eb110e35362
+    ✓ Successfully deleted
+  [275/690] Deleting resource: 68c3160654325eb110e35363
+    ✓ Successfully deleted
+  [276/690] Deleting resource: 68c3160654325eb110e35364
+    ✓ Successfully deleted
+  [277/690] Deleting resource: 68c3160654325eb110e35365
+    ✓ Successfully deleted
+  [278/690] Deleting resource: 68c3160654325eb110e35366
+    ✓ Successfully deleted
+  [279/690] Deleting resource: 68c3160654325eb110e35367
+    ✓ Successfully deleted
+  [280/690] Deleting resource: 68c3160654325eb110e35368
+    ✓ Successfully deleted
+  [281/690] Deleting resource: 68c3160654325eb110e35369
+    ✓ Successfully deleted
+  [282/690] Deleting resource: 68c3160654325eb110e3536a
+    ✓ Successfully deleted
+  [283/690] Deleting resource: 68c3160654325eb110e3536b
+    ✓ Successfully deleted
+  [284/690] Deleting resource: 68c3160654325eb110e3536c
+    ✓ Successfully deleted
+  [285/690] Deleting resource: 68c3160654325eb110e3536d
+    ✓ Successfully deleted
+  [286/690] Deleting resource: 68c3165a27dcfce99b737f3c
+    ✓ Successfully deleted
+  [287/690] Deleting resource: 68c3166654325eb110e35422
+    ✓ Successfully deleted
+  [288/690] Deleting resource: 68c3166654325eb110e35423
+    ✓ Successfully deleted
+  [289/690] Deleting resource: 68c3166654325eb110e35424
+    ✓ Successfully deleted
+  [290/690] Deleting resource: 68c3166654325eb110e35425
+    ✓ Successfully deleted
+  [291/690] Deleting resource: 68c3167f27dcfce99b737f3f
+    ✓ Successfully deleted
+  [292/690] Deleting resource: 68c316af27dcfce99b737f42
+    ✓ Successfully deleted
+  [293/690] Deleting resource: 68c316ca27dcfce99b737f46
+    ✓ Successfully deleted
+  [294/690] Deleting resource: 68c316e554325eb110e354e9
+    ✓ Successfully deleted
+  [295/690] Deleting resource: 68c316e554325eb110e354ea
+    ✓ Successfully deleted
+  [296/690] Deleting resource: 68c316e554325eb110e354eb
+    ✓ Successfully deleted
+  [297/690] Deleting resource: 68c316e554325eb110e354ec
+    ✓ Successfully deleted
+  [298/690] Deleting resource: 68c3170e54325eb110e35530
+    ✓ Successfully deleted
+  [299/690] Deleting resource: 68c3170e54325eb110e35531
+    ✓ Successfully deleted
+  [300/690] Deleting resource: 68c3170e54325eb110e35532
+    ✓ Successfully deleted
+  [301/690] Deleting resource: 68c3170e54325eb110e35533
+    ✓ Successfully deleted
+  [302/690] Deleting resource: 68c3170e54325eb110e35534
+    ✓ Successfully deleted
+  [303/690] Deleting resource: 68c3170e54325eb110e35535
+    ✓ Successfully deleted
+  [304/690] Deleting resource: 68c3170e54325eb110e35536
+    ✓ Successfully deleted
+  [305/690] Deleting resource: 68c3170e54325eb110e35537
+    ✓ Successfully deleted
+  [306/690] Deleting resource: 68c3170e54325eb110e35538
+    ✓ Successfully deleted
+  [307/690] Deleting resource: 68c3170e54325eb110e35539
+    ✓ Successfully deleted
+  [308/690] Deleting resource: 68c3170e54325eb110e3553a
+    ✓ Successfully deleted
+  [309/690] Deleting resource: 68c3170e54325eb110e3553b
+    ✓ Successfully deleted
+  [310/690] Deleting resource: 68c3170e54325eb110e3553c
+    ✓ Successfully deleted
+  [311/690] Deleting resource: 68c3170e54325eb110e3553d
+    ✓ Successfully deleted
+  [312/690] Deleting resource: 68c3170e54325eb110e3553e
+    ✓ Successfully deleted
+  [313/690] Deleting resource: 68c3170e54325eb110e3553f
+    ✓ Successfully deleted
+  [314/690] Deleting resource: 68c3170e54325eb110e35540
+    ✓ Successfully deleted
+  [315/690] Deleting resource: 68c3170e54325eb110e35541
+    ✓ Successfully deleted
+  [316/690] Deleting resource: 68c3170e54325eb110e35542
+    ✓ Successfully deleted
+  [317/690] Deleting resource: 68c3170e54325eb110e35543
+    ✓ Successfully deleted
+  [318/690] Deleting resource: 68c3170e54325eb110e35544
+    ✓ Successfully deleted
+  [319/690] Deleting resource: 68c3170e54325eb110e35545
+    ✓ Successfully deleted
+  [320/690] Deleting resource: 68c3170e54325eb110e35547
+    ✓ Successfully deleted
+  [321/690] Deleting resource: 68c3170e54325eb110e35548
+    ✓ Successfully deleted
+  [322/690] Deleting resource: 68c3170e54325eb110e35549
+    ✓ Successfully deleted
+  [323/690] Deleting resource: 68c3170e54325eb110e3554a
+    ✓ Successfully deleted
+  [324/690] Deleting resource: 68c3170e54325eb110e3554b
+    ✓ Successfully deleted
+  [325/690] Deleting resource: 68c3170e54325eb110e3554c
+    ✓ Successfully deleted
+  [326/690] Deleting resource: 68c3170e54325eb110e3554d
+    ✓ Successfully deleted
+  [327/690] Deleting resource: 68c3170e54325eb110e3554e
+    ✓ Successfully deleted
+  [328/690] Deleting resource: 68c3170e54325eb110e3554f
+    ✓ Successfully deleted
+  [329/690] Deleting resource: 68c3170e54325eb110e35550
+    ✓ Successfully deleted
+  [330/690] Deleting resource: 68c3170e54325eb110e35551
+    ✓ Successfully deleted
+  [331/690] Deleting resource: 68c3170e54325eb110e35552
+    ✓ Successfully deleted
+  [332/690] Deleting resource: 68c3170e54325eb110e35553
+    ✓ Successfully deleted
+  [333/690] Deleting resource: 68c3170e54325eb110e35554
+    ✓ Successfully deleted
+  [334/690] Deleting resource: 68c3170e54325eb110e35555
+    ✓ Successfully deleted
+  [335/690] Deleting resource: 68c3170e54325eb110e35556
+    ✓ Successfully deleted
+  [336/690] Deleting resource: 68c3170e54325eb110e35557
+    ✓ Successfully deleted
+  [337/690] Deleting resource: 68c3170e54325eb110e35558
+    ✓ Successfully deleted
+  [338/690] Deleting resource: 68c3170e54325eb110e35559
+    ✓ Successfully deleted
+  [339/690] Deleting resource: 68c3170e54325eb110e3555b
+    ✓ Successfully deleted
+  [340/690] Deleting resource: 68c3170e54325eb110e3555c
+    ✓ Successfully deleted
+  [341/690] Deleting resource: 68c3170e54325eb110e3555e
+    ✓ Successfully deleted
+  [342/690] Deleting resource: 68c3170e54325eb110e35560
+    ✓ Successfully deleted
+  [343/690] Deleting resource: 68c3170e54325eb110e35561
+    ✓ Successfully deleted
+  [344/690] Deleting resource: 68c3170e54325eb110e35562
+    ✓ Successfully deleted
+  [345/690] Deleting resource: 68c3170e54325eb110e35564
+    ✓ Successfully deleted
+  [346/690] Deleting resource: 68c3170e54325eb110e35565
+    ✓ Successfully deleted
+  [347/690] Deleting resource: 68c3170e54325eb110e35566
+    ✓ Successfully deleted
+  [348/690] Deleting resource: 68c3170e54325eb110e35568
+    ✓ Successfully deleted
+  [349/690] Deleting resource: 68c3170e54325eb110e35569
+    ✓ Successfully deleted
+  [350/690] Deleting resource: 68c3170e54325eb110e3556a
+    ✓ Successfully deleted
+  [351/690] Deleting resource: 68c3170e54325eb110e3556b
+    ✓ Successfully deleted
+  [352/690] Deleting resource: 68c3170e54325eb110e3556c
+    ✓ Successfully deleted
+  [353/690] Deleting resource: 68c3170e54325eb110e3556d
+    ✓ Successfully deleted
+  [354/690] Deleting resource: 68c3170e54325eb110e3556e
+    ✓ Successfully deleted
+  [355/690] Deleting resource: 68c3170e54325eb110e3556f
+    ✓ Successfully deleted
+  [356/690] Deleting resource: 68c3170e54325eb110e35570
+    ✓ Successfully deleted
+  [357/690] Deleting resource: 68c3170e54325eb110e35571
+    ✓ Successfully deleted
+  [358/690] Deleting resource: 68c3170e54325eb110e35572
+    ✓ Successfully deleted
+  [359/690] Deleting resource: 68c3170e54325eb110e35573
+    ✓ Successfully deleted
+  [360/690] Deleting resource: 68c3170e54325eb110e35574
+    ✓ Successfully deleted
+  [361/690] Deleting resource: 68c3170e54325eb110e35575
+    ✓ Successfully deleted
+  [362/690] Deleting resource: 68c3170e54325eb110e35576
+    ✓ Successfully deleted
+  [363/690] Deleting resource: 68c3170e54325eb110e35577
+    ✓ Successfully deleted
+  [364/690] Deleting resource: 68c3170e54325eb110e35578
+    ✓ Successfully deleted
+  [365/690] Deleting resource: 68c3170e54325eb110e35579
+    ✓ Successfully deleted
+  [366/690] Deleting resource: 68c3170e54325eb110e3557a
+    ✓ Successfully deleted
+  [367/690] Deleting resource: 68c3170e54325eb110e3557b
+    ✓ Successfully deleted
+  [368/690] Deleting resource: 68c3170e54325eb110e3557c
+    ✓ Successfully deleted
+  [369/690] Deleting resource: 68c3170e54325eb110e3557d
+    ✓ Successfully deleted
+  [370/690] Deleting resource: 68c3170e54325eb110e3557e
+    ✓ Successfully deleted
+  [371/690] Deleting resource: 68c3170e54325eb110e3557f
+    ✓ Successfully deleted
+  [372/690] Deleting resource: 68c3170e54325eb110e35580
+    ✓ Successfully deleted
+  [373/690] Deleting resource: 68c3170e54325eb110e35581
+    ✓ Successfully deleted
+  [374/690] Deleting resource: 68c3170e54325eb110e35582
+    ✓ Successfully deleted
+  [375/690] Deleting resource: 68c3170e54325eb110e35583
+    ✓ Successfully deleted
+  [376/690] Deleting resource: 68c3170e54325eb110e35584
+    ✓ Successfully deleted
+  [377/690] Deleting resource: 68c3170e54325eb110e35585
+    ✓ Successfully deleted
+  [378/690] Deleting resource: 68c3170e54325eb110e35586
+    ✓ Successfully deleted
+  [379/690] Deleting resource: 68c3170e54325eb110e35587
+    ✓ Successfully deleted
+  [380/690] Deleting resource: 68c3170e54325eb110e35588
+    ✓ Successfully deleted
+  [381/690] Deleting resource: 68c3170e54325eb110e35589
+    ✓ Successfully deleted
+  [382/690] Deleting resource: 68c3170e54325eb110e3558a
+    ✓ Successfully deleted
+  [383/690] Deleting resource: 68c3170e54325eb110e3558b
+    ✓ Successfully deleted
+  [384/690] Deleting resource: 68c3170e54325eb110e3558c
+    ✓ Successfully deleted
+  [385/690] Deleting resource: 68c3170e54325eb110e3558d
+    ✓ Successfully deleted
+  [386/690] Deleting resource: 68c3170e54325eb110e3558e
+    ✓ Successfully deleted
+  [387/690] Deleting resource: 68c3170e54325eb110e3558f
+    ✓ Successfully deleted
+  [388/690] Deleting resource: 68c3170e54325eb110e35590
+    ✓ Successfully deleted
+  [389/690] Deleting resource: 68c3170e54325eb110e35591
+    ✓ Successfully deleted
+  [390/690] Deleting resource: 68c3170e54325eb110e35592
+    ✓ Successfully deleted
+  [391/690] Deleting resource: 68c3170e54325eb110e35593
+    ✓ Successfully deleted
+  [392/690] Deleting resource: 68c3170e54325eb110e35594
+    ✓ Successfully deleted
+  [393/690] Deleting resource: 68c3170e54325eb110e35595
+    ✓ Successfully deleted
+  [394/690] Deleting resource: 68c3170e54325eb110e35596
+    ✓ Successfully deleted
+  [395/690] Deleting resource: 68c3170e54325eb110e35597
+    ✓ Successfully deleted
+  [396/690] Deleting resource: 68c3170e54325eb110e35598
+    ✓ Successfully deleted
+  [397/690] Deleting resource: 68c3170e54325eb110e35599
+    ✓ Successfully deleted
+  [398/690] Deleting resource: 68c3170e54325eb110e3559a
+    ✓ Successfully deleted
+  [399/690] Deleting resource: 68c3170e54325eb110e3559b
+    ✓ Successfully deleted
+  [400/690] Deleting resource: 68c3170e54325eb110e3559c
+    ✓ Successfully deleted
+  [401/690] Deleting resource: 68c3170e54325eb110e3559d
+    ✓ Successfully deleted
+  [402/690] Deleting resource: 68c3170e54325eb110e3559e
+    ✓ Successfully deleted
+  [403/690] Deleting resource: 68c3170e54325eb110e3559f
+    ✓ Successfully deleted
+  [404/690] Deleting resource: 68c3170e54325eb110e355a0
+    ✓ Successfully deleted
+  [405/690] Deleting resource: 68c3170e54325eb110e355a1
+    ✓ Successfully deleted
+  [406/690] Deleting resource: 68c3170e54325eb110e355a2
+    ✓ Successfully deleted
+  [407/690] Deleting resource: 68c3170e54325eb110e355a3
+    ✓ Successfully deleted
+  [408/690] Deleting resource: 68c3170e54325eb110e355a4
+    ✓ Successfully deleted
+  [409/690] Deleting resource: 68c3170e54325eb110e355a5
+    ✓ Successfully deleted
+  [410/690] Deleting resource: 68c3170e54325eb110e355a6
+    ✓ Successfully deleted
+  [411/690] Deleting resource: 68c3170e54325eb110e355a7
+    ✓ Successfully deleted
+  [412/690] Deleting resource: 68c3170e54325eb110e355a8
+    ✓ Successfully deleted
+  [413/690] Deleting resource: 68c3170e54325eb110e355a9
+    ✓ Successfully deleted
+  [414/690] Deleting resource: 68c3170e54325eb110e355aa
+    ✓ Successfully deleted
+  [415/690] Deleting resource: 68c3170e54325eb110e355ab
+    ✓ Successfully deleted
+  [416/690] Deleting resource: 68c3170e54325eb110e355ac
+    ✓ Successfully deleted
+  [417/690] Deleting resource: 68c3170e54325eb110e355ad
+    ✓ Successfully deleted
+  [418/690] Deleting resource: 68c3170e54325eb110e355ae
+    ✓ Successfully deleted
+  [419/690] Deleting resource: 68c3170e54325eb110e355af
+    ✓ Successfully deleted
+  [420/690] Deleting resource: 68c3170e54325eb110e355b0
+    ✓ Successfully deleted
+  [421/690] Deleting resource: 68c3170e54325eb110e355b1
+    ✓ Successfully deleted
+  [422/690] Deleting resource: 68c3170e54325eb110e355b2
+    ✓ Successfully deleted
+  [423/690] Deleting resource: 68c3170e54325eb110e355b3
+    ✓ Successfully deleted
+  [424/690] Deleting resource: 68c3170e54325eb110e355b4
+    ✓ Successfully deleted
+  [425/690] Deleting resource: 68c3179354325eb110e35693
+    ✓ Successfully deleted
+  [426/690] Deleting resource: 68c3179354325eb110e35694
+    ✓ Successfully deleted
+  [427/690] Deleting resource: 68c3179354325eb110e35695
+    ✓ Successfully deleted
+  [428/690] Deleting resource: 68c3179354325eb110e35696
+    ✓ Successfully deleted
+  [429/690] Deleting resource: 68c3179354325eb110e35697
+    ✓ Successfully deleted
+  [430/690] Deleting resource: 68c3179354325eb110e35698
+    ✓ Successfully deleted
+  [431/690] Deleting resource: 68c3179354325eb110e35699
+    ✓ Successfully deleted
+  [432/690] Deleting resource: 68c3179354325eb110e3569a
+    ✓ Successfully deleted
+  [433/690] Deleting resource: 68c3179354325eb110e3569b
+    ✓ Successfully deleted
+  [434/690] Deleting resource: 68c3179354325eb110e3569c
+    ✓ Successfully deleted
+  [435/690] Deleting resource: 68c3179354325eb110e3569d
+    ✓ Successfully deleted
+  [436/690] Deleting resource: 68c3179354325eb110e3569e
+    ✓ Successfully deleted
+  [437/690] Deleting resource: 68c3179354325eb110e3569f
+    ✓ Successfully deleted
+  [438/690] Deleting resource: 68c3179354325eb110e356a0
+    ✓ Successfully deleted
+  [439/690] Deleting resource: 68c3179354325eb110e356a1
+    ✓ Successfully deleted
+  [440/690] Deleting resource: 68c3179354325eb110e356a2
+    ✓ Successfully deleted
+  [441/690] Deleting resource: 68c3179354325eb110e356a3
+    ✓ Successfully deleted
+  [442/690] Deleting resource: 68c3179354325eb110e356a4
+    ✓ Successfully deleted
+  [443/690] Deleting resource: 68c3179354325eb110e356a5
+    ✓ Successfully deleted
+  [444/690] Deleting resource: 68c3179354325eb110e356a6
+    ✓ Successfully deleted
+  [445/690] Deleting resource: 68c3179354325eb110e356a7
+    ✓ Successfully deleted
+  [446/690] Deleting resource: 68c3179354325eb110e356a8
+    ✓ Successfully deleted
+  [447/690] Deleting resource: 68c3179354325eb110e356aa
+    ✓ Successfully deleted
+  [448/690] Deleting resource: 68c3179354325eb110e356ab
+    ✓ Successfully deleted
+  [449/690] Deleting resource: 68c3179354325eb110e356ac
+    ✓ Successfully deleted
+  [450/690] Deleting resource: 68c3179354325eb110e356ad
+    ✓ Successfully deleted
+  [451/690] Deleting resource: 68c3179354325eb110e356ae
+    ✓ Successfully deleted
+  [452/690] Deleting resource: 68c3179354325eb110e356af
+    ✓ Successfully deleted
+  [453/690] Deleting resource: 68c3179354325eb110e356b0
+    ✓ Successfully deleted
+  [454/690] Deleting resource: 68c3179354325eb110e356b1
+    ✓ Successfully deleted
+  [455/690] Deleting resource: 68c3179354325eb110e356b2
+    ✓ Successfully deleted
+  [456/690] Deleting resource: 68c3179354325eb110e356b3
+    ✓ Successfully deleted
+  [457/690] Deleting resource: 68c3179354325eb110e356b4
+    ✓ Successfully deleted
+  [458/690] Deleting resource: 68c3179354325eb110e356b5
+    ✓ Successfully deleted
+  [459/690] Deleting resource: 68c3179354325eb110e356b6
+    ✓ Successfully deleted
+  [460/690] Deleting resource: 68c3179354325eb110e356b7
+    ✓ Successfully deleted
+  [461/690] Deleting resource: 68c3179354325eb110e356b8
+    ✓ Successfully deleted
+  [462/690] Deleting resource: 68c3179354325eb110e356b9
+    ✓ Successfully deleted
+  [463/690] Deleting resource: 68c3179354325eb110e356ba
+    ✓ Successfully deleted
+  [464/690] Deleting resource: 68c3179354325eb110e356bb
+    ✓ Successfully deleted
+  [465/690] Deleting resource: 68c3179354325eb110e356bc
+    ✓ Successfully deleted
+  [466/690] Deleting resource: 68c3179354325eb110e356be
+    ✓ Successfully deleted
+  [467/690] Deleting resource: 68c3179354325eb110e356bf
+    ✓ Successfully deleted
+  [468/690] Deleting resource: 68c3179354325eb110e356c1
+    ✓ Successfully deleted
+  [469/690] Deleting resource: 68c3179354325eb110e356c3
+    ✓ Successfully deleted
+  [470/690] Deleting resource: 68c3179354325eb110e356c4
+    ✓ Successfully deleted
+  [471/690] Deleting resource: 68c3179354325eb110e356c5
+    ✓ Successfully deleted
+  [472/690] Deleting resource: 68c3179354325eb110e356c7
+    ✓ Successfully deleted
+  [473/690] Deleting resource: 68c3179354325eb110e356c8
+    ✓ Successfully deleted
+  [474/690] Deleting resource: 68c3179354325eb110e356c9
+    ✓ Successfully deleted
+  [475/690] Deleting resource: 68c3179354325eb110e356cb
+    ✓ Successfully deleted
+  [476/690] Deleting resource: 68c3179354325eb110e356cc
+    ✓ Successfully deleted
+  [477/690] Deleting resource: 68c3179354325eb110e356cd
+    ✓ Successfully deleted
+  [478/690] Deleting resource: 68c3179354325eb110e356ce
+    ✓ Successfully deleted
+  [479/690] Deleting resource: 68c3179354325eb110e356cf
+    ✓ Successfully deleted
+  [480/690] Deleting resource: 68c3179354325eb110e356d0
+    ✓ Successfully deleted
+  [481/690] Deleting resource: 68c3179354325eb110e356d1
+    ✓ Successfully deleted
+  [482/690] Deleting resource: 68c3179354325eb110e356d2
+    ✓ Successfully deleted
+  [483/690] Deleting resource: 68c3179354325eb110e356d3
+    ✓ Successfully deleted
+  [484/690] Deleting resource: 68c3179354325eb110e356d4
+    ✓ Successfully deleted
+  [485/690] Deleting resource: 68c3179354325eb110e356d5
+    ✓ Successfully deleted
+  [486/690] Deleting resource: 68c3179354325eb110e356d6
+    ✓ Successfully deleted
+  [487/690] Deleting resource: 68c3179354325eb110e356d7
+    ✓ Successfully deleted
+  [488/690] Deleting resource: 68c3179354325eb110e356d8
+    ✓ Successfully deleted
+  [489/690] Deleting resource: 68c3179354325eb110e356d9
+    ✓ Successfully deleted
+  [490/690] Deleting resource: 68c3179354325eb110e356da
+    ✓ Successfully deleted
+  [491/690] Deleting resource: 68c3179354325eb110e356db
+    ✓ Successfully deleted
+  [492/690] Deleting resource: 68c3179354325eb110e356dc
+    ✓ Successfully deleted
+  [493/690] Deleting resource: 68c3179354325eb110e356dd
+    ✓ Successfully deleted
+  [494/690] Deleting resource: 68c3179354325eb110e356de
+    ✓ Successfully deleted
+  [495/690] Deleting resource: 68c3179354325eb110e356df
+    ✓ Successfully deleted
+  [496/690] Deleting resource: 68c3179354325eb110e356e0
+    ✓ Successfully deleted
+  [497/690] Deleting resource: 68c3179354325eb110e356e1
+    ✓ Successfully deleted
+  [498/690] Deleting resource: 68c3179354325eb110e356e2
+    ✓ Successfully deleted
+  [499/690] Deleting resource: 68c3179354325eb110e356e3
+    ✓ Successfully deleted
+  [500/690] Deleting resource: 68c3179354325eb110e356e4
+    ✓ Successfully deleted
+  [501/690] Deleting resource: 68c3179354325eb110e356e5
+    ✓ Successfully deleted
+  [502/690] Deleting resource: 68c3179354325eb110e356e6
+    ✓ Successfully deleted
+  [503/690] Deleting resource: 68c3179354325eb110e356e7
+    ✓ Successfully deleted
+  [504/690] Deleting resource: 68c3179354325eb110e356e8
+    ✓ Successfully deleted
+  [505/690] Deleting resource: 68c3179354325eb110e356e9
+    ✓ Successfully deleted
+  [506/690] Deleting resource: 68c3179354325eb110e356ea
+    ✓ Successfully deleted
+  [507/690] Deleting resource: 68c3179354325eb110e356eb
+    ✓ Successfully deleted
+  [508/690] Deleting resource: 68c3179354325eb110e356ec
+    ✓ Successfully deleted
+  [509/690] Deleting resource: 68c3179354325eb110e356ed
+    ✓ Successfully deleted
+  [510/690] Deleting resource: 68c3179354325eb110e356ee
+    ✓ Successfully deleted
+  [511/690] Deleting resource: 68c3179354325eb110e356ef
+    ✓ Successfully deleted
+  [512/690] Deleting resource: 68c3179354325eb110e356f0
+    ✓ Successfully deleted
+  [513/690] Deleting resource: 68c3179354325eb110e356f1
+    ✓ Successfully deleted
+  [514/690] Deleting resource: 68c3179354325eb110e356f2
+    ✓ Successfully deleted
+  [515/690] Deleting resource: 68c3179354325eb110e356f3
+    ✓ Successfully deleted
+  [516/690] Deleting resource: 68c3179354325eb110e356f4
+    ✓ Successfully deleted
+  [517/690] Deleting resource: 68c3179354325eb110e356f5
+    ✓ Successfully deleted
+  [518/690] Deleting resource: 68c3179354325eb110e356f6
+    ✓ Successfully deleted
+  [519/690] Deleting resource: 68c3179354325eb110e356f7
+    ✓ Successfully deleted
+  [520/690] Deleting resource: 68c3179354325eb110e356f8
+    ✓ Successfully deleted
+  [521/690] Deleting resource: 68c3179354325eb110e356f9
+    ✓ Successfully deleted
+  [522/690] Deleting resource: 68c3179354325eb110e356fa
+    ✓ Successfully deleted
+  [523/690] Deleting resource: 68c3179354325eb110e356fb
+    ✓ Successfully deleted
+  [524/690] Deleting resource: 68c3179354325eb110e356fc
+    ✓ Successfully deleted
+  [525/690] Deleting resource: 68c3179354325eb110e356fd
+    ✓ Successfully deleted
+  [526/690] Deleting resource: 68c3179354325eb110e356fe
+    ✓ Successfully deleted
+  [527/690] Deleting resource: 68c3179354325eb110e356ff
+    ✓ Successfully deleted
+  [528/690] Deleting resource: 68c3179354325eb110e35700
+    ✓ Successfully deleted
+  [529/690] Deleting resource: 68c3179354325eb110e35701
+    ✓ Successfully deleted
+  [530/690] Deleting resource: 68c3179354325eb110e35702
+    ✓ Successfully deleted
+  [531/690] Deleting resource: 68c3179354325eb110e35703
+    ✓ Successfully deleted
+  [532/690] Deleting resource: 68c3179354325eb110e35704
+    ✓ Successfully deleted
+  [533/690] Deleting resource: 68c3179354325eb110e35705
+    ✓ Successfully deleted
+  [534/690] Deleting resource: 68c3179354325eb110e35706
+    ✓ Successfully deleted
+  [535/690] Deleting resource: 68c3179354325eb110e35707
+    ✓ Successfully deleted
+  [536/690] Deleting resource: 68c3179354325eb110e35708
+    ✓ Successfully deleted
+  [537/690] Deleting resource: 68c3179354325eb110e35709
+    ✓ Successfully deleted
+  [538/690] Deleting resource: 68c3179354325eb110e3570a
+    ✓ Successfully deleted
+  [539/690] Deleting resource: 68c3179354325eb110e3570b
+    ✓ Successfully deleted
+  [540/690] Deleting resource: 68c3179354325eb110e3570c
+    ✓ Successfully deleted
+  [541/690] Deleting resource: 68c3179354325eb110e3570d
+    ✓ Successfully deleted
+  [542/690] Deleting resource: 68c3179354325eb110e3570e
+    ✓ Successfully deleted
+  [543/690] Deleting resource: 68c3179354325eb110e3570f
+    ✓ Successfully deleted
+  [544/690] Deleting resource: 68c3179354325eb110e35710
+    ✓ Successfully deleted
+  [545/690] Deleting resource: 68c3179354325eb110e35711
+    ✓ Successfully deleted
+  [546/690] Deleting resource: 68c3179354325eb110e35712
+    ✓ Successfully deleted
+  [547/690] Deleting resource: 68c3179354325eb110e35713
+    ✓ Successfully deleted
+  [548/690] Deleting resource: 68c3179354325eb110e35714
+    ✓ Successfully deleted
+  [549/690] Deleting resource: 68c3179354325eb110e35715
+    ✓ Successfully deleted
+  [550/690] Deleting resource: 68c3179354325eb110e35716
+    ✓ Successfully deleted
+  [551/690] Deleting resource: 68c3179354325eb110e35717
+    ✓ Successfully deleted
+  [552/690] Deleting resource: 68c317e454325eb110e35781
+    ✓ Successfully deleted
+  [553/690] Deleting resource: 68c317e454325eb110e35782
+    ✓ Successfully deleted
+  [554/690] Deleting resource: 68c317e454325eb110e35783
+    ✓ Successfully deleted
+  [555/690] Deleting resource: 68c317e454325eb110e35784
+    ✓ Successfully deleted
+  [556/690] Deleting resource: 68c3197f54325eb110e359b0
+    ✓ Successfully deleted
+  [557/690] Deleting resource: 68c3197f54325eb110e359b1
+    ✓ Successfully deleted
+  [558/690] Deleting resource: 68c3197f54325eb110e359b4
+    ✓ Successfully deleted
+  [559/690] Deleting resource: 68c3197f54325eb110e359b6
+    ✓ Successfully deleted
+  [560/690] Deleting resource: 68c3197f54325eb110e359b8
+    ✓ Successfully deleted
+  [561/690] Deleting resource: 68c3197f54325eb110e359b9
+    ✓ Successfully deleted
+  [562/690] Deleting resource: 68c31a0354325eb110e35b11
+    ✓ Successfully deleted
+  [563/690] Deleting resource: 68c31a0354325eb110e35b12
+    ✓ Successfully deleted
+  [564/690] Deleting resource: 68c31a0354325eb110e35b13
+    ✓ Successfully deleted
+  [565/690] Deleting resource: 68c31a0354325eb110e35b14
+    ✓ Successfully deleted
+  [566/690] Deleting resource: 68c31a0354325eb110e35b15
+    ✓ Successfully deleted
+  [567/690] Deleting resource: 68c31a0354325eb110e35b16
+    ✓ Successfully deleted
+  [568/690] Deleting resource: 68c31a0354325eb110e35b17
+    ✓ Successfully deleted
+  [569/690] Deleting resource: 68c31a0354325eb110e35b18
+    ✓ Successfully deleted
+  [570/690] Deleting resource: 68c31a0354325eb110e35b19
+    ✓ Successfully deleted
+  [571/690] Deleting resource: 68c31a0354325eb110e35b1a
+    ✓ Successfully deleted
+  [572/690] Deleting resource: 68c31a0354325eb110e35b1b
+    ✓ Successfully deleted
+  [573/690] Deleting resource: 68c31a0354325eb110e35b1c
+    ✓ Successfully deleted
+  [574/690] Deleting resource: 68c31a0354325eb110e35b1d
+    ✓ Successfully deleted
+  [575/690] Deleting resource: 68c31a0354325eb110e35b1e
+    ✓ Successfully deleted
+  [576/690] Deleting resource: 68c31a0354325eb110e35b1f
+    ✓ Successfully deleted
+  [577/690] Deleting resource: 68c31a0354325eb110e35b20
+    ✓ Successfully deleted
+  [578/690] Deleting resource: 68c31a0354325eb110e35b21
+    ✓ Successfully deleted
+  [579/690] Deleting resource: 68c31a0354325eb110e35b22
+    ✓ Successfully deleted
+  [580/690] Deleting resource: 68c31a0354325eb110e35b23
+    ✓ Successfully deleted
+  [581/690] Deleting resource: 68c31a0354325eb110e35b24
+    ✓ Successfully deleted
+  [582/690] Deleting resource: 68c31a0354325eb110e35b25
+    ✓ Successfully deleted
+  [583/690] Deleting resource: 68c31a0354325eb110e35b26
+    ✓ Successfully deleted
+  [584/690] Deleting resource: 68c31a0354325eb110e35b28
+    ✓ Successfully deleted
+  [585/690] Deleting resource: 68c31a0354325eb110e35b29
+    ✓ Successfully deleted
+  [586/690] Deleting resource: 68c31a0354325eb110e35b2a
+    ✓ Successfully deleted
+  [587/690] Deleting resource: 68c31a0354325eb110e35b2b
+    ✓ Successfully deleted
+  [588/690] Deleting resource: 68c31a0354325eb110e35b2c
+    ✓ Successfully deleted
+  [589/690] Deleting resource: 68c31a0354325eb110e35b2d
+    ✓ Successfully deleted
+  [590/690] Deleting resource: 68c31a0354325eb110e35b2e
+    ✓ Successfully deleted
+  [591/690] Deleting resource: 68c31a0354325eb110e35b2f
+    ✓ Successfully deleted
+  [592/690] Deleting resource: 68c31a0354325eb110e35b30
+    ✓ Successfully deleted
+  [593/690] Deleting resource: 68c31a0354325eb110e35b31
+    ✓ Successfully deleted
+  [594/690] Deleting resource: 68c31a0354325eb110e35b32
+    ✓ Successfully deleted
+  [595/690] Deleting resource: 68c31a0354325eb110e35b33
+    ✓ Successfully deleted
+  [596/690] Deleting resource: 68c31a0354325eb110e35b34
+    ✓ Successfully deleted
+  [597/690] Deleting resource: 68c31a0354325eb110e35b35
+    ✓ Successfully deleted
+  [598/690] Deleting resource: 68c31a0354325eb110e35b36
+    ✓ Successfully deleted
+  [599/690] Deleting resource: 68c31a0354325eb110e35b37
+    ✓ Successfully deleted
+  [600/690] Deleting resource: 68c31a0354325eb110e35b38
+    ✓ Successfully deleted
+  [601/690] Deleting resource: 68c31a0354325eb110e35b39
+    ✓ Successfully deleted
+  [602/690] Deleting resource: 68c31a0354325eb110e35b3a
+    ✓ Successfully deleted
+  [603/690] Deleting resource: 68c31a0354325eb110e35b3c
+    ✓ Successfully deleted
+  [604/690] Deleting resource: 68c31a0354325eb110e35b3d
+    ✓ Successfully deleted
+  [605/690] Deleting resource: 68c31a0354325eb110e35b3f
+    ✓ Successfully deleted
+  [606/690] Deleting resource: 68c31a0354325eb110e35b41
+    ✓ Successfully deleted
+  [607/690] Deleting resource: 68c31a0354325eb110e35b42
+    ✓ Successfully deleted
+  [608/690] Deleting resource: 68c31a0354325eb110e35b43
+    ✓ Successfully deleted
+  [609/690] Deleting resource: 68c31a0354325eb110e35b45
+    ✓ Successfully deleted
+  [610/690] Deleting resource: 68c31a0354325eb110e35b46
+    ✓ Successfully deleted
+  [611/690] Deleting resource: 68c31a0354325eb110e35b47
+    ✓ Successfully deleted
+  [612/690] Deleting resource: 68c31a0354325eb110e35b49
+    ✓ Successfully deleted
+  [613/690] Deleting resource: 68c31a0354325eb110e35b4a
+    ✓ Successfully deleted
+  [614/690] Deleting resource: 68c31a0354325eb110e35b4b
+    ✓ Successfully deleted
+  [615/690] Deleting resource: 68c31a0354325eb110e35b4c
+    ✓ Successfully deleted
+  [616/690] Deleting resource: 68c31a0354325eb110e35b4d
+    ✓ Successfully deleted
+  [617/690] Deleting resource: 68c31a0354325eb110e35b4e
+    ✓ Successfully deleted
+  [618/690] Deleting resource: 68c31a0354325eb110e35b4f
+    ✓ Successfully deleted
+  [619/690] Deleting resource: 68c31a0354325eb110e35b50
+    ✓ Successfully deleted
+  [620/690] Deleting resource: 68c31a0354325eb110e35b51
+    ✓ Successfully deleted
+  [621/690] Deleting resource: 68c31a0354325eb110e35b52
+    ✓ Successfully deleted
+  [622/690] Deleting resource: 68c31a0354325eb110e35b53
+    ✓ Successfully deleted
+  [623/690] Deleting resource: 68c31a0354325eb110e35b54
+    ✓ Successfully deleted
+  [624/690] Deleting resource: 68c31a0354325eb110e35b55
+    ✓ Successfully deleted
+  [625/690] Deleting resource: 68c31a0354325eb110e35b56
+    ✓ Successfully deleted
+  [626/690] Deleting resource: 68c31a0354325eb110e35b57
+    ✓ Successfully deleted
+  [627/690] Deleting resource: 68c31a0354325eb110e35b58
+    ✓ Successfully deleted
+  [628/690] Deleting resource: 68c31a0354325eb110e35b59
+    ✓ Successfully deleted
+  [629/690] Deleting resource: 68c31a0354325eb110e35b5a
+    ✓ Successfully deleted
+  [630/690] Deleting resource: 68c31a0354325eb110e35b5b
+    ✓ Successfully deleted
+  [631/690] Deleting resource: 68c31a0354325eb110e35b5c
+    ✓ Successfully deleted
+  [632/690] Deleting resource: 68c31a0354325eb110e35b5d
+    ✓ Successfully deleted
+  [633/690] Deleting resource: 68c31a0354325eb110e35b5e
+    ✓ Successfully deleted
+  [634/690] Deleting resource: 68c31a0354325eb110e35b5f
+    ✓ Successfully deleted
+  [635/690] Deleting resource: 68c31a0354325eb110e35b60
+    ✓ Successfully deleted
+  [636/690] Deleting resource: 68c31a0354325eb110e35b61
+    ✓ Successfully deleted
+  [637/690] Deleting resource: 68c31a0354325eb110e35b62
+    ✓ Successfully deleted
+  [638/690] Deleting resource: 68c31a0354325eb110e35b63
+    ✓ Successfully deleted
+  [639/690] Deleting resource: 68c31a0354325eb110e35b64
+    ✓ Successfully deleted
+  [640/690] Deleting resource: 68c31a0354325eb110e35b65
+    ✓ Successfully deleted
+  [641/690] Deleting resource: 68c31a0354325eb110e35b66
+    ✓ Successfully deleted
+  [642/690] Deleting resource: 68c31a0354325eb110e35b67
+    ✓ Successfully deleted
+  [643/690] Deleting resource: 68c31a0354325eb110e35b68
+    ✓ Successfully deleted
+  [644/690] Deleting resource: 68c31a0354325eb110e35b69
+    ✓ Successfully deleted
+  [645/690] Deleting resource: 68c31a0354325eb110e35b6a
+    ✓ Successfully deleted
+  [646/690] Deleting resource: 68c31a0354325eb110e35b6b
+    ✓ Successfully deleted
+  [647/690] Deleting resource: 68c31a0354325eb110e35b6c
+    ✓ Successfully deleted
+  [648/690] Deleting resource: 68c31a0354325eb110e35b6d
+    ✓ Successfully deleted
+  [649/690] Deleting resource: 68c31a0354325eb110e35b6e
+    ✓ Successfully deleted
+  [650/690] Deleting resource: 68c31a0354325eb110e35b6f
+    ✓ Successfully deleted
+  [651/690] Deleting resource: 68c31a0354325eb110e35b70
+    ✓ Successfully deleted
+  [652/690] Deleting resource: 68c31a0354325eb110e35b71
+    ✓ Successfully deleted
+  [653/690] Deleting resource: 68c31a0354325eb110e35b72
+    ✓ Successfully deleted
+  [654/690] Deleting resource: 68c31a0354325eb110e35b73
+    ✓ Successfully deleted
+  [655/690] Deleting resource: 68c31a0354325eb110e35b74
+    ✓ Successfully deleted
+  [656/690] Deleting resource: 68c31a0354325eb110e35b75
+    ✓ Successfully deleted
+  [657/690] Deleting resource: 68c31a0354325eb110e35b76
+    ✓ Successfully deleted
+  [658/690] Deleting resource: 68c31a0354325eb110e35b77
+    ✓ Successfully deleted
+  [659/690] Deleting resource: 68c31a0354325eb110e35b78
+    ✓ Successfully deleted
+  [660/690] Deleting resource: 68c31a0354325eb110e35b79
+    ✓ Successfully deleted
+  [661/690] Deleting resource: 68c31a0354325eb110e35b7a
+    ✓ Successfully deleted
+  [662/690] Deleting resource: 68c31a0354325eb110e35b7b
+    ✓ Successfully deleted
+  [663/690] Deleting resource: 68c31a0354325eb110e35b7c
+    ✓ Successfully deleted
+  [664/690] Deleting resource: 68c31a0354325eb110e35b7d
+    ✓ Successfully deleted
+  [665/690] Deleting resource: 68c31a0354325eb110e35b7e
+    ✓ Successfully deleted
+  [666/690] Deleting resource: 68c31a0354325eb110e35b7f
+    ✓ Successfully deleted
+  [667/690] Deleting resource: 68c31a0354325eb110e35b80
+    ✓ Successfully deleted
+  [668/690] Deleting resource: 68c31a0354325eb110e35b81
+    ✓ Successfully deleted
+  [669/690] Deleting resource: 68c31a0354325eb110e35b82
+    ✓ Successfully deleted
+  [670/690] Deleting resource: 68c31a0354325eb110e35b83
+    ✓ Successfully deleted
+  [671/690] Deleting resource: 68c31a0354325eb110e35b84
+    ✓ Successfully deleted
+  [672/690] Deleting resource: 68c31a0354325eb110e35b85
+    ✓ Successfully deleted
+  [673/690] Deleting resource: 68c31a0354325eb110e35b86
+    ✓ Successfully deleted
+  [674/690] Deleting resource: 68c31a0354325eb110e35b87
+    ✓ Successfully deleted
+  [675/690] Deleting resource: 68c31a0354325eb110e35b88
+    ✓ Successfully deleted
+  [676/690] Deleting resource: 68c31a0354325eb110e35b89
+    ✓ Successfully deleted
+  [677/690] Deleting resource: 68c31a0354325eb110e35b8a
+    ✓ Successfully deleted
+  [678/690] Deleting resource: 68c31a0354325eb110e35b8b
+    ✓ Successfully deleted
+  [679/690] Deleting resource: 68c31a0354325eb110e35b8c
+    ✓ Successfully deleted
+  [680/690] Deleting resource: 68c31a0354325eb110e35b8d
+    ✓ Successfully deleted
+  [681/690] Deleting resource: 68c31a4554325eb110e35c4d
+    ✓ Successfully deleted
+  [682/690] Deleting resource: 68c31a4554325eb110e35c4e
+    ✓ Successfully deleted
+  [683/690] Deleting resource: 68c31a4554325eb110e35c4f
+    ✓ Successfully deleted
+  [684/690] Deleting resource: 68c31a4554325eb110e35c50
+    ✓ Successfully deleted
+  [685/690] Deleting resource: 68c31a5e54325eb110e35c71
+    ✓ Successfully deleted
+  [686/690] Deleting resource: 68c31a5e54325eb110e35c72
+    ✓ Successfully deleted
+  [687/690] Deleting resource: 68c31a5e54325eb110e35c75
+    ✓ Successfully deleted
+  [688/690] Deleting resource: 68c31a5e54325eb110e35c77
+    ✓ Successfully deleted
+  [689/690] Deleting resource: 68c31a5e54325eb110e35c79
+    ✓ Successfully deleted
+  [690/690] Deleting resource: 68c31a5e54325eb110e35c7a
+    ✓ Successfully deleted
+  Clearing resource_ids array for collection 69621bc964c184bc74630289...
+  ✓ Successfully cleared resource_ids array
+
+[102/219] Processing collection: high_accuracy (ID: 69621f7864c184bc7463028b)
+  Org ID: 36508
+  Resources count: 1
+  [1/1] Deleting resource: 68ce359af3f8e2845c92e27b
+    ✓ Successfully deleted
+  Clearing resource_ids array for collection 69621f7864c184bc7463028b...
+  ✓ Successfully cleared resource_ids array
+
+[103/219] Processing collection: high_accuracy (ID: 69621f7b64c184bc7463028d)
+  Org ID: 51286
+  Resources count: 1
+  [1/1] Deleting resource: 68dcb4fb31a7c2db2197967a
+    ✓ Successfully deleted
+  Clearing resource_ids array for collection 69621f7b64c184bc7463028d...
+  ✓ Successfully cleared resource_ids array
+
+[104/219] Processing collection: high_accuracy (ID: 69621f7d64c184bc7463028f)
+  Org ID: 51535
+  Resources count: 91
+  [1/91] Deleting resource: 68e6705e4e1695518af5d55c
+    ✓ Successfully deleted
+  [2/91] Deleting resource: 68e6713c26cd5a8aa2c89a5f
+    ✓ Successfully deleted
+  [3/91] Deleting resource: 68e6713c26cd5a8aa2c89a60
+    ✓ Successfully deleted
+  [4/91] Deleting resource: 68e6713c26cd5a8aa2c89a61
+    ✓ Successfully deleted
+  [5/91] Deleting resource: 68e6713c26cd5a8aa2c89a62
+    ✓ Successfully deleted
+  [6/91] Deleting resource: 68e6713c26cd5a8aa2c89a63
+    ✓ Successfully deleted
+  [7/91] Deleting resource: 68e6713c26cd5a8aa2c89a64
+    ✓ Successfully deleted
+  [8/91] Deleting resource: 68e6713c26cd5a8aa2c89a65
+    ✓ Successfully deleted
+  [9/91] Deleting resource: 68e6713c26cd5a8aa2c89a66
+    ✓ Successfully deleted
+  [10/91] Deleting resource: 68e6713c26cd5a8aa2c89a67
+    ✓ Successfully deleted
+  [11/91] Deleting resource: 68e6713c26cd5a8aa2c89a68
+    ✓ Successfully deleted
+  [12/91] Deleting resource: 68e6713c26cd5a8aa2c89a69
+    ✓ Successfully deleted
+  [13/91] Deleting resource: 68e6713c26cd5a8aa2c89a6a
+    ✓ Successfully deleted
+  [14/91] Deleting resource: 68e6713c26cd5a8aa2c89a6b
+    ✓ Successfully deleted
+  [15/91] Deleting resource: 68e6713c26cd5a8aa2c89a6c
+    ✓ Successfully deleted
+  [16/91] Deleting resource: 68e6713c26cd5a8aa2c89a6d
+    ✓ Successfully deleted
+  [17/91] Deleting resource: 68e6713c26cd5a8aa2c89a6e
+    ✓ Successfully deleted
+  [18/91] Deleting resource: 68e6713c26cd5a8aa2c89a6f
+    ✓ Successfully deleted
+  [19/91] Deleting resource: 68e6713c26cd5a8aa2c89a70
+    ✓ Successfully deleted
+  [20/91] Deleting resource: 68e6713c26cd5a8aa2c89a71
+    ✓ Successfully deleted
+  [21/91] Deleting resource: 68e6713c26cd5a8aa2c89a72
+    ✓ Successfully deleted
+  [22/91] Deleting resource: 68e6713c26cd5a8aa2c89a73
+    ✓ Successfully deleted
+  [23/91] Deleting resource: 68e6713c26cd5a8aa2c89a74
+    ✓ Successfully deleted
+  [24/91] Deleting resource: 68e6713c26cd5a8aa2c89a75
+    ✓ Successfully deleted
+  [25/91] Deleting resource: 68e6713c26cd5a8aa2c89a76
+    ✓ Successfully deleted
+  [26/91] Deleting resource: 68e6713c26cd5a8aa2c89a77
+    ✓ Successfully deleted
+  [27/91] Deleting resource: 68e6713c26cd5a8aa2c89a78
+    ✓ Successfully deleted
+  [28/91] Deleting resource: 68e6713c26cd5a8aa2c89a79
+    ✓ Successfully deleted
+  [29/91] Deleting resource: 68e6713c26cd5a8aa2c89a7a
+    ✓ Successfully deleted
+  [30/91] Deleting resource: 68e6713c26cd5a8aa2c89a7b
+    ✓ Successfully deleted
+  [31/91] Deleting resource: 68e6713c26cd5a8aa2c89a7c
+    ✓ Successfully deleted
+  [32/91] Deleting resource: 68e6713c26cd5a8aa2c89a7d
+    ✓ Successfully deleted
+  [33/91] Deleting resource: 68e6713c26cd5a8aa2c89a7e
+    ✓ Successfully deleted
+  [34/91] Deleting resource: 68e6713c26cd5a8aa2c89a7f
+    ✓ Successfully deleted
+  [35/91] Deleting resource: 68e6713c26cd5a8aa2c89a80
+    ✓ Successfully deleted
+  [36/91] Deleting resource: 68e6713c26cd5a8aa2c89a82
+    ✓ Successfully deleted
+  [37/91] Deleting resource: 68e6713c26cd5a8aa2c89a83
+    ✓ Successfully deleted
+  [38/91] Deleting resource: 68e6713c26cd5a8aa2c89a84
+    ✓ Successfully deleted
+  [39/91] Deleting resource: 68e6713c26cd5a8aa2c89a85
+    ✓ Successfully deleted
+  [40/91] Deleting resource: 68e6713c26cd5a8aa2c89a86
+    ✓ Successfully deleted
+  [41/91] Deleting resource: 68e6713c26cd5a8aa2c89a87
+    ✓ Successfully deleted
+  [42/91] Deleting resource: 68e6713c26cd5a8aa2c89a88
+    ✓ Successfully deleted
+  [43/91] Deleting resource: 68e6713c26cd5a8aa2c89a89
+    ✓ Successfully deleted
+  [44/91] Deleting resource: 68ef8ca5b4d5124e75b26587
+    ✓ Successfully deleted
+  [45/91] Deleting resource: 68ef8cb0bb7a4a5428bd2c7d
+    ✓ Successfully deleted
+  [46/91] Deleting resource: 68ef951abdd41f5073fe6161
+    ✓ Successfully deleted
+  [47/91] Deleting resource: 68ef9526eee30798482cca63
+    ✓ Successfully deleted
+  [48/91] Deleting resource: 68ef9526eee30798482cca64
+    ✓ Successfully deleted
+  [49/91] Deleting resource: 68ef9544bdd41f5073fe6164
+    ✓ Successfully deleted
+  [50/91] Deleting resource: 68ef9551eee30798482cca96
+    ✓ Successfully deleted
+  [51/91] Deleting resource: 68ef9551eee30798482cca9f
+    ✓ Successfully deleted
+  [52/91] Deleting resource: 68ef9551eee30798482ccaa9
+    ✓ Successfully deleted
+  [53/91] Deleting resource: 68ef9551eee30798482ccaae
+    ✓ Successfully deleted
+  [54/91] Deleting resource: 68ef9551eee30798482ccab4
+    ✓ Successfully deleted
+  [55/91] Deleting resource: 68ef9551eee30798482ccab5
+    ✓ Successfully deleted
+  [56/91] Deleting resource: 68ef9551eee30798482ccabb
+    ✓ Successfully deleted
+  [57/91] Deleting resource: 68ef9551eee30798482ccac0
+    ✓ Successfully deleted
+  [58/91] Deleting resource: 68ef9551eee30798482cca9e
+    ✓ Successfully deleted
+  [59/91] Deleting resource: 68ef9551eee30798482ccaa3
+    ✓ Successfully deleted
+  [60/91] Deleting resource: 68ef9551eee30798482ccaa7
+    ✓ Successfully deleted
+  [61/91] Deleting resource: 68ef9551eee30798482ccaab
+    ✓ Successfully deleted
+  [62/91] Deleting resource: 68ef9551eee30798482ccaad
+    ✓ Successfully deleted
+  [63/91] Deleting resource: 68ef9551eee30798482ccaaf
+    ✓ Successfully deleted
+  [64/91] Deleting resource: 68ef9551eee30798482ccab1
+    ✓ Successfully deleted
+  [65/91] Deleting resource: 68ef9551eee30798482ccab3
+    ✓ Successfully deleted
+  [66/91] Deleting resource: 68ef9551eee30798482ccab6
+    ✓ Successfully deleted
+  [67/91] Deleting resource: 68ef9551eee30798482ccab7
+    ✓ Successfully deleted
+  [68/91] Deleting resource: 68ef9551eee30798482ccabd
+    ✓ Successfully deleted
+  [69/91] Deleting resource: 68ef9551eee30798482ccabe
+    ✓ Successfully deleted
+  [70/91] Deleting resource: 68ef9551eee30798482cca97
+    ✓ Successfully deleted
+  [71/91] Deleting resource: 68ef9551eee30798482cca9c
+    ✓ Successfully deleted
+  [72/91] Deleting resource: 68ef9551eee30798482cca9d
+    ✓ Successfully deleted
+  [73/91] Deleting resource: 68ef9551eee30798482ccaa0
+    ✓ Successfully deleted
+  [74/91] Deleting resource: 68ef9551eee30798482ccaa1
+    ✓ Successfully deleted
+  [75/91] Deleting resource: 68ef9551eee30798482ccaaa
+    ✓ Successfully deleted
+  [76/91] Deleting resource: 68ef9551eee30798482ccab0
+    ✓ Successfully deleted
+  [77/91] Deleting resource: 68ef9551eee30798482ccab9
+    ✓ Successfully deleted
+  [78/91] Deleting resource: 68ef9551eee30798482cca98
+    ✓ Successfully deleted
+  [79/91] Deleting resource: 68ef9551eee30798482cca99
+    ✓ Successfully deleted
+  [80/91] Deleting resource: 68ef9551eee30798482cca9a
+    ✓ Successfully deleted
+  [81/91] Deleting resource: 68ef9551eee30798482cca9b
+    ✓ Successfully deleted
+  [82/91] Deleting resource: 68ef9551eee30798482ccaa2
+    ✓ Successfully deleted
+  [83/91] Deleting resource: 68ef9551eee30798482ccaa4
+    ✓ Successfully deleted
+  [84/91] Deleting resource: 68ef9551eee30798482ccaa5
+    ✓ Successfully deleted
+  [85/91] Deleting resource: 68ef9551eee30798482ccaa6
+    ✓ Successfully deleted
+  [86/91] Deleting resource: 68ef9551eee30798482ccaa8
+    ✓ Successfully deleted
+  [87/91] Deleting resource: 68ef9551eee30798482ccaac
+    ✓ Successfully deleted
+  [88/91] Deleting resource: 68ef9551eee30798482ccab2
+    ✓ Successfully deleted
+  [89/91] Deleting resource: 68ef9551eee30798482ccaba
+    ✓ Successfully deleted
+  [90/91] Deleting resource: 68ef9551eee30798482ccabc
+    ✓ Successfully deleted
+  [91/91] Deleting resource: 68ef9551eee30798482ccabf
+    ✓ Successfully deleted
+  Clearing resource_ids array for collection 69621f7d64c184bc7463028f...
+  ✓ Successfully cleared resource_ids array
+
+[105/219] Processing collection: high_accuracy (ID: 69621fd864c184bc74630291)
+  Org ID: 52429
+  Resources count: 7
+  [1/7] Deleting resource: 68ef3e5decebd86e3c52188a
+    ✓ Successfully deleted
+  [2/7] Deleting resource: 68ef3e6838615422a037f50e
+    ✓ Successfully deleted
+  [3/7] Deleting resource: 68ef3e6838615422a037f512
+    ✓ Successfully deleted
+  [4/7] Deleting resource: 68ef3e6838615422a037f517
+    ✓ Successfully deleted
+  [5/7] Deleting resource: 68ef3e6838615422a037f50f
+    ✓ Successfully deleted
+  [6/7] Deleting resource: 68ef3e6838615422a037f514
+    ✓ Successfully deleted
+  [7/7] Deleting resource: 68ef3e6838615422a037f516
+    ✓ Successfully deleted
+  Clearing resource_ids array for collection 69621fd864c184bc74630291...
+  ✓ Successfully cleared resource_ids array
+
+[106/219] Processing collection: high_accuracy (ID: 69621fe264c184bc74630293)
+  Org ID: 51673
+  Resources count: 23
+  [1/23] Deleting resource: 68ef68cbb4d5124e75b25b59
+    ✓ Successfully deleted
+  [2/23] Deleting resource: 68ef68d2bb7a4a5428bd274e
+    ✓ Successfully deleted
+  [3/23] Deleting resource: 68ef68d2bb7a4a5428bd2751
+    ✓ Successfully deleted
+  [4/23] Deleting resource: 68ef68d2bb7a4a5428bd2755
+    ✓ Successfully deleted
+  [5/23] Deleting resource: 68ef68d2bb7a4a5428bd2756
+    ✓ Successfully deleted
+  [6/23] Deleting resource: 68ef68d2bb7a4a5428bd2758
+    ✓ Successfully deleted
+  [7/23] Deleting resource: 68ef68d2bb7a4a5428bd2759
+    ✓ Successfully deleted
+  [8/23] Deleting resource: 68ef68d2bb7a4a5428bd275d
+    ✓ Successfully deleted
+  [9/23] Deleting resource: 68ef68d2bb7a4a5428bd275e
+    ✓ Successfully deleted
+  [10/23] Deleting resource: 68ef68d2bb7a4a5428bd2761
+    ✓ Successfully deleted
+  [11/23] Deleting resource: 68ef68d2bb7a4a5428bd274d
+    ✓ Successfully deleted
+  [12/23] Deleting resource: 68ef68d2bb7a4a5428bd274f
+    ✓ Successfully deleted
+  [13/23] Deleting resource: 68ef68d2bb7a4a5428bd2753
+    ✓ Successfully deleted
+  [14/23] Deleting resource: 68ef68d2bb7a4a5428bd2757
+    ✓ Successfully deleted
+  [15/23] Deleting resource: 68ef68d2bb7a4a5428bd275a
+    ✓ Successfully deleted
+  [16/23] Deleting resource: 68ef68d2bb7a4a5428bd2762
+    ✓ Successfully deleted
+  [17/23] Deleting resource: 68ef68d2bb7a4a5428bd2750
+    ✓ Successfully deleted
+  [18/23] Deleting resource: 68ef68d2bb7a4a5428bd2752
+    ✓ Successfully deleted
+  [19/23] Deleting resource: 68ef68d2bb7a4a5428bd275b
+    ✓ Successfully deleted
+  [20/23] Deleting resource: 68ef68d2bb7a4a5428bd275f
+    ✓ Successfully deleted
+  [21/23] Deleting resource: 68ef68d2bb7a4a5428bd2760
+    ✓ Successfully deleted
+  [22/23] Deleting resource: 68ef68d2bb7a4a5428bd2754
+    ✓ Successfully deleted
+  [23/23] Deleting resource: 68ef68d2bb7a4a5428bd275c
+    ✓ Successfully deleted
+  Clearing resource_ids array for collection 69621fe264c184bc74630293...
+  ✓ Successfully cleared resource_ids array
+
+[107/219] Processing collection: high_accuracy (ID: 6962200164c184bc74630295)
+  Org ID: 51564
+  Resources count: 6
+  [1/6] Deleting resource: 68ef6f86b4d5124e75b25e6e
+    ✓ Successfully deleted
+  [2/6] Deleting resource: 68ef6f8cbb7a4a5428bd29cb
+    ✓ Successfully deleted
+  [3/6] Deleting resource: 68ef6f8cbb7a4a5428bd29cc
+    ✓ Successfully deleted
+  [4/6] Deleting resource: 6901b32bdf859b99dad5b045
+    ✓ Successfully deleted
+  [5/6] Deleting resource: 69035da12f79f6eaa0c75896
+    ✓ Successfully deleted
+  [6/6] Deleting resource: 69083ab1bd41bb45493f4acf
+    ✓ Successfully deleted
+  Clearing resource_ids array for collection 6962200164c184bc74630295...
+  ✓ Successfully cleared resource_ids array
+
+[108/219] Processing collection: high_accuracy (ID: 6962200564c184bc74630297)
+  Org ID: 52481
+  Resources count: 23
+  [1/23] Deleting resource: 68ef881ab4d5124e75b2646d
+    ✓ Successfully deleted
+  [2/23] Deleting resource: 68ef8821bb7a4a5428bd2a05
+    ✓ Successfully deleted
+  [3/23] Deleting resource: 68ef8821bb7a4a5428bd2a09
+    ✓ Successfully deleted
+  [4/23] Deleting resource: 68ef8821bb7a4a5428bd2a11
+    ✓ Successfully deleted
+  [5/23] Deleting resource: 68ef8821bb7a4a5428bd29ff
+    ✓ Successfully deleted
+  [6/23] Deleting resource: 68ef8821bb7a4a5428bd2a01
+    ✓ Successfully deleted
+  [7/23] Deleting resource: 68ef8821bb7a4a5428bd2a08
+    ✓ Successfully deleted
+  [8/23] Deleting resource: 68ef8821bb7a4a5428bd2a0c
+    ✓ Successfully deleted
+  [9/23] Deleting resource: 68ef8821bb7a4a5428bd2a0f
+    ✓ Successfully deleted
+  [10/23] Deleting resource: 68ef8821bb7a4a5428bd2a02
+    ✓ Successfully deleted
+  [11/23] Deleting resource: 68ef8821bb7a4a5428bd2a03
+    ✓ Successfully deleted
+  [12/23] Deleting resource: 68ef8821bb7a4a5428bd2a13
+    ✓ Successfully deleted
+  [13/23] Deleting resource: 68ef8821bb7a4a5428bd2a00
+    ✓ Successfully deleted
+  [14/23] Deleting resource: 68ef8821bb7a4a5428bd2a04
+    ✓ Successfully deleted
+  [15/23] Deleting resource: 68ef8821bb7a4a5428bd2a06
+    ✓ Successfully deleted
+  [16/23] Deleting resource: 68ef8821bb7a4a5428bd2a07
+    ✓ Successfully deleted
+  [17/23] Deleting resource: 68ef8821bb7a4a5428bd2a0a
+    ✓ Successfully deleted
+  [18/23] Deleting resource: 68ef8821bb7a4a5428bd2a0b
+    ✓ Successfully deleted
+  [19/23] Deleting resource: 68ef8821bb7a4a5428bd2a0d
+    ✓ Successfully deleted
+  [20/23] Deleting resource: 68ef8821bb7a4a5428bd2a0e
+    ✓ Successfully deleted
+  [21/23] Deleting resource: 68ef8821bb7a4a5428bd2a10
+    ✓ Successfully deleted
+  [22/23] Deleting resource: 68ef8821bb7a4a5428bd2a12
+    ✓ Successfully deleted
+  [23/23] Deleting resource: 68ef8821bb7a4a5428bd2a14
+    ✓ Successfully deleted
+  Clearing resource_ids array for collection 6962200564c184bc74630297...
+  ✓ Successfully cleared resource_ids array
+
+[109/219] Processing collection: high_accuracy (ID: 6962206664c184bc74630299)
+  Org ID: 50749
+  Resources count: 81
+  [1/81] Deleting resource: 68f0847da6c3f5385f9dcbc8
+    ✓ Successfully deleted
+  [2/81] Deleting resource: 68fb4a11ac5368eaa60ac976
+    ✓ Successfully deleted
+  [3/81] Deleting resource: 68fb4a40ac5368eaa60ac98a
+    ✓ Successfully deleted
+  [4/81] Deleting resource: 6900a5c89c52a4693ab6378d
+    ✓ Successfully deleted
+  [5/81] Deleting resource: 6900a628834d554cde28fef4
+    ✓ Successfully deleted
+  [6/81] Deleting resource: 6900a6b29c52a4693ab6393d
+    ✓ Successfully deleted
+  [7/81] Deleting resource: 6900a7259c52a4693ab63956
+    ✓ Successfully deleted
+  [8/81] Deleting resource: 6900aa86834d554cde2903ca
+    ✓ Successfully deleted
+  [9/81] Deleting resource: 6900aa86834d554cde2903cc
+    ✓ Successfully deleted
+  [10/81] Deleting resource: 690b2123d0289913760247ac
+    ✓ Successfully deleted
+  [11/81] Deleting resource: 690b23eec5785e0e9f8c721a
+    ✓ Successfully deleted
+  [12/81] Deleting resource: 690b23eec5785e0e9f8c721b
+    ✓ Successfully deleted
+  [13/81] Deleting resource: 690b23eec5785e0e9f8c721c
+    ✓ Successfully deleted
+  [14/81] Deleting resource: 690b23eec5785e0e9f8c7220
+    ✓ Successfully deleted
+  [15/81] Deleting resource: 690b23eec5785e0e9f8c7228
+    ✓ Successfully deleted
+  [16/81] Deleting resource: 690b23eec5785e0e9f8c722d
+    ✓ Successfully deleted
+  [17/81] Deleting resource: 690b23eec5785e0e9f8c7233
+    ✓ Successfully deleted
+  [18/81] Deleting resource: 690b23eec5785e0e9f8c7242
+    ✓ Successfully deleted
+  [19/81] Deleting resource: 690b23eec5785e0e9f8c7245
+    ✓ Successfully deleted
+  [20/81] Deleting resource: 690b23eec5785e0e9f8c7249
+    ✓ Successfully deleted
+  [21/81] Deleting resource: 690b23eec5785e0e9f8c724c
+    ✓ Successfully deleted
+  [22/81] Deleting resource: 690b23eec5785e0e9f8c7251
+    ✓ Successfully deleted
+  [23/81] Deleting resource: 690b23eec5785e0e9f8c7253
+    ✓ Successfully deleted
+  [24/81] Deleting resource: 690b23eec5785e0e9f8c7254
+    ✓ Successfully deleted
+  [25/81] Deleting resource: 690b23eec5785e0e9f8c7258
+    ✓ Successfully deleted
+  [26/81] Deleting resource: 690b23eec5785e0e9f8c7219
+    ✓ Successfully deleted
+  [27/81] Deleting resource: 690b23eec5785e0e9f8c721e
+    ✓ Successfully deleted
+  [28/81] Deleting resource: 690b23eec5785e0e9f8c7221
+    ✓ Successfully deleted
+  [29/81] Deleting resource: 690b23eec5785e0e9f8c7223
+    ✓ Successfully deleted
+  [30/81] Deleting resource: 690b23eec5785e0e9f8c7227
+    ✓ Successfully deleted
+  [31/81] Deleting resource: 690b23eec5785e0e9f8c722b
+    ✓ Successfully deleted
+  [32/81] Deleting resource: 690b23eec5785e0e9f8c7231
+    ✓ Successfully deleted
+  [33/81] Deleting resource: 690b23eec5785e0e9f8c7234
+    ✓ Successfully deleted
+  [34/81] Deleting resource: 690b23eec5785e0e9f8c7236
+    ✓ Successfully deleted
+  [35/81] Deleting resource: 690b23eec5785e0e9f8c7238
+    ✓ Successfully deleted
+  [36/81] Deleting resource: 690b23eec5785e0e9f8c7239
+    ✓ Successfully deleted
+  [37/81] Deleting resource: 690b23eec5785e0e9f8c723a
+    ✓ Successfully deleted
+  [38/81] Deleting resource: 690b23eec5785e0e9f8c723e
+    ✓ Successfully deleted
+  [39/81] Deleting resource: 690b23eec5785e0e9f8c7240
+    ✓ Successfully deleted
+  [40/81] Deleting resource: 690b23eec5785e0e9f8c7248
+    ✓ Successfully deleted
+  [41/81] Deleting resource: 690b23eec5785e0e9f8c724a
+    ✓ Successfully deleted
+  [42/81] Deleting resource: 690b23eec5785e0e9f8c724e
+    ✓ Successfully deleted
+  [43/81] Deleting resource: 690b23eec5785e0e9f8c7252
+    ✓ Successfully deleted
+  [44/81] Deleting resource: 690b23eec5785e0e9f8c725a
+    ✓ Successfully deleted
+  [45/81] Deleting resource: 690b23eec5785e0e9f8c725b
+    ✓ Successfully deleted
+  [46/81] Deleting resource: 690b23eec5785e0e9f8c725d
+    ✓ Successfully deleted
+  [47/81] Deleting resource: 690b23eec5785e0e9f8c7225
+    ✓ Successfully deleted
+  [48/81] Deleting resource: 690b23eec5785e0e9f8c7226
+    ✓ Successfully deleted
+  [49/81] Deleting resource: 690b23eec5785e0e9f8c722a
+    ✓ Successfully deleted
+  [50/81] Deleting resource: 690b23eec5785e0e9f8c722c
+    ✓ Successfully deleted
+  [51/81] Deleting resource: 690b23eec5785e0e9f8c722e
+    ✓ Successfully deleted
+  [52/81] Deleting resource: 690b23eec5785e0e9f8c722f
+    ✓ Successfully deleted
+  [53/81] Deleting resource: 690b23eec5785e0e9f8c7230
+    ✓ Successfully deleted
+  [54/81] Deleting resource: 690b23eec5785e0e9f8c7235
+    ✓ Successfully deleted
+  [55/81] Deleting resource: 690b23eec5785e0e9f8c723c
+    ✓ Successfully deleted
+  [56/81] Deleting resource: 690b23eec5785e0e9f8c723d
+    ✓ Successfully deleted
+  [57/81] Deleting resource: 690b23eec5785e0e9f8c7241
+    ✓ Successfully deleted
+  [58/81] Deleting resource: 690b23eec5785e0e9f8c7247
+    ✓ Successfully deleted
+  [59/81] Deleting resource: 690b23eec5785e0e9f8c724b
+    ✓ Successfully deleted
+  [60/81] Deleting resource: 690b23eec5785e0e9f8c724f
+    ✓ Successfully deleted
+  [61/81] Deleting resource: 690b23eec5785e0e9f8c7256
+    ✓ Successfully deleted
+  [62/81] Deleting resource: 690b23eec5785e0e9f8c7257
+    ✓ Successfully deleted
+  [63/81] Deleting resource: 690b23eec5785e0e9f8c725c
+    ✓ Successfully deleted
+  [64/81] Deleting resource: 690b23eec5785e0e9f8c725f
+    ✓ Successfully deleted
+  [65/81] Deleting resource: 690b23eec5785e0e9f8c7222
+    ✓ Successfully deleted
+  [66/81] Deleting resource: 690b23eec5785e0e9f8c7224
+    ✓ Successfully deleted
+  [67/81] Deleting resource: 690b23eec5785e0e9f8c7229
+    ✓ Successfully deleted
+  [68/81] Deleting resource: 690b23eec5785e0e9f8c7232
+    ✓ Successfully deleted
+  [69/81] Deleting resource: 690b23eec5785e0e9f8c7237
+    ✓ Successfully deleted
+  [70/81] Deleting resource: 690b23eec5785e0e9f8c723b
+    ✓ Successfully deleted
+  [71/81] Deleting resource: 690b23eec5785e0e9f8c723f
+    ✓ Successfully deleted
+  [72/81] Deleting resource: 690b23eec5785e0e9f8c7243
+    ✓ Successfully deleted
+  [73/81] Deleting resource: 690b23eec5785e0e9f8c7244
+    ✓ Successfully deleted
+  [74/81] Deleting resource: 690b23eec5785e0e9f8c7246
+    ✓ Successfully deleted
+  [75/81] Deleting resource: 690b23eec5785e0e9f8c724d
+    ✓ Successfully deleted
+  [76/81] Deleting resource: 690b23eec5785e0e9f8c7250
+    ✓ Successfully deleted
+  [77/81] Deleting resource: 690b23eec5785e0e9f8c7255
+    ✓ Successfully deleted
+  [78/81] Deleting resource: 690b23eec5785e0e9f8c7259
+    ✓ Successfully deleted
+  [79/81] Deleting resource: 690b23eec5785e0e9f8c725e
+    ✓ Successfully deleted
+  [80/81] Deleting resource: 690b24bdd028991376024866
+    ✓ Successfully deleted
+  [81/81] Deleting resource: 690b2792c5785e0e9f8c787a
+    ✓ Successfully deleted
+  Clearing resource_ids array for collection 6962206664c184bc74630299...
+  ✓ Successfully cleared resource_ids array
+
+[110/219] Processing collection: high_accuracy (ID: 6962206864c184bc7463029b)
+  Org ID: 52526
+  Resources count: 1
+  [1/1] Deleting resource: 68f874f1745414290b70a8d7
+    ✓ Successfully deleted
+  Clearing resource_ids array for collection 6962206864c184bc7463029b...
+  ✓ Successfully cleared resource_ids array
+
+[111/219] Processing collection: high_accuracy (ID: 6962207564c184bc7463029d)
+  Org ID: 52831
+  Resources count: 174
+  [1/174] Deleting resource: 6900b7d18a824bf16df4b87d
+    ✓ Successfully deleted
+  [2/174] Deleting resource: 6900b7dd8570873eeb0d2fe9
+    ✓ Successfully deleted
+  [3/174] Deleting resource: 6900b7dd8570873eeb0d2fea
+    ✓ Successfully deleted
+  [4/174] Deleting resource: 6900b7dd8570873eeb0d2feb
+    ✓ Successfully deleted
+  [5/174] Deleting resource: 6900b7dd8570873eeb0d2fec
+    ✓ Successfully deleted
+  [6/174] Deleting resource: 6900b7dd8570873eeb0d2fed
+    ✓ Successfully deleted
+  [7/174] Deleting resource: 6900b7dd8570873eeb0d2fee
+    ✓ Successfully deleted
+  [8/174] Deleting resource: 6900b7dd8570873eeb0d2fef
+    ✓ Successfully deleted
+  [9/174] Deleting resource: 6900b7dd8570873eeb0d2ff0
+    ✓ Successfully deleted
+  [10/174] Deleting resource: 6900b7dd8570873eeb0d2ff1
+    ✓ Successfully deleted
+  [11/174] Deleting resource: 6900b7dd8570873eeb0d2ff2
+    ✓ Successfully deleted
+  [12/174] Deleting resource: 6900b7dd8570873eeb0d2ff3
+    ✓ Successfully deleted
+  [13/174] Deleting resource: 6900b7dd8570873eeb0d2ff4
+    ✓ Successfully deleted
+  [14/174] Deleting resource: 6900b7dd8570873eeb0d2ff5
+    ✓ Successfully deleted
+  [15/174] Deleting resource: 6900b7dd8570873eeb0d2ff6
+    ✓ Successfully deleted
+  [16/174] Deleting resource: 6900b7dd8570873eeb0d2ff7
+    ✓ Successfully deleted
+  [17/174] Deleting resource: 6900b7dd8570873eeb0d2ff8
+    ✓ Successfully deleted
+  [18/174] Deleting resource: 6900b7dd8570873eeb0d2ff9
+    ✓ Successfully deleted
+  [19/174] Deleting resource: 6900b7dd8570873eeb0d2ffa
+    ✓ Successfully deleted
+  [20/174] Deleting resource: 6900b7dd8570873eeb0d2ffb
+    ✓ Successfully deleted
+  [21/174] Deleting resource: 6900b7dd8570873eeb0d2ffc
+    ✓ Successfully deleted
+  [22/174] Deleting resource: 6900b7dd8570873eeb0d2ffd
+    ✓ Successfully deleted
+  [23/174] Deleting resource: 6900b7dd8570873eeb0d2ffe
+    ✓ Successfully deleted
+  [24/174] Deleting resource: 6900b7dd8570873eeb0d3000
+    ✓ Successfully deleted
+  [25/174] Deleting resource: 6900b7dd8570873eeb0d3001
+    ✓ Successfully deleted
+  [26/174] Deleting resource: 6900b7dd8570873eeb0d3002
+    ✓ Successfully deleted
+  [27/174] Deleting resource: 6900b7dd8570873eeb0d3003
+    ✓ Successfully deleted
+  [28/174] Deleting resource: 6900b7dd8570873eeb0d3004
+    ✓ Successfully deleted
+  [29/174] Deleting resource: 6900b7dd8570873eeb0d3005
+    ✓ Successfully deleted
+  [30/174] Deleting resource: 6900b7dd8570873eeb0d3006
+    ✓ Successfully deleted
+  [31/174] Deleting resource: 6900b7dd8570873eeb0d3007
+    ✓ Successfully deleted
+  [32/174] Deleting resource: 6900b7dd8570873eeb0d3008
+    ✓ Successfully deleted
+  [33/174] Deleting resource: 6900b7dd8570873eeb0d3009
+    ✓ Successfully deleted
+  [34/174] Deleting resource: 6900b7dd8570873eeb0d300a
+    ✓ Successfully deleted
+  [35/174] Deleting resource: 6900b7dd8570873eeb0d300b
+    ✓ Successfully deleted
+  [36/174] Deleting resource: 6900b7dd8570873eeb0d300c
+    ✓ Successfully deleted
+  [37/174] Deleting resource: 6900b7dd8570873eeb0d300d
+    ✓ Successfully deleted
+  [38/174] Deleting resource: 6900b7dd8570873eeb0d300e
+    ✓ Successfully deleted
+  [39/174] Deleting resource: 6900b7dd8570873eeb0d300f
+    ✓ Successfully deleted
+  [40/174] Deleting resource: 6900b7dd8570873eeb0d3010
+    ✓ Successfully deleted
+  [41/174] Deleting resource: 6900b7dd8570873eeb0d3011
+    ✓ Successfully deleted
+  [42/174] Deleting resource: 6900b7dd8570873eeb0d3012
+    ✓ Successfully deleted
+  [43/174] Deleting resource: 6900b7dd8570873eeb0d3014
+    ✓ Successfully deleted
+  [44/174] Deleting resource: 6900b7dd8570873eeb0d3017
+    ✓ Successfully deleted
+  [45/174] Deleting resource: 6900b7dd8570873eeb0d3019
+    ✓ Successfully deleted
+  [46/174] Deleting resource: 6900b7dd8570873eeb0d301a
+    ✓ Successfully deleted
+  [47/174] Deleting resource: 6900b7dd8570873eeb0d301b
+    ✓ Successfully deleted
+  [48/174] Deleting resource: 6900b7dd8570873eeb0d301d
+    ✓ Successfully deleted
+  [49/174] Deleting resource: 6900b7dd8570873eeb0d301e
+    ✓ Successfully deleted
+  [50/174] Deleting resource: 6900b7dd8570873eeb0d301f
+    ✓ Successfully deleted
+  [51/174] Deleting resource: 6900b7dd8570873eeb0d3021
+    ✓ Successfully deleted
+  [52/174] Deleting resource: 6900b7dd8570873eeb0d3022
+    ✓ Successfully deleted
+  [53/174] Deleting resource: 6900b7dd8570873eeb0d3023
+    ✓ Successfully deleted
+  [54/174] Deleting resource: 6900b7dd8570873eeb0d3024
+    ✓ Successfully deleted
+  [55/174] Deleting resource: 6900b7dd8570873eeb0d3025
+    ✓ Successfully deleted
+  [56/174] Deleting resource: 6900b7dd8570873eeb0d3026
+    ✓ Successfully deleted
+  [57/174] Deleting resource: 6900b7dd8570873eeb0d3027
+    ✓ Successfully deleted
+  [58/174] Deleting resource: 6900b7dd8570873eeb0d3028
+    ✓ Successfully deleted
+  [59/174] Deleting resource: 6900b7dd8570873eeb0d3029
+    ✓ Successfully deleted
+  [60/174] Deleting resource: 6900b7dd8570873eeb0d302a
+    ✓ Successfully deleted
+  [61/174] Deleting resource: 6900b7dd8570873eeb0d302b
+    ✓ Successfully deleted
+  [62/174] Deleting resource: 6900b7dd8570873eeb0d302c
+    ✓ Successfully deleted
+  [63/174] Deleting resource: 6900b7dd8570873eeb0d302d
+    ✓ Successfully deleted
+  [64/174] Deleting resource: 6900b7dd8570873eeb0d302e
+    ✓ Successfully deleted
+  [65/174] Deleting resource: 6900b7dd8570873eeb0d302f
+    ✓ Successfully deleted
+  [66/174] Deleting resource: 6900b7dd8570873eeb0d3030
+    ✓ Successfully deleted
+  [67/174] Deleting resource: 6900b7dd8570873eeb0d3031
+    ✓ Successfully deleted
+  [68/174] Deleting resource: 6900b7dd8570873eeb0d3032
+    ✓ Successfully deleted
+  [69/174] Deleting resource: 6900b7dd8570873eeb0d3033
+    ✓ Successfully deleted
+  [70/174] Deleting resource: 6900b7dd8570873eeb0d3034
+    ✓ Successfully deleted
+  [71/174] Deleting resource: 6900b7dd8570873eeb0d3035
+    ✓ Successfully deleted
+  [72/174] Deleting resource: 6900b7dd8570873eeb0d3036
+    ✓ Successfully deleted
+  [73/174] Deleting resource: 6900b7dd8570873eeb0d3037
+    ✓ Successfully deleted
+  [74/174] Deleting resource: 6900b7dd8570873eeb0d3038
+    ✓ Successfully deleted
+  [75/174] Deleting resource: 6900b7dd8570873eeb0d3039
+    ✓ Successfully deleted
+  [76/174] Deleting resource: 6900b7dd8570873eeb0d303a
+    ✓ Successfully deleted
+  [77/174] Deleting resource: 6900b7dd8570873eeb0d303b
+    ✓ Successfully deleted
+  [78/174] Deleting resource: 6900b7dd8570873eeb0d303c
+    ✓ Successfully deleted
+  [79/174] Deleting resource: 6900b7dd8570873eeb0d303d
+    ✓ Successfully deleted
+  [80/174] Deleting resource: 6900b7dd8570873eeb0d303e
+    ✓ Successfully deleted
+  [81/174] Deleting resource: 6900b7dd8570873eeb0d303f
+    ✓ Successfully deleted
+  [82/174] Deleting resource: 6900b7dd8570873eeb0d3040
+    ✓ Successfully deleted
+  [83/174] Deleting resource: 6900b7dd8570873eeb0d3041
+    ✓ Successfully deleted
+  [84/174] Deleting resource: 6900b7dd8570873eeb0d3042
+    ✓ Successfully deleted
+  [85/174] Deleting resource: 6900b7dd8570873eeb0d3043
+    ✓ Successfully deleted
+  [86/174] Deleting resource: 6900b7dd8570873eeb0d3044
+    ✓ Successfully deleted
+  [87/174] Deleting resource: 6900b7dd8570873eeb0d3045
+    ✓ Successfully deleted
+  [88/174] Deleting resource: 6900b7dd8570873eeb0d3046
+    ✓ Successfully deleted
+  [89/174] Deleting resource: 6900b7dd8570873eeb0d3047
+    ✓ Successfully deleted
+  [90/174] Deleting resource: 6900b7dd8570873eeb0d3048
+    ✓ Successfully deleted
+  [91/174] Deleting resource: 6900b7dd8570873eeb0d3049
+    ✓ Successfully deleted
+  [92/174] Deleting resource: 6900b7dd8570873eeb0d304a
+    ✓ Successfully deleted
+  [93/174] Deleting resource: 6900b7dd8570873eeb0d304b
+    ✓ Successfully deleted
+  [94/174] Deleting resource: 6900b7dd8570873eeb0d304c
+    ✓ Successfully deleted
+  [95/174] Deleting resource: 6900b7dd8570873eeb0d304d
+    ✓ Successfully deleted
+  [96/174] Deleting resource: 6900b7dd8570873eeb0d304e
+    ✓ Successfully deleted
+  [97/174] Deleting resource: 6900b7dd8570873eeb0d304f
+    ✓ Successfully deleted
+  [98/174] Deleting resource: 6900b7dd8570873eeb0d3050
+    ✓ Successfully deleted
+  [99/174] Deleting resource: 6900b7dd8570873eeb0d3051
+    ✓ Successfully deleted
+  [100/174] Deleting resource: 6900b7dd8570873eeb0d3052
+    ✓ Successfully deleted
+  [101/174] Deleting resource: 6900b7dd8570873eeb0d3053
+    ✓ Successfully deleted
+  [102/174] Deleting resource: 6900b7dd8570873eeb0d3054
+    ✓ Successfully deleted
+  [103/174] Deleting resource: 6900b7dd8570873eeb0d3055
+    ✓ Successfully deleted
+  [104/174] Deleting resource: 6900b7dd8570873eeb0d3056
+    ✓ Successfully deleted
+  [105/174] Deleting resource: 6900b7dd8570873eeb0d3057
+    ✓ Successfully deleted
+  [106/174] Deleting resource: 6900b7dd8570873eeb0d3058
+    ✓ Successfully deleted
+  [107/174] Deleting resource: 6900b7dd8570873eeb0d3059
+    ✓ Successfully deleted
+  [108/174] Deleting resource: 6900b7dd8570873eeb0d305a
+    ✓ Successfully deleted
+  [109/174] Deleting resource: 6900b7dd8570873eeb0d305b
+    ✓ Successfully deleted
+  [110/174] Deleting resource: 6900b7dd8570873eeb0d305c
+    ✓ Successfully deleted
+  [111/174] Deleting resource: 6900b7dd8570873eeb0d305d
+    ✓ Successfully deleted
+  [112/174] Deleting resource: 6900b7dd8570873eeb0d305e
+    ✓ Successfully deleted
+  [113/174] Deleting resource: 6900b7dd8570873eeb0d305f
+    ✓ Successfully deleted
+  [114/174] Deleting resource: 6900b7dd8570873eeb0d3060
+    ✓ Successfully deleted
+  [115/174] Deleting resource: 6900b7dd8570873eeb0d3061
+    ✓ Successfully deleted
+  [116/174] Deleting resource: 6900b7dd8570873eeb0d3062
+    ✓ Successfully deleted
+  [117/174] Deleting resource: 6900b7dd8570873eeb0d3063
+    ✓ Successfully deleted
+  [118/174] Deleting resource: 6900b7dd8570873eeb0d3064
+    ✓ Successfully deleted
+  [119/174] Deleting resource: 6900b7dd8570873eeb0d3065
+    ✓ Successfully deleted
+  [120/174] Deleting resource: 6900b7dd8570873eeb0d3066
+    ✓ Successfully deleted
+  [121/174] Deleting resource: 6900b7dd8570873eeb0d3067
+    ✓ Successfully deleted
+  [122/174] Deleting resource: 6900b7dd8570873eeb0d3068
+    ✓ Successfully deleted
+  [123/174] Deleting resource: 6900b7dd8570873eeb0d3069
+    ✓ Successfully deleted
+  [124/174] Deleting resource: 6900b7dd8570873eeb0d306a
+    ✓ Successfully deleted
+  [125/174] Deleting resource: 6900b7dd8570873eeb0d306b
+    ✓ Successfully deleted
+  [126/174] Deleting resource: 6900b7dd8570873eeb0d306c
+    ✓ Successfully deleted
+  [127/174] Deleting resource: 6900b7dd8570873eeb0d306d
+    ✓ Successfully deleted
+  [128/174] Deleting resource: 6900b7dd8570873eeb0d306e
+    ✓ Successfully deleted
+  [129/174] Deleting resource: 6900b7dd8570873eeb0d306f
+    ✓ Successfully deleted
+  [130/174] Deleting resource: 6900b7dd8570873eeb0d3070
+    ✓ Successfully deleted
+  [131/174] Deleting resource: 6901a39adf859b99dad5af23
+    ✓ Successfully deleted
+  [132/174] Deleting resource: 6901a684df859b99dad5af61
+    ✓ Successfully deleted
+  [133/174] Deleting resource: 6901a69cdf859b99dad5af64
+    ✓ Successfully deleted
+  [134/174] Deleting resource: 6901a6b8df859b99dad5af67
+    ✓ Successfully deleted
+  [135/174] Deleting resource: 6901a6dbdf859b99dad5af6a
+    ✓ Successfully deleted
+  [136/174] Deleting resource: 6901a6f9df859b99dad5af6d
+    ✓ Successfully deleted
+  [137/174] Deleting resource: 69035d8013905b75b967827f
+    ✓ Successfully deleted
+  [138/174] Deleting resource: 69035d9313905b75b9678282
+    ✓ Successfully deleted
+  [139/174] Deleting resource: 6912d29547e76228f6ad9a75
+    ✓ Successfully deleted
+  [140/174] Deleting resource: 6915cc1b7b5865e3a7e7563e
+    ✓ Successfully deleted
+  [141/174] Deleting resource: 6915cca25d601b4ef38f9544
+    ✓ Successfully deleted
+  [142/174] Deleting resource: 6915cca25d601b4ef38f9545
+    ✓ Successfully deleted
+  [143/174] Deleting resource: 6915cca25d601b4ef38f9546
+    ✓ Successfully deleted
+  [144/174] Deleting resource: 6915cca25d601b4ef38f9547
+    ✓ Successfully deleted
+  [145/174] Deleting resource: 6915cca25d601b4ef38f9548
+    ✓ Successfully deleted
+  [146/174] Deleting resource: 6915cca25d601b4ef38f9549
+    ✓ Successfully deleted
+  [147/174] Deleting resource: 6915cca25d601b4ef38f954a
+    ✓ Successfully deleted
+  [148/174] Deleting resource: 6915cca25d601b4ef38f954c
+    ✓ Successfully deleted
+  [149/174] Deleting resource: 6915cca25d601b4ef38f954d
+    ✓ Successfully deleted
+  [150/174] Deleting resource: 6915cca25d601b4ef38f954e
+    ✓ Successfully deleted
+  [151/174] Deleting resource: 6915cca25d601b4ef38f954f
+    ✓ Successfully deleted
+  [152/174] Deleting resource: 6915cca25d601b4ef38f9550
+    ✓ Successfully deleted
+  [153/174] Deleting resource: 6915cca25d601b4ef38f9551
+    ✓ Successfully deleted
+  [154/174] Deleting resource: 6915cca25d601b4ef38f9552
+    ✓ Successfully deleted
+  [155/174] Deleting resource: 6915cca25d601b4ef38f9553
+    ✓ Successfully deleted
+  [156/174] Deleting resource: 6915cca25d601b4ef38f9554
+    ✓ Successfully deleted
+  [157/174] Deleting resource: 6915cca25d601b4ef38f9555
+    ✓ Successfully deleted
+  [158/174] Deleting resource: 6915cca25d601b4ef38f9556
+    ✓ Successfully deleted
+  [159/174] Deleting resource: 6915cca25d601b4ef38f9557
+    ✓ Successfully deleted
+  [160/174] Deleting resource: 6915cca25d601b4ef38f9558
+    ✓ Successfully deleted
+  [161/174] Deleting resource: 6915cca25d601b4ef38f9559
+    ✓ Successfully deleted
+  [162/174] Deleting resource: 6915cca25d601b4ef38f955a
+    ✓ Successfully deleted
+  [163/174] Deleting resource: 6915cca25d601b4ef38f955b
+    ✓ Successfully deleted
+  [164/174] Deleting resource: 6915cca25d601b4ef38f955c
+    ✓ Successfully deleted
+  [165/174] Deleting resource: 6915cca25d601b4ef38f955d
+    ✓ Successfully deleted
+  [166/174] Deleting resource: 6915cca25d601b4ef38f955e
+    ✓ Successfully deleted
+  [167/174] Deleting resource: 6915cca25d601b4ef38f955f
+    ✓ Successfully deleted
+  [168/174] Deleting resource: 6915cca25d601b4ef38f9560
+    ✓ Successfully deleted
+  [169/174] Deleting resource: 6915cca25d601b4ef38f9561
+    ✓ Successfully deleted
+  [170/174] Deleting resource: 6915cca25d601b4ef38f9562
+    ✓ Successfully deleted
+  [171/174] Deleting resource: 6915cca25d601b4ef38f9563
+    ✓ Successfully deleted
+  [172/174] Deleting resource: 6915cca25d601b4ef38f9564
+    ✓ Successfully deleted
+  [173/174] Deleting resource: 6915cca25d601b4ef38f9565
+    ✓ Successfully deleted
+  [174/174] Deleting resource: 6915cca25d601b4ef38f9566
+    ✓ Successfully deleted
+  Clearing resource_ids array for collection 6962207564c184bc7463029d...
+  ✓ Successfully cleared resource_ids array
+
+[112/219] Processing collection: high_accuracy (ID: 6962221064c184bc7463029f)
+  Org ID: 38476
+  Resources count: 1
+  [1/1] Deleting resource: 691b1ab635952463a7cb1aa5
+    ✓ Successfully deleted
+  Clearing resource_ids array for collection 6962221064c184bc7463029f...
+  ✓ Successfully cleared resource_ids array
+
+[113/219] Processing collection: high_accuracy (ID: 6962221164c184bc746302a1)
+  Org ID: 54167
+  Resources count: 1
+  [1/1] Deleting resource: 691ec2eaf0a4481c1b5b888e
+    ✓ Successfully deleted
+  Clearing resource_ids array for collection 6962221164c184bc746302a1...
+  ✓ Successfully cleared resource_ids array
+
+[114/219] Processing collection: high_accuracy (ID: 6962221764c184bc746302a3)
+  Org ID: 54471
+  Resources count: 1
+  [1/1] Deleting resource: 69391281327d110cd98c34bf
+    ✓ Successfully deleted
+  Clearing resource_ids array for collection 6962221764c184bc746302a3...
+  ✓ Successfully cleared resource_ids array
+
+[115/219] Processing collection: high_accuracy (ID: 6962221964c184bc746302a5)
+  Org ID: 55573
+  Resources count: 6
+  [1/6] Deleting resource: 693d344a838d449f32a316cf
+    ✓ Successfully deleted
+  [2/6] Deleting resource: 693d3519838d449f32a3170d
+    ✓ Successfully deleted
+  [3/6] Deleting resource: 693d3540838d449f32a3172e
+    ✓ Successfully deleted
+  [4/6] Deleting resource: 693d44ec838d449f32a31900
+    ✓ Successfully deleted
+  [5/6] Deleting resource: 693d450e838d449f32a31906
+    ✓ Successfully deleted
+  [6/6] Deleting resource: 693d4535838d449f32a3190c
+    ✓ Successfully deleted
+  Clearing resource_ids array for collection 6962221964c184bc746302a5...
+  ✓ Successfully cleared resource_ids array
+
+[116/219] Processing collection: high_accuracy (ID: 6962221d64c184bc746302a7)
+  Org ID: 55578
+  Resources count: 1
+  [1/1] Deleting resource: 693d35de838d449f32a31750
+    ✓ Successfully deleted
+  Clearing resource_ids array for collection 6962221d64c184bc746302a7...
+  ✓ Successfully cleared resource_ids array
+
+[117/219] Processing collection: high_accuracy (ID: 6962222664c184bc746302a9)
+  Org ID: 55656
+  Resources count: 2
+  [1/2] Deleting resource: 693fa5ff1f98d481e455213e
+    ✓ Successfully deleted
+  [2/2] Deleting resource: 693faee91f98d481e455273a
+    ✓ Successfully deleted
+  Clearing resource_ids array for collection 6962222664c184bc746302a9...
+  ✓ Successfully cleared resource_ids array
+
+[118/219] Processing collection: high_accuracy (ID: 6962222864c184bc746302ab)
+  Org ID: 55680
+  Resources count: 4
+  [1/4] Deleting resource: 693fecb4fc2fd473e92cf0bb
+    ✓ Successfully deleted
+  [2/4] Deleting resource: 693ff03afc2fd473e92cf2d2
+    ✓ Successfully deleted
+  [3/4] Deleting resource: 694a3b4b4feb771a007e34a1
+    ✓ Successfully deleted
+  [4/4] Deleting resource: 694a44584feb771a007e3e9e
+    ✓ Successfully deleted
+  Clearing resource_ids array for collection 6962222864c184bc746302ab...
+  ✓ Successfully cleared resource_ids array
+
+[119/219] Processing collection: high_accuracy (ID: 6962222a64c184bc746302ad)
+  Org ID: 55571
+  Resources count: 6
+  [1/6] Deleting resource: 693fee47fc2fd473e92cf1e3
+    ✓ Successfully deleted
+  [2/6] Deleting resource: 693fee58fc2fd473e92cf1e6
+    ✓ Successfully deleted
+  [3/6] Deleting resource: 693ff0b5fc2fd473e92cf2fe
+    ✓ Successfully deleted
+  [4/6] Deleting resource: 693ff0d5fc2fd473e92cf310
+    ✓ Successfully deleted
+  [5/6] Deleting resource: 693ff0f1fc2fd473e92cf31e
+    ✓ Successfully deleted
+  [6/6] Deleting resource: 693ff117fc2fd473e92cf358
+    ✓ Successfully deleted
+  Clearing resource_ids array for collection 6962222a64c184bc746302ad...
+  ✓ Successfully cleared resource_ids array
+
+[120/219] Processing collection: high_accuracy (ID: 6962223664c184bc746302af)
+  Org ID: 55572
+  Resources count: 1
+  [1/1] Deleting resource: 693ffff2fc2fd473e92cfd77
+    ✓ Successfully deleted
+  Clearing resource_ids array for collection 6962223664c184bc746302af...
+  ✓ Successfully cleared resource_ids array
+
+[121/219] Processing collection: high_accuracy (ID: 6962223964c184bc746302b1)
+  Org ID: 55580
+  Resources count: 1
+  [1/1] Deleting resource: 6940f88234e251c86638f0ee
+    ✓ Successfully deleted
+  Clearing resource_ids array for collection 6962223964c184bc746302b1...
+  ✓ Successfully cleared resource_ids array
+
+[122/219] Processing collection: high_accuracy (ID: 6962223a64c184bc746302b3)
+  Org ID: 48827
+  Resources count: 1
+  [1/1] Deleting resource: 69414af48e947cacaae67826
+    ✓ Successfully deleted
+  Clearing resource_ids array for collection 6962223a64c184bc746302b3...
+  ✓ Successfully cleared resource_ids array
+
+[123/219] Processing collection: high_accuracy (ID: 6962224364c184bc746302b5)
+  Org ID: 55910
+  Resources count: 1
+  [1/1] Deleting resource: 69491793bcdb9aa9fa58e4e9
+    ✓ Successfully deleted
+  Clearing resource_ids array for collection 6962224364c184bc746302b5...
+  ✓ Successfully cleared resource_ids array
+
+[124/219] Processing collection: high_accuracy (ID: 6962224664c184bc746302b7)
+  Org ID: 56167
+  Resources count: 3
+  [1/3] Deleting resource: 694a3b684feb771a007e34cb
+    ✓ Successfully deleted
+  [2/3] Deleting resource: 694a3e994feb771a007e39c8
+    ✓ Successfully deleted
+  [3/3] Deleting resource: 694a3f904feb771a007e3aa3
+    ✓ Successfully deleted
+  Clearing resource_ids array for collection 6962224664c184bc746302b7...
+  ✓ Successfully cleared resource_ids array
+
+[125/219] Processing collection: high_accuracy (ID: 6962225b64c184bc746302b9)
+  Org ID: 56169
+  Resources count: 9
+  [1/9] Deleting resource: 694bb1d416533c92a7323834
+    ✓ Successfully deleted
+  [2/9] Deleting resource: 694bb2a816533c92a73238e8
+    ✓ Successfully deleted
+  [3/9] Deleting resource: 69538e394d334f4c2b48b07f
+    ✓ Successfully deleted
+  [4/9] Deleting resource: 69539de34d334f4c2b48b258
+    ✓ Successfully deleted
+  [5/9] Deleting resource: 6953a08d4d334f4c2b48b2a6
+    ✓ Successfully deleted
+  [6/9] Deleting resource: 6953a4144d334f4c2b48b399
+    ✓ Successfully deleted
+  [7/9] Deleting resource: 6953a5404d334f4c2b48b3c4
+    ✓ Successfully deleted
+  [8/9] Deleting resource: 6953a5ac4d334f4c2b48b3dc
+    ✓ Successfully deleted
+  [9/9] Deleting resource: 6953b50c4d334f4c2b48b63b
+    ✓ Successfully deleted
+  Clearing resource_ids array for collection 6962225b64c184bc746302b9...
+  ✓ Successfully cleared resource_ids array
+
+[126/219] Processing collection: high_accuracy (ID: 6962225e64c184bc746302bb)
+  Org ID: 55663
+  Resources count: 1
+  [1/1] Deleting resource: 694bb2bf16533c92a73238f6
+    ✓ Successfully deleted
+  Clearing resource_ids array for collection 6962225e64c184bc746302bb...
+  ✓ Successfully cleared resource_ids array
+
+[127/219] Processing collection: high_accuracy (ID: 6962226164c184bc746302bd)
+  Org ID: 56266
+  Resources count: 1
+  [1/1] Deleting resource: 694bb90316533c92a7323cf6
+    ✓ Successfully deleted
+  Clearing resource_ids array for collection 6962226164c184bc746302bd...
+  ✓ Successfully cleared resource_ids array
+
+[128/219] Processing collection: high_accuracy (ID: 6962227864c184bc746302bf)
+  Org ID: 56375
+  Resources count: 1
+  [1/1] Deleting resource: 694e2d35ef9151c3a62d47dc
+    ✓ Successfully deleted
+  Clearing resource_ids array for collection 6962227864c184bc746302bf...
+  ✓ Successfully cleared resource_ids array
+
+[129/219] Processing collection: high_accuracy (ID: 6962227b64c184bc746302c1)
+  Org ID: 56376
+  Resources count: 6
+  [1/6] Deleting resource: 694e8394424539b4e36dbf9b
+    ✓ Successfully deleted
+  [2/6] Deleting resource: 694e83a3424539b4e36dbf9e
+    ✓ Successfully deleted
+  [3/6] Deleting resource: 694e83c2424539b4e36dbfa1
+    ✓ Successfully deleted
+  [4/6] Deleting resource: 694e83ca424539b4e36dbfa4
+    ✓ Successfully deleted
+  [5/6] Deleting resource: 694e83d4424539b4e36dbfa7
+    ✓ Successfully deleted
+  [6/6] Deleting resource: 694e83e5424539b4e36dbfaa
+    ✓ Successfully deleted
+  Clearing resource_ids array for collection 6962227b64c184bc746302c1...
+  ✓ Successfully cleared resource_ids array
+
+[130/219] Processing collection: high_accuracy (ID: 6962229064c184bc746302c3)
+  Org ID: 56467
+  Resources count: 2
+  [1/2] Deleting resource: 69550c0fa4c7733d65a0ecda
+    ✓ Successfully deleted
+  [2/2] Deleting resource: 6956c4d00019f8e85406cd2d
+    ✓ Successfully deleted
+  Clearing resource_ids array for collection 6962229064c184bc746302c3...
+  ✓ Successfully cleared resource_ids array
+
+[131/219] Processing collection: high_accuracy (ID: 6962229264c184bc746302c5)
+  Org ID: 55560
+  Resources count: 1
+  [1/1] Deleting resource: 69550d78a4c7733d65a0ed4b
+    ✓ Successfully deleted
+  Clearing resource_ids array for collection 6962229264c184bc746302c5...
+  ✓ Successfully cleared resource_ids array
+
+[132/219] Processing collection: high_accuracy (ID: 6962229564c184bc746302c7)
+  Org ID: 56992
+  Resources count: 1
+  [1/1] Deleting resource: 6958ea1e87daf2abd1b8b336
+    ✓ Successfully deleted
+  Clearing resource_ids array for collection 6962229564c184bc746302c7...
+  ✓ Successfully cleared resource_ids array
+
+[133/219] Processing collection: high_accuracy (ID: 6962229764c184bc746302c9)
+  Org ID: 7257
+  Resources count: 1
+  [1/1] Deleting resource: 6958fd1087daf2abd1b8c1aa
+    ✓ Successfully deleted
+  Clearing resource_ids array for collection 6962229764c184bc746302c9...
+  ✓ Successfully cleared resource_ids array
+
+[134/219] Processing collection: high_accuracy (ID: 6962229864c184bc746302cb)
+  Org ID: 56993
+  Resources count: 1
+  [1/1] Deleting resource: 695a67114e9c15c4e13b9cdc
+    ✓ Successfully deleted
+  Clearing resource_ids array for collection 6962229864c184bc746302cb...
+  ✓ Successfully cleared resource_ids array
+
+[135/219] Processing collection: high_accuracy (ID: 696233a90d061fadb366e455)
+  Org ID: 57719
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[136/219] Processing collection: moderate (ID: 696233a90d061fadb366e457)
+  Org ID: 57719
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[137/219] Processing collection: fastest (ID: 696233a90d061fadb366e459)
+  Org ID: 57719
+  Resources count: 5
+  [1/5] Deleting resource: 6962348e622bbf78640e481f
+    ✓ Successfully deleted
+  [2/5] Deleting resource: 69623653622bbf78640e482d
+    ✓ Successfully deleted
+  [3/5] Deleting resource: 69623718193b6491ce9bb46c
+    ✓ Successfully deleted
+  [4/5] Deleting resource: 696237c9e330d7fee10ec54e
+    ✓ Successfully deleted
+  [5/5] Deleting resource: 696238cbe330d7fee10ec55b
+    ✓ Successfully deleted
+  Clearing resource_ids array for collection 696233a90d061fadb366e459...
+  ✓ Successfully cleared resource_ids array
+
+[138/219] Processing collection: high_accuracy (ID: 696234c1622bbf78640e4821)
+  Org ID: 57720
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[139/219] Processing collection: moderate (ID: 696234c1622bbf78640e4823)
+  Org ID: 57720
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[140/219] Processing collection: fastest (ID: 696234c1622bbf78640e4825)
+  Org ID: 57720
+  Resources count: 3
+  [1/3] Deleting resource: 696235b30d061fadb366e468
+    ✓ Successfully deleted
+  [2/3] Deleting resource: 69623690622bbf78640e482f
+    ✓ Successfully deleted
+  [3/3] Deleting resource: 696237cce330d7fee10ec553
+    ✓ Successfully deleted
+  Clearing resource_ids array for collection 696234c1622bbf78640e4825...
+  ✓ Successfully cleared resource_ids array
+
+[141/219] Processing collection: high_accuracy (ID: 69648616bdf2a78f9c790a91)
+  Org ID: 57771
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[142/219] Processing collection: moderate (ID: 6964861829cff36bc9f9bdc3)
+  Org ID: 57771
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[143/219] Processing collection: fastest (ID: 6964861900e7ce1719f5988f)
+  Org ID: 57771
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[144/219] Processing collection: high_accuracy (ID: 6964863500e7ce1719f59891)
+  Org ID: 57772
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[145/219] Processing collection: moderate (ID: 6964863600e7ce1719f59893)
+  Org ID: 57772
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[146/219] Processing collection: fastest (ID: 6964863600e7ce1719f59895)
+  Org ID: 57772
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[147/219] Processing collection: high_accuracy (ID: 69648647bdf2a78f9c790a94)
+  Org ID: 57773
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[148/219] Processing collection: moderate (ID: 69648648bdf2a78f9c790a96)
+  Org ID: 57773
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[149/219] Processing collection: fastest (ID: 69648648bdf2a78f9c790a98)
+  Org ID: 57773
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[150/219] Processing collection: high_accuracy (ID: 6964865800e7ce1719f5989a)
+  Org ID: 57774
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[151/219] Processing collection: moderate (ID: 6964865900e7ce1719f5989c)
+  Org ID: 57774
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[152/219] Processing collection: fastest (ID: 6964865900e7ce1719f5989e)
+  Org ID: 57774
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[153/219] Processing collection: high_accuracy (ID: 696486cb00e7ce1719f598a3)
+  Org ID: 57775
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[154/219] Processing collection: moderate (ID: 696486cb00e7ce1719f598a5)
+  Org ID: 57775
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[155/219] Processing collection: fastest (ID: 696486cc00e7ce1719f598a7)
+  Org ID: 57775
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[156/219] Processing collection: moderate (ID: 696486ed29cff36bc9f9bdc9)
+  Org ID: 55560
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[157/219] Processing collection: fastest (ID: 696486ed29cff36bc9f9bdcb)
+  Org ID: 55560
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[158/219] Processing collection: high_accuracy (ID: 696488eabdf2a78f9c790aa0)
+  Org ID: 56436
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[159/219] Processing collection: moderate (ID: 696488eb29cff36bc9f9bdd3)
+  Org ID: 56436
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[160/219] Processing collection: fastest (ID: 696488eb00e7ce1719f598af)
+  Org ID: 56436
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[161/219] Processing collection: high_accuracy (ID: 69648ae000e7ce1719f598b4)
+  Org ID: 57776
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[162/219] Processing collection: moderate (ID: 69648ae100e7ce1719f598b6)
+  Org ID: 57776
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[163/219] Processing collection: fastest (ID: 69648ae100e7ce1719f598b8)
+  Org ID: 57776
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[164/219] Processing collection: high_accuracy (ID: 69648b8f29cff36bc9f9bdde)
+  Org ID: 57777
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[165/219] Processing collection: moderate (ID: 69648b8f29cff36bc9f9bde0)
+  Org ID: 57777
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[166/219] Processing collection: fastest (ID: 69648b8f29cff36bc9f9bde2)
+  Org ID: 57777
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[167/219] Processing collection: high_accuracy (ID: 69648c5cf406ec4f14f880dd)
+  Org ID: 57778
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[168/219] Processing collection: moderate (ID: 69648c5cf406ec4f14f880df)
+  Org ID: 57778
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[169/219] Processing collection: fastest (ID: 69648c5df406ec4f14f880e1)
+  Org ID: 57778
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[170/219] Processing collection: high_accuracy (ID: 69648c9300e7ce1719f598c0)
+  Org ID: 57779
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[171/219] Processing collection: moderate (ID: 69648c9300e7ce1719f598c2)
+  Org ID: 57779
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[172/219] Processing collection: fastest (ID: 69648c9400e7ce1719f598c4)
+  Org ID: 57779
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[173/219] Processing collection: high_accuracy (ID: 6964916b00e7ce1719f598cd)
+  Org ID: 57780
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[174/219] Processing collection: moderate (ID: 6964916bf406ec4f14f880f6)
+  Org ID: 57780
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[175/219] Processing collection: fastest (ID: 6964916bbdf2a78f9c790ab3)
+  Org ID: 57780
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[176/219] Processing collection: high_accuracy (ID: 6964932029cff36bc9f9be0d)
+  Org ID: 57781
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[177/219] Processing collection: moderate (ID: 6964932000e7ce1719f598d3)
+  Org ID: 57781
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[178/219] Processing collection: fastest (ID: 69649320f406ec4f14f88102)
+  Org ID: 57781
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[179/219] Processing collection: high_accuracy (ID: 69649840f406ec4f14f8810c)
+  Org ID: 57783
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[180/219] Processing collection: moderate (ID: 69649840bdf2a78f9c790ac7)
+  Org ID: 57783
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[181/219] Processing collection: fastest (ID: 6964984629cff36bc9f9be20)
+  Org ID: 57783
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[182/219] Processing collection: moderate (ID: 6964a04abdf2a78f9c790ad7)
+  Org ID: 7114
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[183/219] Processing collection: fastest (ID: 6964a04bbdf2a78f9c790ad9)
+  Org ID: 7114
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[184/219] Processing collection: high_accuracy (ID: 6964b407bdf2a78f9c790aff)
+  Org ID: 57798
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[185/219] Processing collection: moderate (ID: 6964b40829cff36bc9f9be50)
+  Org ID: 57798
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[186/219] Processing collection: fastest (ID: 6964b40800e7ce1719f59904)
+  Org ID: 57798
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[187/219] Processing collection: high_accuracy (ID: 6964bd66bdf2a78f9c790b0d)
+  Org ID: 57802
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[188/219] Processing collection: moderate (ID: 6964bd67bdf2a78f9c790b0f)
+  Org ID: 57802
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[189/219] Processing collection: fastest (ID: 6964bd67bdf2a78f9c790b11)
+  Org ID: 57802
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[190/219] Processing collection: moderate (ID: 6964bdaaf406ec4f14f88159)
+  Org ID: 55910
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[191/219] Processing collection: fastest (ID: 6964bdabbdf2a78f9c790b16)
+  Org ID: 55910
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[192/219] Processing collection: high_accuracy (ID: 6964c5a7f406ec4f14f88171)
+  Org ID: 57807
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[193/219] Processing collection: moderate (ID: 6964c5a8f406ec4f14f88173)
+  Org ID: 57807
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[194/219] Processing collection: fastest (ID: 6964c5a8f406ec4f14f88175)
+  Org ID: 57807
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[195/219] Processing collection: high_accuracy (ID: 6964df5729cff36bc9f9beaa)
+  Org ID: 57815
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[196/219] Processing collection: moderate (ID: 6964df5800e7ce1719f59967)
+  Org ID: 57815
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[197/219] Processing collection: fastest (ID: 6964df58f406ec4f14f881a3)
+  Org ID: 57815
+  Resources count: 1
+  [1/1] Deleting resource: 6964f04500e7ce1719f59987
+    ✓ Successfully deleted
+  Clearing resource_ids array for collection 6964df58f406ec4f14f881a3...
+  ✓ Successfully cleared resource_ids array
+
+[198/219] Processing collection: high_accuracy (ID: 6964eaeff406ec4f14f881b3)
+  Org ID: 56189
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[199/219] Processing collection: moderate (ID: 6964eaf0bdf2a78f9c790b65)
+  Org ID: 56189
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[200/219] Processing collection: fastest (ID: 6964eaf029cff36bc9f9bebe)
+  Org ID: 56189
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[201/219] Processing collection: moderate (ID: 6964f6cabdf2a78f9c790b7a)
+  Org ID: 56375
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[202/219] Processing collection: fastest (ID: 6964f6cbbdf2a78f9c790b7c)
+  Org ID: 56375
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[203/219] Processing collection: high_accuracy (ID: 6964f741bdf2a78f9c790b81)
+  Org ID: 57045
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[204/219] Processing collection: moderate (ID: 6964f741bdf2a78f9c790b83)
+  Org ID: 57045
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[205/219] Processing collection: fastest (ID: 6964f742bdf2a78f9c790b85)
+  Org ID: 57045
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[206/219] Processing collection: moderate (ID: 6964f75829cff36bc9f9becf)
+  Org ID: 56376
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[207/219] Processing collection: fastest (ID: 6964f75829cff36bc9f9bed1)
+  Org ID: 56376
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[208/219] Processing collection: high_accuracy (ID: 6965ed1900e7ce1719f59bd0)
+  Org ID: 57864
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[209/219] Processing collection: moderate (ID: 6965ed1900e7ce1719f59bd2)
+  Org ID: 57864
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[210/219] Processing collection: fastest (ID: 6965ed1900e7ce1719f59bd4)
+  Org ID: 57864
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[211/219] Processing collection: moderate (ID: 6965f69df406ec4f14f883e5)
+  Org ID: 55580
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[212/219] Processing collection: fastest (ID: 6965f69ef406ec4f14f883e7)
+  Org ID: 55580
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[213/219] Processing collection: high_accuracy (ID: 69660563f406ec4f14f883fb)
+  Org ID: 55786
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[214/219] Processing collection: moderate (ID: 69660563f406ec4f14f883fd)
+  Org ID: 55786
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[215/219] Processing collection: fastest (ID: 69660564f406ec4f14f883ff)
+  Org ID: 55786
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[216/219] Processing collection: moderate (ID: 69660f25f406ec4f14f88422)
+  Org ID: 56467
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[217/219] Processing collection: fastest (ID: 69660f26f406ec4f14f88424)
+  Org ID: 56467
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[218/219] Processing collection: moderate (ID: 696617a9bdf2a78f9c790df8)
+  Org ID: 54471
+  Resources count: 0
+  No resources to delete. Skipping...
+
+[219/219] Processing collection: fastest (ID: 696617a9bdf2a78f9c790dfa)
+  Org ID: 54471
+  Resources count: 1
+  [1/1] Deleting resource: 696617f6bdf2a78f9c790dff
+    ✓ Successfully deleted
+  Clearing resource_ids array for collection 696617a9bdf2a78f9c790dfa...
+  ✓ Successfully cleared resource_ids array
+
+================================================================================
+MIGRATION SUMMARY
+================================================================================
+Total collections processed: 219
+Total resources found: 1161
+Successfully deleted: 1161
+Failed deletions: 0
+Collections updated: 38
+================================================================================
+
+✓ Migration completed successfully!
+
+Closing MongoDB connection...
+MongoDB connection closed
+
+Migration script finished

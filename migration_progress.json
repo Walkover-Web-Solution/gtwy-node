@@ -1,0 +1,74 @@
+{
+  "totalProcessed": 2899,
+  "successful": 2890,
+  "failed": [
+    {
+      "doc_id": "684d1d91032f5b530dc7572f",
+      "name": "sASSSSS",
+      "org_id": "13488",
+      "error": "Request failed with status code 400",
+      "stack": "AxiosError: Request failed with status code 400\n    at settle (file:///Users/husainbaghwala/walkover/AI-middleware/node_modules/axios/lib/core/settle.js:19:12)\n    at IncomingMessage.handleStreamEnd (file:///Users/husainbaghwala/walkover/AI-middleware/node_modules/axios/lib/adapters/http.js:617:11)\n    at IncomingMessage.emit (node:events:520:35)\n    at endReadableNT (node:internal/streams/readable:1701:12)\n    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)\n    at Axios.request (file:///Users/husainbaghwala/walkover/AI-middleware/node_modules/axios/lib/core/Axios.js:45:41)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async createResource (file:///Users/husainbaghwala/walkover/AI-middleware/migrate_rag_to_new_collection.js:376:26)\n    at async migrateRagToNewCollection (file:///Users/husainbaghwala/walkover/AI-middleware/migrate_rag_to_new_collection.js:603:36)"
+    },
+    {
+      "doc_id": "685faf266c117ebfd99c99c8",
+      "name": "viasocket Description",
+      "org_id": "13488",
+      "error": "Request failed with status code 400",
+      "stack": "AxiosError: Request failed with status code 400\n    at settle (file:///Users/husainbaghwala/walkover/AI-middleware/node_modules/axios/lib/core/settle.js:19:12)\n    at IncomingMessage.handleStreamEnd (file:///Users/husainbaghwala/walkover/AI-middleware/node_modules/axios/lib/adapters/http.js:617:11)\n    at IncomingMessage.emit (node:events:520:35)\n    at endReadableNT (node:internal/streams/readable:1701:12)\n    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)\n    at Axios.request (file:///Users/husainbaghwala/walkover/AI-middleware/node_modules/axios/lib/core/Axios.js:45:41)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async createResource (file:///Users/husainbaghwala/walkover/AI-middleware/migrate_rag_to_new_collection.js:376:26)\n    at async migrateRagToNewCollection (file:///Users/husainbaghwala/walkover/AI-middleware/migrate_rag_to_new_collection.js:603:36)"
+    },
+    {
+      "doc_id": "68a5609d9e04218da638e7ad",
+      "name": "About T&C",
+      "org_id": "20725",
+      "error": "Request failed with status code 400",
+      "stack": "AxiosError: Request failed with status code 400\n    at settle (file:///Users/husainbaghwala/walkover/AI-middleware/node_modules/axios/lib/core/settle.js:19:12)\n    at IncomingMessage.handleStreamEnd (file:///Users/husainbaghwala/walkover/AI-middleware/node_modules/axios/lib/adapters/http.js:617:11)\n    at IncomingMessage.emit (node:events:520:35)\n    at endReadableNT (node:internal/streams/readable:1701:12)\n    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)\n    at Axios.request (file:///Users/husainbaghwala/walkover/AI-middleware/node_modules/axios/lib/core/Axios.js:45:41)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async createResource (file:///Users/husainbaghwala/walkover/AI-middleware/migrate_rag_to_new_collection.js:376:26)\n    at async migrateRagToNewCollection (file:///Users/husainbaghwala/walkover/AI-middleware/migrate_rag_to_new_collection.js:603:36)"
+    },
+    {
+      "doc_id": "68b1521901d14f97640f11e7",
+      "name": "test test test",
+      "org_id": "20678",
+      "error": "Request failed with status code 400",
+      "stack": "AxiosError: Request failed with status code 400\n    at settle (file:///Users/husainbaghwala/walkover/AI-middleware/node_modules/axios/lib/core/settle.js:19:12)\n    at IncomingMessage.handleStreamEnd (file:///Users/husainbaghwala/walkover/AI-middleware/node_modules/axios/lib/adapters/http.js:617:11)\n    at IncomingMessage.emit (node:events:520:35)\n    at endReadableNT (node:internal/streams/readable:1701:12)\n    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)\n    at Axios.request (file:///Users/husainbaghwala/walkover/AI-middleware/node_modules/axios/lib/core/Axios.js:45:41)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async createResource (file:///Users/husainbaghwala/walkover/AI-middleware/migrate_rag_to_new_collection.js:376:26)\n    at async migrateRagToNewCollection (file:///Users/husainbaghwala/walkover/AI-middleware/migrate_rag_to_new_collection.js:603:36)"
+    },
+    {
+      "doc_id": "68b2ea21851895b504940af1",
+      "name": "name",
+      "org_id": "18126",
+      "error": "Request failed with status code 400",
+      "stack": "AxiosError: Request failed with status code 400\n    at settle (file:///Users/husainbaghwala/walkover/AI-middleware/node_modules/axios/lib/core/settle.js:19:12)\n    at IncomingMessage.handleStreamEnd (file:///Users/husainbaghwala/walkover/AI-middleware/node_modules/axios/lib/adapters/http.js:617:11)\n    at IncomingMessage.emit (node:events:520:35)\n    at endReadableNT (node:internal/streams/readable:1701:12)\n    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)\n    at Axios.request (file:///Users/husainbaghwala/walkover/AI-middleware/node_modules/axios/lib/core/Axios.js:45:41)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async createResource (file:///Users/husainbaghwala/walkover/AI-middleware/migrate_rag_to_new_collection.js:376:26)\n    at async migrateRagToNewCollection (file:///Users/husainbaghwala/walkover/AI-middleware/migrate_rag_to_new_collection.js:603:36)"
+    },
+    {
+      "doc_id": "68b2f30a9a090f42561dcf9e",
+      "name": "",
+      "org_id": "12701",
+      "error": "Request failed with status code 400",
+      "stack": "AxiosError: Request failed with status code 400\n    at settle (file:///Users/husainbaghwala/walkover/AI-middleware/node_modules/axios/lib/core/settle.js:19:12)\n    at IncomingMessage.handleStreamEnd (file:///Users/husainbaghwala/walkover/AI-middleware/node_modules/axios/lib/adapters/http.js:617:11)\n    at IncomingMessage.emit (node:events:520:35)\n    at endReadableNT (node:internal/streams/readable:1701:12)\n    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)\n    at Axios.request (file:///Users/husainbaghwala/walkover/AI-middleware/node_modules/axios/lib/core/Axios.js:45:41)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async createResource (file:///Users/husainbaghwala/walkover/AI-middleware/migrate_rag_to_new_collection.js:376:26)\n    at async migrateRagToNewCollection (file:///Users/husainbaghwala/walkover/AI-middleware/migrate_rag_to_new_collection.js:603:36)"
+    },
+    {
+      "doc_id": "68b55f38b2c94f33c4b134e7",
+      "name": "qwerty",
+      "org_id": "12701",
+      "error": "Request failed with status code 400",
+      "stack": "AxiosError: Request failed with status code 400\n    at settle (file:///Users/husainbaghwala/walkover/AI-middleware/node_modules/axios/lib/core/settle.js:19:12)\n    at IncomingMessage.handleStreamEnd (file:///Users/husainbaghwala/walkover/AI-middleware/node_modules/axios/lib/adapters/http.js:617:11)\n    at IncomingMessage.emit (node:events:520:35)\n    at endReadableNT (node:internal/streams/readable:1701:12)\n    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)\n    at Axios.request (file:///Users/husainbaghwala/walkover/AI-middleware/node_modules/axios/lib/core/Axios.js:45:41)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async createResource (file:///Users/husainbaghwala/walkover/AI-middleware/migrate_rag_to_new_collection.js:376:26)\n    at async migrateRagToNewCollection (file:///Users/husainbaghwala/walkover/AI-middleware/migrate_rag_to_new_collection.js:603:36)"
+    },
+    {
+      "doc_id": "68bebbdb5aed4ebb54adfcd1",
+      "name": "GitHub Marketplace: Enhance Your Workflow with Extensions",
+      "org_id": "48821",
+      "error": "read ECONNRESET",
+      "stack": "Error: read ECONNRESET\n    at AxiosError.from (file:///Users/husainbaghwala/walkover/AI-middleware/node_modules/axios/lib/core/AxiosError.js:96:14)\n    at RedirectableRequest.handleRequestError (file:///Users/husainbaghwala/walkover/AI-middleware/node_modules/axios/lib/adapters/http.js:638:25)\n    at RedirectableRequest.emit (node:events:520:35)\n    at eventHandlers.<computed> (/Users/husainbaghwala/walkover/AI-middleware/node_modules/follow-redirects/index.js:49:24)\n    at ClientRequest.emit (node:events:508:28)\n    at emitErrorEvent (node:_http_client:107:11)\n    at Socket.socketErrorListener (node:_http_client:574:5)\n    at Socket.emit (node:events:508:28)\n    at emitErrorNT (node:internal/streams/destroy:170:8)\n    at emitErrorCloseNT (node:internal/streams/destroy:129:3)\n    at Axios.request (file:///Users/husainbaghwala/walkover/AI-middleware/node_modules/axios/lib/core/Axios.js:45:41)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async createResource (file:///Users/husainbaghwala/walkover/AI-middleware/migrate_rag_to_new_collection.js:376:26)\n    at async migrateRagToNewCollection (file:///Users/husainbaghwala/walkover/AI-middleware/migrate_rag_to_new_collection.js:603:36)"
+    },
+    {
+      "doc_id": "6912d4ad47e76228f6ad9ae2",
+      "name": "testing",
+      "org_id": "51876",
+      "error": "Request failed with status code 400",
+      "stack": "AxiosError: Request failed with status code 400\n    at settle (file:///Users/husainbaghwala/walkover/AI-middleware/node_modules/axios/lib/core/settle.js:19:12)\n    at IncomingMessage.handleStreamEnd (file:///Users/husainbaghwala/walkover/AI-middleware/node_modules/axios/lib/adapters/http.js:617:11)\n    at IncomingMessage.emit (node:events:520:35)\n    at endReadableNT (node:internal/streams/readable:1701:12)\n    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)\n    at Axios.request (file:///Users/husainbaghwala/walkover/AI-middleware/node_modules/axios/lib/core/Axios.js:45:41)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async createResource (file:///Users/husainbaghwala/walkover/AI-middleware/migrate_rag_to_new_collection.js:376:26)\n    at async migrateRagToNewCollection (file:///Users/husainbaghwala/walkover/AI-middleware/migrate_rag_to_new_collection.js:603:36)"
+    }
+  ],
+  "collectionCreationErrors": [],
+  "resourceCreationErrors": [],
+  "agentUpdateErrors": [],
+  "lastUpdated": "2026-01-13T14:10:15.437Z",
+  "progress": "2899/2903"
+}
