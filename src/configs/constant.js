@@ -76,7 +76,8 @@ const new_agent_service = {
   mistral: "mistral-small-latest",
   gemini: "gemini-2.5-pro",
   ai_ml: "gpt-oss-120b",
-  grok: "grok-4-fast"
+  grok: "grok-4-fast",
+  deepgram: "nova-3"
 };
 
 export { collectionNames, bridge_ids, redis_keys, cost_types, prebuilt_prompt_bridge_id, new_agent_service };

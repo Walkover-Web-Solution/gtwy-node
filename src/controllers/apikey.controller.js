@@ -9,7 +9,8 @@ import {
   callMistralApi,
   callGeminiApi,
   callAiMlApi,
-  callGrokApi
+  callGrokApi,
+  callDeepgramApi
 } from "../services/utils/aiServices.js";
 import { redis_keys, cost_types, new_agent_service } from "../configs/constant.js";
 import { cleanupCache } from "../services/utils/redis.utils.js";
@@ -244,6 +245,9 @@ const checkApikey = async (apikey, service) => {
       break;
     case "grok":
       check = await callGrokApi(apikey);
+      break;
+    case "deepgram":
+      check = await callDeepgramApi(apikey);
       break;
     default:
       const error = new Error("Invalid service provided");
