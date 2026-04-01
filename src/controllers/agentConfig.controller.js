@@ -170,18 +170,9 @@ const createAgentController = async (req, res, next) => {
       }
 
       model_data.type = type;
-      model_data.response_format = {
-        type: "default",
-        cred: {}
-      };
       model_data.is_rich_text = false;
       model_data.prompt = prompt;
     }
-    const fall_back = {
-      is_enable: true,
-      service: "ai_ml",
-      model: "gpt-oss-120b"
-    };
 
     if (folder_data) {
       const api_key_object_ids = folder_data.apikey_object_id || {};
@@ -212,7 +203,7 @@ const createAgentController = async (req, res, next) => {
       gpt_memory: aiVal(agent_data?.gpt_memory, true),
       folder_id: folder_id,
       user_id: user_id,
-      fall_back: aiVal(agent_data?.fall_back, fall_back),
+      settings: aiVal(agent_data?.settings),
       bridge_limit: agent_limit,
       bridge_usage: agent_usage,
       bridge_limit_reset_period: agent_limit_reset_period,
@@ -327,8 +318,6 @@ const updateAgentController = async (req, res, next) => {
     "name",
     "bridgeType",
     "meta",
-    "fall_back",
-    "guardrails",
     "web_search_filters",
     "gtwy_web_search_filters",
     "chatbot_auto_answers",
@@ -341,6 +330,13 @@ const updateAgentController = async (req, res, next) => {
     if (body[field] !== undefined) {
       update_fields[field] = body[field];
     }
+  }
+
+  // Handle settings with deep merge to preserve existing settings
+  if (body.settings !== undefined) {
+    const current_settings = agent.settings || {};
+    const merged_settings = { ...current_settings, ...body.settings };
+    update_fields.settings = merged_settings;
   }
 
   if (body.bridge_limit !== undefined) update_fields.bridge_limit = body.bridge_limit;
