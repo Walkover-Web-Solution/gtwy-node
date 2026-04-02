@@ -200,7 +200,7 @@ const createAgentController = async (req, res, next) => {
 
     const useAiData = purpose && Object.keys(agent_data).length > 0;
     const aiVal = (aiField, fallback) => (useAiData ? (aiField ?? fallback) : fallback);
-    const mergedConfiguration = { ...model_data, ...(useAiData ? agent_data?.configuration : {}) };
+    const mergedConfiguration = { ...(useAiData ? agent_data?.configuration : {}), ...model_data };
     const result = await ConfigurationServices.createAgent({
       ...(useAiData ? agent_data : {}),
       configuration: mergedConfiguration,
