@@ -16,4 +16,7 @@ COPY package.json package-lock*.json ./
 RUN npm install
 
 COPY . .
+
+# Run MongoDB migrations before starting the app
+RUN npm run migrateMongo:up
 CMD ["npm", "run", "dockerStart"]
