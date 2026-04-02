@@ -26,20 +26,57 @@ const getMetricsData = async (req, res, next) => {
   const whereClause = buildWhereClause(params, values, factor, range, true, start_date, end_date);
   // const table = selectTable(startTime, endTime, range);
   const table = selectTable(range);
-  const query = `SELECT ${factor}, created_at, SUM(cost_sum) as cost_sum, SUM(latency_sum) as latency_sum, SUM(success_count) as success_count, SUM(total_token_count) AS total_token_count, SUM(record_count) as record_count FROM ${table} ${whereClause} ORDER BY created_at ASC`;
+  const query = `SELECT ${factor}, created_at, SUM(cost_sum) as cost_sum, SUM(latency_sum) as latency_sum, SUM(success_count) as success_count, SUM(total_token_count) AS total_token_count, SUM(input_tokens) AS input_tokens, SUM(output_tokens) AS output_tokens, SUM(record_count) as record_count FROM ${table} ${whereClause} ORDER BY created_at ASC`;
 
   const today_whereClause = buildWhereClause(params, values, factor, range, false, start_date, end_date);
-  const today_query = `SELECT ${factor}, created_at, SUM(cost_sum) as cost_sum, SUM(latency_sum) as latency_sum, SUM(success_count) as success_count, SUM(total_token_count) AS total_token_count, SUM(record_count) as record_count FROM fifteen_minute_data ${today_whereClause} ORDER BY created_at ASC`;
+  const today_query = `SELECT ${factor}, created_at, SUM(cost_sum) as cost_sum, SUM(latency_sum) as latency_sum, SUM(success_count) as success_count, SUM(total_token_count) AS total_token_count, SUM(input_tokens) AS input_tokens, SUM(output_tokens) AS output_tokens, SUM(record_count) as record_count FROM fifteen_minute_data ${today_whereClause} ORDER BY created_at ASC`;
 
-  const rawWhereClause = buildWhereClause(params, [], null, range, true, start_date, end_date);
-  const latencySummaryQuery = `
+  const summaryWhereClause = buildWhereClause(params, [], null, range, true, start_date, end_date);
+  const latencySummaryQuery =
+    table === "fifteen_minute_data"
+      ? `
     SELECT
       COALESCE(COUNT(*), 0) AS total_requests,
       COALESCE(SUM(CASE WHEN success = true THEN 1 ELSE 0 END), 0) AS success_requests,
       COALESCE(AVG(latency), 0) AS avg_latency_ms,
       COALESCE(percentile_cont(0.95) WITHIN GROUP (ORDER BY latency), 0) AS p95_latency_ms
     FROM metrics_raw_data
-    ${rawWhereClause}
+    ${summaryWhereClause}
+  `
+      : `
+    WITH latency_buckets AS (
+      SELECT
+        COALESCE(record_count, 0) AS record_count,
+        COALESCE(success_count, 0) AS success_count,
+        COALESCE(latency_sum, 0) AS latency_sum,
+        CASE
+          WHEN COALESCE(record_count, 0) > 0 THEN COALESCE(latency_sum, 0) / record_count
+          ELSE 0
+        END AS bucket_avg_latency
+      FROM ${table}
+      ${summaryWhereClause}
+    )
+    SELECT
+      COALESCE(SUM(record_count), 0) AS total_requests,
+      COALESCE(SUM(success_count), 0) AS success_requests,
+      COALESCE(SUM(latency_sum) / NULLIF(SUM(record_count), 0), 0) AS avg_latency_ms,
+      COALESCE(
+        (
+          SELECT bucket_avg_latency
+          FROM (
+            SELECT
+              bucket_avg_latency,
+              SUM(record_count) OVER (ORDER BY bucket_avg_latency) AS cumulative_requests,
+              SUM(record_count) OVER () AS total_bucket_requests
+            FROM latency_buckets
+          ) weighted
+          WHERE cumulative_requests >= total_bucket_requests * 0.95
+          ORDER BY bucket_avg_latency
+          LIMIT 1
+        ),
+        0
+      ) AS p95_latency_ms
+    FROM latency_buckets
   `;
 
   const data = await metrics_sevice.find(query, values);
