@@ -76,7 +76,8 @@ const new_agent_service = {
   mistral: { model: "mistral-small-latest", default_name: "Mistral" },
   gemini: { model: "gemini-2.5-pro", default_name: "Gemini" },
   ai_ml: { model: "gpt-oss-120b", default_name: "AI ML" },
-  grok: { model: "grok-4-fast", default_name: "Grok" }
+  grok: { model: "grok-4-fast", default_name: "Grok" },
+  deepgram: { model: "nova-3", default_name: "Deepgram"}
 };
 
 export { collectionNames, bridge_ids, redis_keys, cost_types, prebuilt_prompt_bridge_id, new_agent_service };
