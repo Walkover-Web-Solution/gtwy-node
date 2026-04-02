@@ -219,7 +219,7 @@ const deleteApikey = async (req, res, next) => {
 
 const checkApikey = async (apikey, service) => {
   let check;
-  const model = new_agent_service[service];
+  const model = new_agent_service[service].model;
 
   switch (service) {
     case "openai":

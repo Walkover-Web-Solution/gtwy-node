@@ -188,7 +188,7 @@ const createAgentController = async (req, res, next) => {
       if (Object.keys(api_key_object_ids).length > 0) {
         service = Object.keys(api_key_object_ids)[0];
         if (new_agent_service[service]) {
-          model_data.model = new_agent_service[service];
+          model_data.model = new_agent_service[service].model;
         }
       }
     }
