@@ -85,7 +85,9 @@ async function migrateConfigurations() {
             "configuration.top_p": "",
             "configuration.user": "",
             "configuration.validationConfig": "",
-            "configuration.vision": ""
+            "configuration.vision": "",
+            "configuration.is_rich_text": "",
+            user_reference: ""
           }
         }
       ),
@@ -125,13 +127,78 @@ async function migrateConfigurations() {
             "configuration.system_prompt_version_id": "",
             "configuration.specification": "",
             "configuration.outputConfig": "",
-            "configuration.rtllayer": ""
+            "configuration.rtllayer": "",
+            "configuration.is_rich_text": "",
+            user_reference: ""
           }
         }
       )
     ]);
     console.log(`  ✓ Removed extra keys from ${step1.modifiedCount} configuration documents`);
     console.log(`  ✓ Removed extra keys from ${step9.modifiedCount} version documents`);
+
+    // -------------------------------------------------------
+    // STEP 4: Rename fields (tool_call_count, chatbot_auto_answers, image_size)
+    // -------------------------------------------------------
+    console.log("\n--- Step 4: Renaming fields ---");
+
+    // Rename tool_call_count to maximum_iterations in versions
+    const renameToolCallCount = await versions.updateMany(
+      { tool_call_count: { $exists: true } },
+      { $rename: { tool_call_count: "maximum_iterations" } }
+    );
+    console.log(`  ✓ Renamed tool_call_count to maximum_iterations: ${renameToolCallCount.modifiedCount} versions`);
+
+    // Rename chatbot_auto_answers to cache_response in configurations
+    const renameChatbotAutoAnswersConfig = await configurations.updateMany(
+      { chatbot_auto_answers: { $exists: true } },
+      { $rename: { chatbot_auto_answers: "cache_response" } }
+    );
+    console.log(`  ✓ Renamed chatbot_auto_answers to cache_response: ${renameChatbotAutoAnswersConfig.modifiedCount} configurations`);
+
+    // Rename chatbot_auto_answers to cache_response in versions
+    const renameChatbotAutoAnswersVersion = await versions.updateMany(
+      { chatbot_auto_answers: { $exists: true } },
+      { $rename: { chatbot_auto_answers: "cache_response" } }
+    );
+    console.log(`  ✓ Renamed chatbot_auto_answers to cache_response: ${renameChatbotAutoAnswersVersion.modifiedCount} versions`);
+
+    // Handle image_size → size migration in configurations
+    // First: Copy image_size to size where size doesn't exist
+    const copyImageSizeToSizeConfig = await configurations.updateMany(
+      { "configuration.image_size": { $exists: true }, "configuration.size": { $exists: false } },
+      [{ $set: { "configuration.size": "$configuration.image_size" } }]
+    );
+    console.log(`  ✓ Copied image_size to size (where size missing): ${copyImageSizeToSizeConfig.modifiedCount} configurations`);
+
+    // Then: Remove image_size from configurations
+    const unsetImageSizeConfig = await configurations.updateMany(
+      { "configuration.image_size": { $exists: true } },
+      { $unset: { "configuration.image_size": "" } }
+    );
+    console.log(`  ✓ Removed image_size: ${unsetImageSizeConfig.modifiedCount} configurations`);
+
+    // Handle image_size → size migration in versions
+    // First: Copy image_size to size where size doesn't exist
+    const copyImageSizeToSizeVersion = await versions.updateMany(
+      { "configuration.image_size": { $exists: true }, "configuration.size": { $exists: false } },
+      [{ $set: { "configuration.size": "$configuration.image_size" } }]
+    );
+    console.log(`  ✓ Copied image_size to size (where size missing): ${copyImageSizeToSizeVersion.modifiedCount} versions`);
+
+    // Then: Remove image_size from versions
+    const unsetImageSizeVersion = await versions.updateMany(
+      { "configuration.image_size": { $exists: true } },
+      { $unset: { "configuration.image_size": "" } }
+    );
+    console.log(`  ✓ Removed image_size: ${unsetImageSizeVersion.modifiedCount} versions`);
+
+    // Handle case where neither image_size nor size exist - set default
+    const setDefaultSizeVersion = await versions.updateMany(
+      { "configuration.image_size": { $exists: false }, "configuration.size": { $exists: false } },
+      { $set: { "configuration.size": "" } }
+    );
+    console.log(`  ✓ Set default size (where both missing): ${setDefaultSizeVersion.modifiedCount} versions`);
 
     // -------------------------------------------------------
     // STEP 2 + 3 + 10: Set safe defaults (parallel — different collections + independent updates)
@@ -142,35 +209,10 @@ async function migrateConfigurations() {
       [{ meta: { $exists: false } }, { $set: { meta: {} } }],
       [{ deletedAt: { $exists: false } }, { $set: { deletedAt: null } }],
       [{ last_used: { $exists: false } }, { $set: { last_used: null } }],
-      [{ chatbot_auto_answers: { $exists: false } }, { $set: { chatbot_auto_answers: false } }],
-      [{ bridge_limit: { $exists: false } }, { $set: { bridge_limit: 0, bridge_usage: 0 } }],
-      [
-        { guardrails: { $exists: false } },
-        { $set: { guardrails: { is_enabled: false, guardrails_configuration: {}, guardrails_custom_prompt: "" } } }
-      ],
-      [{ "guardrails.is_enabled": { $exists: false }, guardrails: { $type: "object" } }, { $set: { "guardrails.is_enabled": false } }],
-      [
-        { "guardrails.guardrails_configuration": { $exists: false }, guardrails: { $type: "object" } },
-        { $set: { "guardrails.guardrails_configuration": {} } }
-      ],
+      [{ cache_response: { $exists: false } }, { $set: { cache_response: false } }],
       [{ pre_tools: { $exists: false } }, { $set: { pre_tools: [] } }],
-      [{ fall_back: { $exists: false } }, { $set: { fall_back: { is_enable: false, service: "", model: "" } } }],
-      [{ "fall_back.is_enable": { $exists: false }, fall_back: { $type: "object" } }, { $set: { "fall_back.is_enable": false } }],
-      [{ bridge_status: { $exists: false } }, { $set: { bridge_status: 1 } }],
-      [{ web_search_filters: { $exists: false } }, { $set: { web_search_filters: [] } }],
       [{ agent_variables: { $exists: false } }, { $set: { agent_variables: {} } }],
-      [{ connected_agent_details: { $exists: false } }, { $set: { connected_agent_details: {} } }],
-      [{ variables_path: { $exists: false } }, { $set: { variables_path: {} } }],
-      [{ variables_state: { $exists: false } }, { $set: { variables_state: {} } }],
-      [{ criteria_check: { $exists: false } }, { $set: { criteria_check: {} } }],
       [{ actions: { $exists: false } }, { $set: { actions: [] } }],
-      [{ function_ids: { $exists: false } }, { $set: { function_ids: [] } }],
-      [{ connected_agents: { $exists: false } }, { $set: { connected_agents: {} } }],
-      [{ built_in_tools: { $exists: false } }, { $set: { built_in_tools: [] } }],
-      [{ doc_ids: { $exists: false } }, { $set: { doc_ids: [] } }],
-      [{ tool_call_count: { $exists: false } }, { $set: { tool_call_count: 0 } }],
-      [{ prompt_enhancer_percentage: { $exists: false } }, { $set: { prompt_enhancer_percentage: 0 } }],
-      [{ prompt_total_tokens: { $exists: false } }, { $set: { prompt_total_tokens: 0 } }],
       [{ IsstarterQuestionEnable: { $exists: false } }, { $set: { IsstarterQuestionEnable: false } }],
       [{ starterQuestion: { $exists: false } }, { $set: { starterQuestion: [] } }],
       [{ apikey_object_id: { $exists: false } }, { $set: { apikey_object_id: {} } }]
@@ -178,83 +220,20 @@ async function migrateConfigurations() {
 
     const configDefaults = [
       [
-        { "configuration.response_format": { $exists: false }, configuration: { $type: "object" } },
-        { $set: { "configuration.response_format": { type: "default", cred: {} } } }
-      ],
-      [{ "configuration.is_rich_text": { $exists: false }, configuration: { $type: "object" } }, { $set: { "configuration.is_rich_text": false } }],
-      [
         { "configuration.fine_tune_model": { $exists: false }, configuration: { $type: "object" } },
         { $set: { "configuration.fine_tune_model": "" } }
       ],
       [
-        { "configuration.creativity_level": { $exists: false }, configuration: { $type: "object" } },
-        { $set: { "configuration.creativity_level": 0.5 } }
-      ],
-      [
-        { "configuration.token_selection_limit": { $exists: false }, configuration: { $type: "object" } },
-        { $set: { "configuration.token_selection_limit": 0 } }
-      ],
-      [{ "configuration.response_count": { $exists: false }, configuration: { $type: "object" } }, { $set: { "configuration.response_count": 1 } }],
-      [
-        { "configuration.best_response_count": { $exists: false }, configuration: { $type: "object" } },
-        { $set: { "configuration.best_response_count": 1 } }
-      ],
-      [{ "configuration.novelty_penalty": { $exists: false }, configuration: { $type: "object" } }, { $set: { "configuration.novelty_penalty": 0 } }],
-      [
-        { "configuration.repetition_penalty": { $exists: false }, configuration: { $type: "object" } },
-        { $set: { "configuration.repetition_penalty": 0 } }
-      ],
-      [
-        { "configuration.probability_cutoff": { $exists: false }, configuration: { $type: "object" } },
-        { $set: { "configuration.probability_cutoff": 0 } }
-      ],
-      [
-        { "configuration.additional_stop_sequences": { $exists: false }, configuration: { $type: "object" } },
-        { $set: { "configuration.additional_stop_sequences": [] } }
-      ],
-      [{ "configuration.echo_input": { $exists: false }, configuration: { $type: "object" } }, { $set: { "configuration.echo_input": false } }],
-      [
         { "configuration.parallel_tool_calls": { $exists: false }, configuration: { $type: "object" } },
         { $set: { "configuration.parallel_tool_calls": false } }
       ],
-      [{ "configuration.responseStyle": { $exists: false }, configuration: { $type: "object" } }, { $set: { "configuration.responseStyle": "" } }],
-      [
-        { "configuration.responseStylePrompt": { $exists: false }, configuration: { $type: "object" } },
-        { $set: { "configuration.responseStylePrompt": "" } }
-      ],
-      [{ "configuration.tone": { $exists: false }, configuration: { $type: "object" } }, { $set: { "configuration.tone": "" } }],
-      [{ "configuration.tonePrompt": { $exists: false }, configuration: { $type: "object" } }, { $set: { "configuration.tonePrompt": "" } }],
-      [
-        { "configuration.log_probability": { $exists: false }, configuration: { $type: "object" } },
-        { $set: { "configuration.log_probability": false } }
-      ],
+
       [{ "configuration.size": { $exists: false }, configuration: { $type: "object" } }, { $set: { "configuration.size": "" } }],
-      [{ "configuration.image_size": { $exists: false }, configuration: { $type: "object" } }, { $set: { "configuration.image_size": "" } }],
-      [
-        { "configuration.number_of_images": { $exists: false }, configuration: { $type: "object" } },
-        { $set: { "configuration.number_of_images": 1 } }
-      ],
-      [{ "configuration.aspect_ratio": { $exists: false }, configuration: { $type: "object" } }, { $set: { "configuration.aspect_ratio": "" } }],
-      [{ "configuration.dimensions": { $exists: false }, configuration: { $type: "object" } }, { $set: { "configuration.dimensions": "" } }],
-      [{ "configuration.quality": { $exists: false }, configuration: { $type: "object" } }, { $set: { "configuration.quality": "standard" } }],
       [{ "configuration.style": { $exists: false }, configuration: { $type: "object" } }, { $set: { "configuration.style": "" } }],
-      [{ "configuration.frame_rate": { $exists: false }, configuration: { $type: "object" } }, { $set: { "configuration.frame_rate": 0 } }],
-      [
-        { "configuration.duration_seconds": { $exists: false }, configuration: { $type: "object" } },
-        { $set: { "configuration.duration_seconds": 0 } }
-      ],
-      [{ "configuration.resolution": { $exists: false }, configuration: { $type: "object" } }, { $set: { "configuration.resolution": "" } }],
-      [{ "configuration.video_settings": { $exists: false }, configuration: { $type: "object" } }, { $set: { "configuration.video_settings": {} } }],
-      [{ "configuration.camera_fixed": { $exists: false }, configuration: { $type: "object" } }, { $set: { "configuration.camera_fixed": false } }],
-      [
-        { "configuration.person_generation": { $exists: false }, configuration: { $type: "object" } },
-        { $set: { "configuration.person_generation": false } }
-      ],
       [
         { "configuration.auto_model_select": { $exists: false }, configuration: { $type: "object" } },
         { $set: { "configuration.auto_model_select": false } }
       ],
-      [{ "configuration.max_tokens": { $exists: false }, configuration: { $type: "object" } }, { $set: { "configuration.max_tokens": "default" } }],
       [
         { "configuration.response_type": { $exists: false }, configuration: { $type: "object" } },
         { $set: { "configuration.response_type": "default" } }
@@ -263,119 +242,41 @@ async function migrateConfigurations() {
     ];
 
     const versionRootDefaults = [
-      [{ connected_agents: { $exists: false } }, { $set: { connected_agents: {} } }],
-      [{ chatbot_auto_answers: { $exists: false } }, { $set: { chatbot_auto_answers: false } }],
+      [{ cache_response: { $exists: false } }, { $set: { cache_response: false } }],
       [{ published_version_id: { $exists: false } }, { $set: { published_version_id: null } }],
-      [{ doc_ids: { $exists: false } }, { $set: { doc_ids: [] } }],
       [{ pre_tools: { $exists: false } }, { $set: { pre_tools: [] } }],
-      [{ built_in_tools: { $exists: false } }, { $set: { built_in_tools: [] } }],
-      [{ variables_path: { $exists: false } }, { $set: { variables_path: {} } }],
       [{ gtwy_web_search_filters: { $exists: false } }, { $set: { gtwy_web_search_filters: [] } }],
-      [{ function_ids: { $exists: false } }, { $set: { function_ids: [] } }],
       [{ starterQuestion: { $exists: false } }, { $set: { starterQuestion: [] } }],
       [{ apikey_object_id: { $exists: false } }, { $set: { apikey_object_id: {} } }],
-      [{ tool_call_count: { $exists: false } }, { $set: { tool_call_count: 0 } }],
-      [
-        { guardrails: { $exists: false } },
-        { $set: { guardrails: { is_enabled: false, guardrails_configuration: {}, guardrails_custom_prompt: "" } } }
-      ],
-      [
-        { "guardrails.guardrails_configuration": { $exists: false }, guardrails: { $type: "object" } },
-        { $set: { "guardrails.guardrails_configuration": {} } }
-      ],
+      [{ maximum_iterations: { $exists: false } }, { $set: { maximum_iterations: 0 } }],
+
       [{ folder_id: { $exists: false } }, { $set: { folder_id: null } }],
-      [{ variables_state: { $exists: false } }, { $set: { variables_state: {} } }],
       [{ agent_variables: { $exists: false } }, { $set: { agent_variables: {} } }],
-      [{ web_search_filters: { $exists: false } }, { $set: { web_search_filters: [] } }],
-      [{ user_reference: { $exists: false } }, { $set: { user_reference: "" } }],
-      [{ fall_back: { $exists: false } }, { $set: { fall_back: { is_enable: false, service: "", model: "" } } }],
-      [{ IsstarterQuestionEnable: { $exists: false } }, { $set: { IsstarterQuestionEnable: false } }],
-      [{ connected_agent_details: { $exists: false } }, { $set: { connected_agent_details: {} } }]
+      [{ IsstarterQuestionEnable: { $exists: false } }, { $set: { IsstarterQuestionEnable: false } }]
     ];
 
     const versionConfigDefaults = [
-      [{ "configuration.response_count": { $exists: false }, configuration: { $type: "object" } }, { $set: { "configuration.response_count": 1 } }],
-      [
-        { "configuration.creativity_level": { $exists: false }, configuration: { $type: "object" } },
-        { $set: { "configuration.creativity_level": 0.5 } }
-      ],
-      [{ "configuration.image_size": { $exists: false }, configuration: { $type: "object" } }, { $set: { "configuration.image_size": "" } }],
-      [{ "configuration.max_tokens": { $exists: false }, configuration: { $type: "object" } }, { $set: { "configuration.max_tokens": "default" } }],
-      [{ "configuration.novelty_penalty": { $exists: false }, configuration: { $type: "object" } }, { $set: { "configuration.novelty_penalty": 0 } }],
-      [
-        { "configuration.probability_cutoff": { $exists: false }, configuration: { $type: "object" } },
-        { $set: { "configuration.probability_cutoff": 0 } }
-      ],
-      [{ "configuration.camera_fixed": { $exists: false }, configuration: { $type: "object" } }, { $set: { "configuration.camera_fixed": false } }],
-      [
-        { "configuration.responseStylePrompt": { $exists: false }, configuration: { $type: "object" } },
-        { $set: { "configuration.responseStylePrompt": "" } }
-      ],
       [
         { "configuration.response_type": { $exists: false }, configuration: { $type: "object" } },
         { $set: { "configuration.response_type": "default" } }
       ],
-      [
-        { "configuration.log_probability": { $exists: false }, configuration: { $type: "object" } },
-        { $set: { "configuration.log_probability": false } }
-      ],
+
       [{ "configuration.dimensions": { $exists: false }, configuration: { $type: "object" } }, { $set: { "configuration.dimensions": "" } }],
-      [{ "configuration.echo_input": { $exists: false }, configuration: { $type: "object" } }, { $set: { "configuration.echo_input": false } }],
-      [{ "configuration.is_rich_text": { $exists: false }, configuration: { $type: "object" } }, { $set: { "configuration.is_rich_text": false } }],
       [{ "configuration.style": { $exists: false }, configuration: { $type: "object" } }, { $set: { "configuration.style": "" } }],
-      [
-        { "configuration.token_selection_limit": { $exists: false }, configuration: { $type: "object" } },
-        { $set: { "configuration.token_selection_limit": 0 } }
-      ],
       [
         { "configuration.fine_tune_model": { $exists: false }, configuration: { $type: "object" } },
         { $set: { "configuration.fine_tune_model": "" } }
       ],
-      [{ "configuration.quality": { $exists: false }, configuration: { $type: "object" } }, { $set: { "configuration.quality": "standard" } }],
-      [{ "configuration.tone": { $exists: false }, configuration: { $type: "object" } }, { $set: { "configuration.tone": "" } }],
-      [{ "configuration.resolution": { $exists: false }, configuration: { $type: "object" } }, { $set: { "configuration.resolution": "" } }],
       [
         { "configuration.auto_model_select": { $exists: false }, configuration: { $type: "object" } },
         { $set: { "configuration.auto_model_select": false } }
       ],
       [{ "configuration.size": { $exists: false }, configuration: { $type: "object" } }, { $set: { "configuration.size": "" } }],
-      [
-        { "configuration.duration_seconds": { $exists: false }, configuration: { $type: "object" } },
-        { $set: { "configuration.duration_seconds": 0 } }
-      ],
-      [{ "configuration.tonePrompt": { $exists: false }, configuration: { $type: "object" } }, { $set: { "configuration.tonePrompt": "" } }],
-      [
-        { "configuration.person_generation": { $exists: false }, configuration: { $type: "object" } },
-        { $set: { "configuration.person_generation": false } }
-      ],
-      [
-        { "configuration.response_format": { $exists: false }, configuration: { $type: "object" } },
-        { $set: { "configuration.response_format": { type: "default", cred: {} } } }
-      ],
-      [{ "configuration.frame_rate": { $exists: false }, configuration: { $type: "object" } }, { $set: { "configuration.frame_rate": 0 } }],
-      [{ "configuration.aspect_ratio": { $exists: false }, configuration: { $type: "object" } }, { $set: { "configuration.aspect_ratio": "" } }],
-      [
-        { "configuration.best_response_count": { $exists: false }, configuration: { $type: "object" } },
-        { $set: { "configuration.best_response_count": 1 } }
-      ],
-      [{ "configuration.video_settings": { $exists: false }, configuration: { $type: "object" } }, { $set: { "configuration.video_settings": {} } }],
-      [
-        { "configuration.additional_stop_sequences": { $exists: false }, configuration: { $type: "object" } },
-        { $set: { "configuration.additional_stop_sequences": [] } }
-      ],
+
       [{ "configuration.tool_choice": { $exists: false }, configuration: { $type: "object" } }, { $set: { "configuration.tool_choice": "default" } }],
-      [{ "configuration.responseStyle": { $exists: false }, configuration: { $type: "object" } }, { $set: { "configuration.responseStyle": "" } }],
-      [
-        { "configuration.repetition_penalty": { $exists: false }, configuration: { $type: "object" } },
-        { $set: { "configuration.repetition_penalty": 0 } }
-      ],
       [
         { "configuration.parallel_tool_calls": { $exists: false }, configuration: { $type: "object" } },
         { $set: { "configuration.parallel_tool_calls": false } }
-      ],
-      [
-        { "configuration.number_of_images": { $exists: false }, configuration: { $type: "object" } },
-        { $set: { "configuration.number_of_images": 1 } }
       ]
     ];
 

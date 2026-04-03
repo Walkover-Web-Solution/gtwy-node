@@ -179,8 +179,8 @@ const createAgentController = async (req, res, next) => {
     }
     const fall_back = {
       is_enable: true,
-      service: "ai_ml",
-      model: "gpt-oss-120b"
+      service: "openai",
+      model: "gpt-5.1"
     };
 
     if (folder_data) {
@@ -200,10 +200,10 @@ const createAgentController = async (req, res, next) => {
 
     const useAiData = purpose && Object.keys(agent_data).length > 0;
     const aiVal = (aiField, fallback) => (useAiData ? (aiField ?? fallback) : fallback);
-
+    const mergedConfiguration = { ...(useAiData ? agent_data?.configuration : {}), ...model_data };
     const result = await ConfigurationServices.createAgent({
       ...(useAiData ? agent_data : {}),
-      configuration: aiVal(agent_data?.configuration, model_data),
+      configuration: mergedConfiguration,
       name: aiVal(agent_data?.name, name),
       slugName: slugName,
       service: aiVal(agent_data?.service, service),
