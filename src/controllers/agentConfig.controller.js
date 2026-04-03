@@ -286,8 +286,22 @@ const updateAgentController = async (req, res, next) => {
     }
   }
 
-  if (body.connected_agent_details) {
-    update_fields.connected_agent_details = body.connected_agent_details;
+  // Handle agent_info updates
+  if (body.agent_info) {
+    update_fields.agent_info = {};
+
+    if (body.agent_info.prompt_total_tokens !== undefined) {
+      update_fields.agent_info.prompt_total_tokens = body.agent_info.prompt_total_tokens;
+    }
+    if (body.agent_info.availability !== undefined) {
+      update_fields.agent_info.availability = body.agent_info.availability;
+    }
+    if (body.agent_info.connected_agent_details !== undefined) {
+      update_fields.agent_info.connected_agent_details = body.agent_info.connected_agent_details;
+    }
+    if (body.agent_info.variables_state !== undefined) {
+      update_fields.agent_info.variables_state = body.agent_info.variables_state;
+    }
   }
 
   if (body.apikey_object_id) {
@@ -322,7 +336,6 @@ const updateAgentController = async (req, res, next) => {
     "gpt_memory",
     "gpt_memory_context",
     "doc_ids",
-    "variables_state",
     "IsstarterQuestionEnable",
     "name",
     "bridgeType",
