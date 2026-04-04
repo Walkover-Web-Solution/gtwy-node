@@ -2,6 +2,7 @@ import dotenv from "dotenv";
 import logger from "../logger.js";
 import rabbitmqService from "../services/rabbitmq.service.js";
 import { logQueueProcessor } from "./logQueueConsumer.js";
+import { metricsQueueProcessor } from "./metricsQueueConsumer.js";
 
 dotenv.config();
 const CONSUMERS = [
@@ -9,6 +10,11 @@ const CONSUMERS = [
     queueName: process.env.LOG_QUEUE_NAME,
     process: logQueueProcessor,
     batchSize: 1
+  },
+  {
+    queueName: process.env.METRICS_QUEUE_NAME,
+    process: metricsQueueProcessor,
+    batchSize: 100
   }
 ];
 
