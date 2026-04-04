@@ -113,6 +113,7 @@ const getDefaultValuesController = async (service, model, current_configuration,
           }
         }
       }
+      if (default_values.stream === undefined) default_values.stream = "default";
       return default_values;
     };
 
