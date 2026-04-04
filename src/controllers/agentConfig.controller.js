@@ -6,7 +6,6 @@ import { bridge_ids, new_agent_service } from "../configs/constant.js";
 import Helper from "../services/utils/helper.utils.js";
 import { ObjectId } from "mongodb";
 import conversationDbService from "../db_services/conversation.service.js";
-import { getUniqueNameAndSlug } from "../utils/agentConfig.utils.js";
 const { storeSystemPrompt, addBulkUserEntries } = conversationDbService;
 import { getDefaultValuesController } from "../services/utils/getDefaultValue.js";
 import { purgeRelatedBridgeCaches } from "../services/utils/redis.utils.js";
@@ -115,9 +114,9 @@ const createAgentController = async (req, res, next) => {
       }
     }
 
-    const nameSlugData = getUniqueNameAndSlug(name, all_agent);
-    slugName = slugName || nameSlugData.slugName;
-    name = nameSlugData.name;
+    const { name: uniqueName, slugName: uniqueSlugName } = await ConfigurationServices.getUniqueAgentNameAndSlug(org_id, name);
+    slugName = uniqueSlugName || slugName;
+    name = uniqueName || name;
 
     // Construct model data based on model configuration
     const keys_to_update = [
