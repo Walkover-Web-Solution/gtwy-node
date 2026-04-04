@@ -119,28 +119,6 @@ const createAgentController = async (req, res, next) => {
     slugName = slugName || nameSlugData.slugName;
     name = nameSlugData.name;
 
-    // Construct model data based on model configuration
-    const keys_to_update = [
-      "model",
-      "creativity_level",
-      "max_tokens",
-      "probability_cutoff",
-      "log_probability",
-      "repetition_penalty",
-      "novelty_penalty",
-      "n",
-      "response_count",
-      "additional_stop_sequences",
-      "stream",
-      "stop",
-      "response_type",
-      "tool_choice",
-      "size",
-      "quality",
-      "style",
-      "reasoning"
-    ];
-
     // Use AI configuration if purpose exists and valid, otherwise build manually
     let model_data;
     if (purpose && agent_data?.configuration) {
@@ -162,10 +140,8 @@ const createAgentController = async (req, res, next) => {
         const modelObj = modelConfigDocument[serviceLower][model];
         const configurations = modelObj.configuration || {};
 
-        for (const key of keys_to_update) {
-          if (configurations[key]) {
-            model_data[key] = key === "model" ? configurations[key].default : "default";
-          }
+        for (const key in configurations) {
+          model_data[key] = key === "model" ? configurations[key].default : "default";
         }
       }
 
