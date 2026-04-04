@@ -51,8 +51,9 @@ async function moveDataRedisToMongodb(redisKeyPattern, modelName, fieldMapping =
         if (parsedValue.usage_value) {
           let type =
             redisKeyPattern === "bridgeusedcost_" ? cost_types.bridge : redisKeyPattern === "folderusedcost_" ? cost_types.folder : cost_types.apikey;
+          const doc = await Model.findById(id, { org_id: 1 }).lean();
           parsedValue = Number(parsedValue.usage_value);
-          await cleanupCache(type, id);
+          await cleanupCache(type, id, doc?.org_id);
         }
 
         for (const [dbField, config] of Object.entries(fieldMapping)) {
