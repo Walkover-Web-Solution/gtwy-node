@@ -54,6 +54,7 @@ const getRecentThreads = async (req, res, next) => {
   // Extract search filters (supports both search and regular listing)
   const filters = {
     keyword: req.query.keyword,
+    filter_by: req.query.filter_by,
     time_range:
       req.query.start_date || req.query.end_date
         ? {
