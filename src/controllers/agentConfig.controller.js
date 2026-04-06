@@ -91,11 +91,25 @@ const createAgentController = async (req, res, next) => {
 
     if (purpose) {
       const environment = String(process.env.ENVIROMENT || "").toUpperCase() === "PRODUCTION" ? "prod" : "test";
+      let viasocket_embed_user_id = org_id.toString();
+      if (user_id && folder_id) {
+        viasocket_embed_user_id = viasocket_embed_user_id + "_" + folder_id + "_" + user_id;
+      }
+      const viasocket_embed_token = Helper.generate_token(
+        {
+          org_id: process.env.ORG_ID,
+          project_id: process.env.PROJECT_ID,
+          user_id: viasocket_embed_user_id
+        },
+        process.env.ACCESS_KEY
+      );
+
       const variables = {
         purpose: purpose,
         environment: environment,
         all_bridge_names: all_agent_name,
         token: req.headers.authorization,
+        viasocket_embed_token: viasocket_embed_token,
         fields:
           folder_data && folder_data?.config?.prompt?.useDefaultPrompt === false
             ? folder_data?.config?.prompt?.embedFields
@@ -106,6 +120,7 @@ const createAgentController = async (req, res, next) => {
                 }, {}) || { role: "", goal: "", instruction: "" }
             : { role: "", goal: "", instruction: "" }
       };
+      console.log("variables ", variables);
       const user = "Generate Agent Configuration according to the given user purpose.";
       const res_data = await callAiMiddleware(user, bridge_ids["create_bridge_using_ai"], variables);
       // Use AI data as-is
