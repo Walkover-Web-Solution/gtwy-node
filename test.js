@@ -32,6 +32,16 @@ function remapConnectedAgents(connected_agents) {
 
 async function migrateConnectedAgents() {
   const client = new MongoClient(MONGODB_URI);
+  const sequelize = new Sequelize(process.env.POSTGRES_URI, {
+    dialect: "postgres",
+    logging: false
+  });
+
+  let migratedCount = 0;
+  let deletedCount = 0;
+  let softDeletedCount = 0;
+  let skippedCount = 0;
+  const orgOwnerCache = {};
 
   try {
     await client.connect();
@@ -84,15 +94,16 @@ async function migrateConnectedAgents() {
 
     console.log("\n" + "=".repeat(60));
     console.log("Migration Summary:");
-    console.log(`  Configurations: scanned ${totalConfigs}, updated ${updatedConfigs}`);
-    console.log(`  Versions:       scanned ${totalVersions}, updated ${updatedVersions}`);
+    console.log(`  Total migrated: ${migratedCount}`);
+    console.log(`  Total skipped: ${skippedCount}`);
     console.log("=".repeat(60));
   } catch (error) {
     console.error("Migration failed:", error);
     throw error;
   } finally {
     await client.close();
-    console.log("\nMongoDB connection closed");
+    await sequelize.close();
+    console.log("\nConnections closed");
   }
 }
 
