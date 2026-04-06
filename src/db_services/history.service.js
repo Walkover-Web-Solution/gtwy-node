@@ -102,19 +102,39 @@ async function findRecentThreadsByBridgeId(org_id, bridge_id, filters, user_feed
     }
 
     // Add keyword search across recommended columns
-    if (filters?.keyword?.length > 0 && filters?.keyword !== "") {
-      const keywordConditions = {
-        [Sequelize.Op.or]: [
-          { message_id: { [Sequelize.Op.iLike]: `%${filters.keyword}%` } },
-          { thread_id: { [Sequelize.Op.iLike]: `%${filters.keyword}%` } },
-          { sub_thread_id: { [Sequelize.Op.iLike]: `%${filters.keyword}%` } },
-          { llm_message: { [Sequelize.Op.iLike]: `%${filters.keyword}%` } },
-          { user: { [Sequelize.Op.iLike]: `%${filters.keyword}%` } },
-          { chatbot_message: { [Sequelize.Op.iLike]: `%${filters.keyword}%` } },
-          { updated_llm_message: { [Sequelize.Op.iLike]: `%${filters.keyword}%` } }
-        ]
-      };
-      whereConditions[Sequelize.Op.and] = [keywordConditions];
+    const searchableColumns = ["message_id", "thread_id", "sub_thread_id", "llm_message", "user", "chatbot_message", "updated_llm_message"];
+    const filterBy = filters?.filter_by;
+
+    if (filterBy && typeof filterBy === "object" && Object.keys(filterBy).length > 0) {
+      const orConditions = [];
+      for (const [col, keyword] of Object.entries(filterBy)) {
+        if (!keyword || keyword === "") continue;
+        const escapedKw = keyword.replace(/'/g, "''");
+        if (col === "variables") {
+          orConditions.push(
+            Sequelize.literal(
+              `EXISTS (SELECT 1 FROM jsonb_each_text(COALESCE("conversation_logs"."variables", '{}'::jsonb)) AS kv WHERE jsonb_typeof(COALESCE("conversation_logs"."variables", 'null'::jsonb)) = 'object' AND kv.value ILIKE '%${escapedKw}%')`
+            )
+          );
+        } else if (searchableColumns.includes(col)) {
+          orConditions.push({ [col]: { [Sequelize.Op.iLike]: `%${keyword}%` } });
+        }
+      }
+      if (orConditions.length > 0) {
+        whereConditions[Sequelize.Op.and] = [{ [Sequelize.Op.or]: orConditions }];
+      }
+    } else if (filters?.keyword?.length > 0 && filters?.keyword !== "") {
+      const escapedKeyword = filters.keyword.replace(/'/g, "''");
+      whereConditions[Sequelize.Op.and] = [
+        {
+          [Sequelize.Op.or]: [
+            ...searchableColumns.map((col) => ({ [col]: { [Sequelize.Op.iLike]: `%${filters.keyword}%` } })),
+            Sequelize.literal(
+              `EXISTS (SELECT 1 FROM jsonb_each_text(COALESCE("conversation_logs"."variables", '{}'::jsonb)) AS kv WHERE jsonb_typeof(COALESCE("conversation_logs"."variables", 'null'::jsonb)) = 'object' AND kv.value ILIKE '%${escapedKeyword}%')`
+            )
+          ]
+        }
+      ];
     }
 
     // Get recent threads with distinct thread_id, ordered by updated_at
