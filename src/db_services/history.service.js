@@ -111,7 +111,11 @@ async function findRecentThreadsByBridgeId(org_id, bridge_id, filters, user_feed
           { llm_message: { [Sequelize.Op.iLike]: `%${filters.keyword}%` } },
           { user: { [Sequelize.Op.iLike]: `%${filters.keyword}%` } },
           { chatbot_message: { [Sequelize.Op.iLike]: `%${filters.keyword}%` } },
-          { updated_llm_message: { [Sequelize.Op.iLike]: `%${filters.keyword}%` } }
+          { updated_llm_message: { [Sequelize.Op.iLike]: `%${filters.keyword}%` } },
+          Sequelize.where(
+            Sequelize.cast(Sequelize.col('variables'), 'TEXT'),
+            { [Sequelize.Op.iLike]: `%${filters.keyword}%` }
+          )
         ]
       };
       whereConditions[Sequelize.Op.and] = [keywordConditions];
