@@ -1,10 +1,11 @@
 import ConfigurationServices from "../db_services/configuration.service.js";
+import folderService from "../db_services/folder.service.js";
 import FolderModel from "../mongoModel/GtwyEmbed.model.js";
 import configurationModel from "../mongoModel/Configuration.model.js";
 import { createProxyToken, getOrganizationById, updateOrganizationData } from "../services/proxy.service.js";
 import { generateIdentifier } from "../services/utils/utility.service.js";
 import { cleanupCache } from "../services/utils/redis.utils.js";
-import { deleteInCache, findInCache, storeInCache } from "../cache_service/index.js";
+import { deleteInCache, findInCache } from "../cache_service/index.js";
 import { cost_types, redis_keys, embed_cache } from "../configs/constant.js";
 import { generateAuthToken } from "../services/utils/utility.service.js";
 import jwt from "jsonwebtoken";
@@ -40,28 +41,7 @@ const embedLogin = async (req, res) => {
     }
   };
 
-  const cacheKeyFolder = embed_cache.keys.folder(req.Embed.folder_id);
-  let folder = null;
-
-  const cachedFolder = await findInCache(cacheKeyFolder);
-  if (cachedFolder) {
-    try {
-      folder = JSON.parse(cachedFolder);
-    } catch {
-      await deleteInCache(cacheKeyFolder);
-      folder = null;
-    }
-  }
-
-  const [folderFromDb] = await Promise.all([
-    folder ? Promise.resolve(null) : FolderModel.findOne({ _id: req.Embed.folder_id }).lean(),
-    createProxyToken(embedDetails)
-  ]);
-
-  if (folderFromDb && !folder) {
-    folder = folderFromDb;
-    await storeInCache(cacheKeyFolder, folder, embed_cache.ttl);
-  }
+  const [folder] = await Promise.all([folderService.getFolderData(req.Embed.folder_id), createProxyToken(embedDetails)]);
 
   const config = folder?.config || {};
   const apikey_object_id = folder?.apikey_object_id;

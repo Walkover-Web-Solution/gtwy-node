@@ -62,7 +62,7 @@ export async function getOrganizationById(orgId) {
 
     const data = response?.data?.data?.data?.[0];
     if (data) {
-      await storeInCache(cacheKeyOrg, data, embed_cache.ttl);
+      await storeInCache(cacheKeyOrg, data);
     }
     return data; // data.org kardena if giving undefined.
   } catch (error) {

@@ -53,7 +53,6 @@ const redis_keys = {
 };
 
 const embed_cache = {
-  ttl: 86400,
   keys: {
     folder: (folderId) => `embed:folder_${folderId}`,
     org: (orgId) => `embed:org_${orgId}`,

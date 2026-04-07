@@ -49,7 +49,7 @@ const createOrGetUser = async (checkToken, decodedToken, orgTokenFromDb) => {
   };
   const proxyResponse = await createOrFindUserAndCompany(proxyObject); // proxy api call
   const result = { proxyResponse, name: userDetails.name, email: userDetails.email };
-  await storeInCache(cacheKeyUser, result, embed_cache.ttl);
+  await storeInCache(cacheKeyUser, result);
   return result;
 };
 
