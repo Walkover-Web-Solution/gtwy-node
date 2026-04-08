@@ -173,7 +173,7 @@ const updateEmbed = async (req, res, next) => {
       folder.folder_limit_start_date = new Date();
     }
     await folder.save();
-    await cleanupCache(cost_types.folder, folder_id);
+    await cleanupCache(cost_types.folder, folder_id, org_id);
     if (folder_usage == 0) {
       await deleteInCache(`${redis_keys.folderusedcost_}${folder_id}`);
     }
