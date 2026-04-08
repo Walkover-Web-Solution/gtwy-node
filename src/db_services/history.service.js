@@ -11,6 +11,86 @@ import Sequelize from "sequelize";
  * @param {number} limit - Items per page (default: 30)
  * @returns {Object} - Success status and data
  */
+async function findBatchConversationLogsByAgentId(org_id, bridge_id, filter, page = 1, limit = 30, version_id = null) {
+  try {
+    const offset = (page - 1) * limit;
+
+    // Build where conditions - all parameters are required
+    const whereConditions = {
+      org_id: org_id,
+      bridge_id: bridge_id,
+      batch_data: { [Sequelize.Op.ne]: null },
+      "batch_data.status": filter ? filter : "completed"
+    };
+
+    if (version_id) {
+      whereConditions.version_id = version_id;
+    }
+
+    // Get paginated data
+    const logs = await models.pg.conversation_logs.findAll({
+      where: whereConditions,
+      order: [["created_at", "DESC"]],
+      limit: limit,
+      offset: offset
+    });
+
+    // Reverse the conversation logs array
+    const reversedLogs = logs.reverse();
+
+    return {
+      success: true,
+      data: reversedLogs
+    };
+  } catch (error) {
+    console.error("Error fetching conversation logs:", error);
+    return {
+      success: false,
+      message: "Failed to fetch conversation logs",
+      error: error.message
+    };
+  }
+}
+async function findBatchConversationLogsCountByAgentId(org_id, bridge_id) {
+  try {
+    // Build where conditions - all parameters are required
+    const whereConditions = {
+      org_id: org_id,
+      bridge_id: bridge_id,
+      batch_data: { [Sequelize.Op.ne]: null },
+      "batch_data.status": { [Sequelize.Op.in]: ["completed", "queued", "processing"] }
+    };
+
+    // Get count
+    const batchStatusCounts = await models.pg.conversation_logs.findAll({
+      attributes: [
+        [Sequelize.fn("COUNT", Sequelize.literal("CASE WHEN batch_data->>'status' = 'queued' THEN 1 END")), "queued"],
+        [Sequelize.fn("COUNT", Sequelize.literal("CASE WHEN batch_data->>'status' = 'processing' THEN 1 END")), "processing"],
+        [Sequelize.fn("COUNT", Sequelize.literal("CASE WHEN batch_data->>'status' = 'completed' THEN 1 END")), "completed"]
+      ],
+      where: whereConditions
+    });
+
+    const statusCounts = batchStatusCounts[0]?.dataValues || {};
+
+    return {
+      success: true,
+      data: {
+        completed: parseInt(statusCounts.completed) || 0,
+        queued: parseInt(statusCounts.queued) || 0,
+        processing: parseInt(statusCounts.processing) || 0
+      }
+    };
+  } catch (error) {
+    console.error("Error fetching conversation logs count:", error);
+    return {
+      success: false,
+      message: "Failed to fetch conversation logs count",
+      error: error.message
+    };
+  }
+}
+
 async function findConversationLogsByIds(org_id, bridge_id, thread_id, sub_thread_id, page = 1, limit = 30, version_id = null) {
   try {
     const offset = (page - 1) * limit;
@@ -646,5 +726,7 @@ export {
   findHistoryByMessageId,
   findHistoryByMessageId as getHistoryByMessageId,
   createConversationLog,
-  findChatbotThreadHistory
+  findChatbotThreadHistory,
+  findBatchConversationLogsByAgentId,
+  findBatchConversationLogsCountByAgentId
 };
