@@ -222,10 +222,10 @@ const suggestModel = async (req, res, next) => {
 
 const getConnectedAgents = async (req, res, next) => {
   const { version_id } = req.params; // Changed from 'id' to 'version_id'
-  const { type } = req.query;
+  const { type, key = "orchestral" } = req.query;
   const org_id = req.profile.org.id;
 
-  const result = await agentVersionDbService.getAllConnectedAgents(version_id, org_id, type);
+  const result = await agentVersionDbService.getAllConnectedAgents(version_id, org_id, type, key);
   res.locals = { success: true, data: result };
   req.statusCode = 200;
   return next();
