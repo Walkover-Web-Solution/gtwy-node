@@ -333,7 +333,8 @@ const updateAgentController = async (req, res, next) => {
     "chatbot_auto_answers",
     "auto_model_select",
     "cache_on",
-    "pre_tools"
+    "pre_tools",
+    "stateless_conversation"
   ];
 
   for (const field of simple_fields) {
