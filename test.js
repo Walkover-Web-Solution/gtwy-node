@@ -1,108 +1,100 @@
-import { MongoClient } from "mongodb";
+import axios from "axios";
 
-const MONGODB_URI = "mongodb+srv://admin:Uc0sjm9jpLMsSGn5@cluster0.awdsppv.mongodb.net/AI_Middleware-test";
+const BILLING_API_BASE = "https://api.billing.gtwy.ai/api/v1";
+const BILLING_AUTH_TOKEN = "Bearer e7f5c7ab-fe9d-4b1e-a4f6-63d333bfe068";
+const PUBLIC_REFERENCEID = process.env.PUBLIC_REFERENCEID;
+const ADMIN_API_KEY = process.env.ADMIN_API_KEY;
+const PLAN_CODE = "free";
 
-// A valid bridge_id is a 24-char hex ObjectId string
-const isObjectId = (str) => typeof str === "string" && /^[a-f\d]{24}$/i.test(str);
+const billingHeaders = {
+  Authorization: BILLING_AUTH_TOKEN,
+  "Content-Type": "application/json"
+};
 
-function remapConnectedAgents(connected_agents) {
-  if (!connected_agents || typeof connected_agents !== "object") return null;
-  const entries = Object.entries(connected_agents);
-  if (entries.length === 0) return null;
-
-  let changed = false;
-  const remapped = {};
-
-  for (const [key, agent_info] of entries) {
-    const bridgeId = agent_info?.bridge_id?.toString() ?? agent_info?.bridge_id;
-
-    if (isObjectId(key)) {
-      // Already keyed by bridge_id — keep as-is
-      remapped[key] = agent_info;
-    } else if (bridgeId) {
-      // Keyed by agent name — remap to bridge_id
-      remapped[bridgeId] = agent_info;
-      changed = true;
-    }
-    // No bridge_id — drop orphaned entry
-  }
-
-  return changed ? remapped : null;
+async function getAllOrgs() {
+  const response = await axios.get(`https://routes.msg91.com/api/${PUBLIC_REFERENCEID}/getCompanies?itemsPerPage=17321`, {
+    headers: { authkey: ADMIN_API_KEY }
+  });
+  return response?.data?.data?.data ?? [];
 }
 
-async function migrateConnectedAgents() {
-  const client = new MongoClient(MONGODB_URI);
-
-  try {
-    await client.connect();
-    console.log("Connected to MongoDB");
-
-    const db = client.db("AI_Middleware-test");
-    const configurations = db.collection("configurations");
-    const bridgeversions = db.collection("configuration_versions");
-
-    let totalConfigs = 0,
-      updatedConfigs = 0;
-    let totalVersions = 0,
-      updatedVersions = 0;
-
-    // --- Migrate configurations ---
-    console.log("\nMigrating configurations...");
-    const configs = await configurations
-      .find({ connected_agents: { $exists: true, $ne: {} } }, { projection: { _id: 1, connected_agents: 1 } })
-      .toArray();
-    totalConfigs = configs.length;
-
-    const configOps = [];
-    for (const doc of configs) {
-      const remapped = remapConnectedAgents(doc.connected_agents);
-      if (remapped) {
-        configOps.push({ updateOne: { filter: { _id: doc._id }, update: { $set: { connected_agents: remapped } } } });
-        updatedConfigs++;
-        console.log(`  Config ${doc._id}: remapped keys [${Object.keys(doc.connected_agents).join(", ")}] → [${Object.keys(remapped).join(", ")}]`);
+async function createCustomer(orgId, orgName) {
+  const response = await axios.post(
+    `${BILLING_API_BASE}/customers`,
+    {
+      customer: {
+        external_id: String(orgId),
+        name: orgName || String(orgId),
+        currency: "USD"
       }
-    }
-    if (configOps.length) await configurations.bulkWrite(configOps);
-
-    // --- Migrate bridge versions ---
-    console.log("\nMigrating bridge versions...");
-    const versions = await bridgeversions
-      .find({ connected_agents: { $exists: true, $ne: {} } }, { projection: { _id: 1, connected_agents: 1 } })
-      .toArray();
-    totalVersions = versions.length;
-
-    const versionOps = [];
-    for (const doc of versions) {
-      const remapped = remapConnectedAgents(doc.connected_agents);
-      if (remapped) {
-        versionOps.push({ updateOne: { filter: { _id: doc._id }, update: { $set: { connected_agents: remapped } } } });
-        updatedVersions++;
-        console.log(`  Version ${doc._id}: remapped keys [${Object.keys(doc.connected_agents).join(", ")}] → [${Object.keys(remapped).join(", ")}]`);
-      }
-    }
-    if (versionOps.length) await bridgeversions.bulkWrite(versionOps);
-
-    console.log("\n" + "=".repeat(60));
-    console.log("Migration Summary:");
-    console.log(`  Configurations: scanned ${totalConfigs}, updated ${updatedConfigs}`);
-    console.log(`  Versions:       scanned ${totalVersions}, updated ${updatedVersions}`);
-    console.log("=".repeat(60));
-  } catch (error) {
-    console.error("Migration failed:", error);
-    throw error;
-  } finally {
-    await client.close();
-    console.log("\nMongoDB connection closed");
-  }
+    },
+    { headers: billingHeaders }
+  );
+  return response.data;
 }
 
-// Run the migration
-migrateConnectedAgents()
+async function assignSubscription(orgId) {
+  const response = await axios.post(
+    `${BILLING_API_BASE}/subscriptions`,
+    {
+      subscription: {
+        external_customer_id: String(orgId),
+        plan_code: PLAN_CODE,
+        external_id: `sub_${orgId}`
+      }
+    },
+    { headers: billingHeaders }
+  );
+  return response.data;
+}
+
+async function migrate() {
+  console.log("Fetching all organizations...");
+  const orgs = await getAllOrgs();
+  console.log(`Found ${orgs.length} organizations\n`);
+
+  let customersCreated = 0;
+  let subscriptionsAssigned = 0;
+  let failed = 0;
+
+  for (const org of orgs) {
+    const orgId = String(org.id);
+    const orgName = org.name || orgId;
+
+    try {
+      console.log(`[${orgId}] Creating customer "${orgName}"...`);
+      await createCustomer(orgId, orgName);
+      customersCreated++;
+
+      console.log(`[${orgId}] Assigning subscription (plan: ${PLAN_CODE})...`);
+      await assignSubscription(orgId);
+      subscriptionsAssigned++;
+
+      console.log(`[${orgId}] Done\n`);
+    } catch (error) {
+      failed++;
+      const msg = error.response?.data?.message || error.response?.data || error.message;
+      console.error(`[${orgId}] Failed: ${JSON.stringify(msg)}\n`);
+    }
+
+    await new Promise((r) => setTimeout(r, 100));
+  }
+
+  console.log("=".repeat(60));
+  console.log("Migration Summary:");
+  console.log(`  Total orgs:              ${orgs.length}`);
+  console.log(`  Customers created:       ${customersCreated}`);
+  console.log(`  Subscriptions assigned:  ${subscriptionsAssigned}`);
+  console.log(`  Failed:                  ${failed}`);
+  console.log("=".repeat(60));
+}
+
+migrate()
   .then(() => {
-    console.log("\n✓ Migration completed successfully");
+    console.log("\nMigration completed successfully");
     process.exit(0);
   })
   .catch((error) => {
-    console.error("\n✗ Migration failed:", error);
+    console.error("\nMigration failed:", error.message);
     process.exit(1);
   });
