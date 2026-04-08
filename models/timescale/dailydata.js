@@ -34,7 +34,7 @@ export default (sequelize, DataTypes) => {
       service: DataTypes.STRING,
       input_tokens: DataTypes.FLOAT,
       output_tokens: DataTypes.FLOAT,
-      total_tokens: DataTypes.FLOAT,
+      total_token_count: DataTypes.FLOAT,
       apikey_id: {
         type: DataTypes.STRING,
         allowNull: true
@@ -44,9 +44,13 @@ export default (sequelize, DataTypes) => {
         type: DataTypes.DATE,
         defaultValue: fn("now")
       },
-      latency: DataTypes.FLOAT,
-      success: DataTypes.BOOLEAN,
-      cost: DataTypes.FLOAT
+      latency_sum: DataTypes.FLOAT,
+      llm_latency_sum: DataTypes.FLOAT,
+      tool_call_latency_sum: DataTypes.FLOAT,
+      system_latency_sum: DataTypes.FLOAT,
+      success_count: DataTypes.FLOAT,
+      record_count: DataTypes.FLOAT,
+      cost_sum: DataTypes.FLOAT
     },
     {
       sequelize,

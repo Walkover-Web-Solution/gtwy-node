@@ -31,6 +31,9 @@ async function saveMetrics(historyEntries) {
         total_tokens: row.total_tokens ?? 0,
         apikey_id: row.apikey_id ?? null,
         latency: row.latency ?? 0,
+        llm_latency: row.llm_latency ?? 0,
+        tool_call_latency: row.tool_call_latency ?? 0,
+        system_latency: row.system_latency ?? 0,
         success: row.success ?? false,
         cost: row.cost ?? 0
       });
@@ -69,6 +72,9 @@ async function saveFlatMetrics(metricsArray) {
       total_tokens: row.total_tokens ?? 0,
       apikey_id: row.apikey_id ?? null,
       latency: row.latency ?? 0,
+      llm_latency: row.llm_latency ?? 0,
+      tool_call_latency: row.tool_call_latency ?? 0,
+      system_latency: row.system_latency ?? 0,
       success: row.success ?? false,
       cost: row.cost ?? 0
     }));

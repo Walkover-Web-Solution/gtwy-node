@@ -1,5 +1,4 @@
 import models from "../../models/index.js";
-import { Op } from "sequelize";
 import configurationService from "../db_services/configuration.service.js";
 
 /**
@@ -45,70 +44,55 @@ function getReportDateRange(reportType) {
 async function get_latency_report_data(org_ids, reportType) {
   const results = [];
   const { startDate, endDate } = getReportDateRange(reportType);
-
-  // Prepare date filter
-  const dateFilter = {
-    [Op.gte]: startDate,
-    [Op.lte]: endDate
-  };
+  // Weekly and monthly reports both use daily rollups to avoid retention gaps
+  // from fifteen_minute_data (which is configured for short retention).
+  const tableName = "daily_data";
 
   for (let org_id of org_ids) {
     org_id = org_id.toString();
 
-    // conversation_logs has bridge_id + latency (JSONB) directly on each row
-    const logs = await models.pg.conversation_logs.findAll({
-      where: {
-        org_id,
-        created_at: dateFilter
-      },
-      attributes: ["bridge_id", "latency"]
-    });
-
-    // Skip this org if no data is available
-    if (logs.length === 0) {
-      continue;
-    }
-
-    // Accumulate latency sums and counts by bridge_id
-    const bridgeLatencyStats = new Map();
-
-    for (const r of logs) {
-      const { bridge_id, latency } = r;
-
-      if (!bridge_id || latency == null) continue;
-
-      // latency is JSONB: { over_all_time, model_execution_time, function_time_logs: [{time_taken}] }
-      let functionTimeTotal = 0;
-      if (Array.isArray(latency.function_time_logs)) {
-        functionTimeTotal = latency.function_time_logs.reduce((sum, log) => sum + (log.time_taken || 0), 0);
+    // Pull weekly/monthly latency from the rollup table that matches the report type.
+    const bridgeStats = await models.timescale.sequelize.query(
+      `
+      SELECT
+        bridge_id,
+        SUM(COALESCE(system_latency_sum, 0)) / NULLIF(SUM(COALESCE(record_count, 0)), 0) AS avg_latency,
+        SUM(COALESCE(record_count, 0))::int AS total_requests
+      FROM ${tableName}
+      WHERE
+        org_id = :org_id
+        AND created_at BETWEEN :startDate AND :endDate
+        AND bridge_id IS NOT NULL
+      GROUP BY bridge_id
+      `,
+      {
+        type: models.timescale.Sequelize.QueryTypes.SELECT,
+        replacements: {
+          org_id,
+          startDate,
+          endDate
+        }
       }
-      const actualLatency = (latency.over_all_time || 0) - (latency.model_execution_time || 0) - functionTimeTotal;
+    );
 
-      if (!bridgeLatencyStats.has(bridge_id)) {
-        bridgeLatencyStats.set(bridge_id, { totalLatency: 0, count: 0 });
-      }
-
-      const stats = bridgeLatencyStats.get(bridge_id);
-      stats.totalLatency += actualLatency;
-      stats.count++;
-    }
-
-    // Skip this org if no valid latency data was found
-    if (bridgeLatencyStats.size === 0) {
+    if (!Array.isArray(bridgeStats) || bridgeStats.length === 0) {
       continue;
     }
 
     // Convert the map to an array of objects with bridge names and average latency
     const bridgeLatencyReport = [];
-    for (const [bridgeId, stats] of bridgeLatencyStats.entries()) {
+    for (const stats of bridgeStats) {
+      const bridgeId = stats.bridge_id;
+      if (!bridgeId) continue;
+
       // Get bridge name from service
       const bridgeName = await configurationService.getAgentNameById(bridgeId, org_id);
 
       bridgeLatencyReport.push({
         bridge_id: bridgeId,
         bridge_name: bridgeName || "Unknown Bridge",
-        avg_latency: stats.count > 0 ? (stats.totalLatency / stats.count).toFixed(2) : 0,
-        total_requests: stats.count
+        avg_latency: Number(stats.avg_latency || 0).toFixed(2),
+        total_requests: Number(stats.total_requests || 0)
       });
     }
 

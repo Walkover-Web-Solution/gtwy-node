@@ -44,6 +44,9 @@ export default (sequelize, DataTypes) => {
         defaultValue: fn("now")
       },
       latency: DataTypes.FLOAT,
+      llm_latency: DataTypes.FLOAT,
+      tool_call_latency: DataTypes.FLOAT,
+      system_latency: DataTypes.FLOAT,
       success: DataTypes.BOOLEAN,
       cost: DataTypes.FLOAT,
       time_zone: {
