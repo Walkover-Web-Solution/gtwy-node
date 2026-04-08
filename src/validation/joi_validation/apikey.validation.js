@@ -5,7 +5,7 @@ const saveApikey = {
     .keys({
       name: Joi.string().required(),
       apikey: Joi.string().required(),
-      service: Joi.string().valid("openai", "gemini", "anthropic", "groq", "open_router", "mistral", "ai_ml", "grok", "deepgram").required(),
+      service: Joi.string().valid("openai", "gemini", "anthropic", "groq", "open_router", "mistral", "grok", "deepgram").required(),
       apikey_limit: Joi.number().min(0).precision(6).optional(),
       apikey_usage: Joi.number().min(0).precision(6).optional(),
       apikey_limit_reset_period: Joi.string().valid("monthly", "weekly", "daily").optional(),
@@ -34,7 +34,7 @@ const updateApikey = {
     .keys({
       name: Joi.string().optional(),
       apikey: Joi.string().optional(),
-      service: Joi.string().valid("openai", "gemini", "anthropic", "groq", "open_router", "mistral", "ai_ml", "grok", "deepgram").optional(),
+      service: Joi.string().valid("openai", "gemini", "anthropic", "groq", "open_router", "mistral", "grok", "deepgram").optional(),
       apikey_limit: Joi.number().min(0).precision(6).optional(),
       apikey_usage: Joi.number().min(0).precision(6).optional(),
       apikey_limit_reset_period: Joi.string().valid("monthly", "weekly", "daily").optional(),

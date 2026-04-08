@@ -8,7 +8,6 @@ import {
   callOpenRouterApi,
   callMistralApi,
   callGeminiApi,
-  callAiMlApi,
   callGrokApi,
   callDeepgramApi
 } from "../services/utils/aiServices.js";
@@ -239,9 +238,6 @@ const checkApikey = async (apikey, service) => {
       break;
     case "gemini":
       check = await callGeminiApi(apikey, model);
-      break;
-    case "ai_ml":
-      check = await callAiMlApi(apikey, model);
       break;
     case "grok":
       check = await callGrokApi(apikey);

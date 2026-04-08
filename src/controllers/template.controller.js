@@ -213,7 +213,7 @@ const createAgentFromTemplateController = async (req, res, next) => {
     model_data.prompt = model_data.prompt || prompt;
     model_data.tool_choice = "default";
 
-    const fall_back = template_content?.fall_back || { is_enable: true, service: "ai_ml", model: "gpt-oss-120b" };
+    const fall_back = template_content?.fall_back || { is_enable: true, service: "openai", model: "gpt-5.1" };
     const template_fields = [
       "variables_state",
       "built_in_tools",
