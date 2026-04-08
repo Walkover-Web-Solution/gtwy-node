@@ -50,6 +50,7 @@ const getRecentThreads = async (req, res, next) => {
   const user_feedback = req.query.user_feedback || "all";
   const error = req.query.error || "false";
   const version_id = req.query.version_id;
+  const type = req.query.type;
 
   // Extract search filters (supports both search and regular listing)
   const filters = {
@@ -65,7 +66,7 @@ const getRecentThreads = async (req, res, next) => {
   };
 
   // Get recent threads with search functionality built-in
-  const result = await findRecentThreadsByBridgeId(org_id, agent_id, filters, user_feedback, error, pageNum, limitNum, version_id);
+  const result = await findRecentThreadsByBridgeId(org_id, agent_id, filters, user_feedback, error, pageNum, limitNum, version_id, type);
 
   if (result.success) {
     res.locals = {

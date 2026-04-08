@@ -65,7 +65,7 @@ async function findConversationLogsByIds(org_id, bridge_id, thread_id, sub_threa
  * @param {number} limit - Items per page (default: 30)
  * @returns {Object} - Success status and data
  */
-async function findRecentThreadsByBridgeId(org_id, bridge_id, filters, user_feedback, error, page = 1, limit = 30, version_id = null) {
+async function findRecentThreadsByBridgeId(org_id, bridge_id, filters, user_feedback, error, page = 1, limit = 30, version_id = null, type = null) {
   try {
     const offset = (page - 1) * limit;
 
@@ -81,6 +81,10 @@ async function findRecentThreadsByBridgeId(org_id, bridge_id, filters, user_feed
 
     if (error !== "false") {
       whereConditions.error = error;
+    }
+
+    if (type === "batch") {
+      whereConditions.batch_data = { [Sequelize.Op.ne]: null };
     }
 
     if (version_id) {
@@ -208,6 +212,39 @@ async function findRecentThreadsByBridgeId(org_id, bridge_id, filters, user_feed
               }))
           }));
         }
+      });
+    }
+
+    // Get batch status counts per thread_id when type is batch
+    if (type === "batch" && formattedThreads.length > 0) {
+      const threadIds = formattedThreads.map((t) => t.thread_id);
+      const batchStatusCounts = await models.pg.conversation_logs.findAll({
+        attributes: [
+          "thread_id",
+          [Sequelize.fn("COUNT", Sequelize.literal("CASE WHEN batch_data->>'status' = 'queued' THEN 1 END")), "queued"],
+          [Sequelize.fn("COUNT", Sequelize.literal("CASE WHEN batch_data->>'status' = 'processing' THEN 1 END")), "processing"],
+          [Sequelize.fn("COUNT", Sequelize.literal("CASE WHEN batch_data->>'status' = 'completed' THEN 1 END")), "completed"]
+        ],
+        where: {
+          org_id,
+          bridge_id,
+          thread_id: { [Sequelize.Op.in]: threadIds },
+          batch_data: { [Sequelize.Op.ne]: null }
+        },
+        group: ["thread_id"]
+      });
+
+      const statusMap = {};
+      batchStatusCounts.forEach((row) => {
+        statusMap[row.dataValues.thread_id] = {
+          queued: parseInt(row.dataValues.queued) || 0,
+          processing: parseInt(row.dataValues.processing) || 0,
+          completed: parseInt(row.dataValues.completed) || 0
+        };
+      });
+
+      formattedThreads.forEach((thread) => {
+        thread.batch_status_counts = statusMap[thread.thread_id] || { queued: 0, processing: 0, completed: 0 };
       });
     }
 
