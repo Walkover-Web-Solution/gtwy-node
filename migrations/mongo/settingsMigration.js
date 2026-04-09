@@ -135,6 +135,16 @@ async function migrateSettingsField() {
         hasSettingsUpdate = true;
       }
 
+      // 10. Handle maximum_iterations (move from root)
+      if (doc.tool_call_count !== undefined) {
+        settings.maximum_iterations = doc.tool_call_count;
+        hasSettingsUpdate = true;
+        console.log(`  Config ${doc._id}: Moving root tool_call_count to settings.maximum_iterations`);
+      } else if (doc.settings?.maximum_iterations === undefined) {
+        settings.maximum_iterations = 0;
+        hasSettingsUpdate = true;
+      }
+
       // Prepare update operation
       if (hasSettingsUpdate) {
         // const updateOp = { $set: { settings: settings } };
@@ -148,7 +158,8 @@ async function migrateSettingsField() {
             "configuration.response_format": "",
             "configuration.responseStylePrompt": "",
             guardrails: "",
-            fall_back: ""
+            fall_back: "",
+            tool_call_count: ""
           }
         };
 
@@ -285,6 +296,16 @@ async function migrateSettingsField() {
         hasSettingsUpdate = true;
       }
 
+      // 8. Handle maximum_iterations (move from root)
+      if (doc.tool_call_count !== undefined) {
+        settings.maximum_iterations = doc.tool_call_count;
+        hasSettingsUpdate = true;
+        console.log(`  Version ${doc._id}: Moving root tool_call_count to settings.maximum_iterations`);
+      } else if (doc.settings?.maximum_iterations === undefined) {
+        settings.maximum_iterations = 3;
+        hasSettingsUpdate = true;
+      }
+
       // Prepare update operation
       if (hasSettingsUpdate) {
         const unsetOp = {
@@ -295,7 +316,8 @@ async function migrateSettingsField() {
             "configuration.response_format": "",
             "configuration.responseStylePrompt": "",
             guardrails: "",
-            fall_back: ""
+            fall_back: "",
+            tool_call_count: ""
           }
         };
 

@@ -308,7 +308,6 @@ const updateAgentController = async (req, res, next) => {
     "bridge_summary",
     "expected_qna",
     "slugName",
-    "tool_call_count",
     "user_reference",
     "gpt_memory",
     "gpt_memory_context",

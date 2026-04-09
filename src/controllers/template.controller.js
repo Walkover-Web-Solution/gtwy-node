@@ -234,7 +234,6 @@ const createAgentFromTemplateController = async (req, res, next) => {
       "meta",
       "cache_on",
       "chatbot_auto_answers",
-      "tool_call_count",
       "version_description"
     ];
     const template_values = {};
