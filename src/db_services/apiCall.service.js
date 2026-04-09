@@ -62,11 +62,11 @@ async function deleteFunctionFromApicallsDb(org_id, script_id) {
   const function_id = bridgeData._id;
 
   if (bridge_ids.length > 0) {
-    await versionModel.updateMany({ _id: { $in: bridge_ids } }, { $pull: { function_ids: function_id } });
+    await versionModel.updateMany({ _id: { $in: bridge_ids } }, { $pull: { "connected_tools.function_ids": function_id } });
   }
 
   if (version_ids.length > 0) {
-    await versionModel.updateMany({ _id: { $in: version_ids } }, { $pull: { function_ids: function_id } });
+    await versionModel.updateMany({ _id: { $in: version_ids } }, { $pull: { "connected_tools.function_ids": function_id } });
   }
 
   const result = await apiCallModel.deleteOne({

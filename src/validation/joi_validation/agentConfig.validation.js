@@ -78,8 +78,6 @@ const updateBridgeSchema = Joi.object({
   user_reference: Joi.string().optional(),
   gpt_memory: Joi.boolean().optional(),
   gpt_memory_context: Joi.number().optional(),
-  doc_ids: Joi.array().items(Joi.string()).optional(),
-  variables_state: Joi.object().optional(),
   IsstarterQuestionEnable: Joi.boolean().optional(),
   name: Joi.string().optional(),
   bridgeType: Joi.string().valid("api", "chatbot").optional(),
@@ -90,19 +88,15 @@ const updateBridgeSchema = Joi.object({
     model: Joi.string().optional()
   }).optional(),
   guardrails: Joi.object().optional(),
-  web_search_filters: Joi.alternatives().try(Joi.array().items(Joi.string()), Joi.object()).optional(),
-  gtwy_web_search_filters: Joi.alternatives().try(Joi.array().items(Joi.string()), Joi.object()).optional(),
   bridge_limit: Joi.number().min(0).optional(),
   bridge_usage: Joi.number().min(0).optional(),
   bridge_limit_reset_period: Joi.string().valid("monthly", "weekly", "daily").optional(),
   bridge_limit_start_date: Joi.date().optional(),
   page_config: Joi.object().optional(),
-  variables_path: Joi.object().optional(),
-  built_in_tools_data: Joi.object({
-    built_in_tools: Joi.array().items(Joi.string()).optional(),
-    built_in_tools_operation: Joi.string().valid("0", "1").optional()
-  }).optional(),
-  agents: Joi.object({
+  connected_tools: Joi.object({
+    function_ids: Joi.array()
+      .items(Joi.string().pattern(/^[0-9a-fA-F]{24}$/))
+      .optional(),
     connected_agents: Joi.object()
       .pattern(
         Joi.string(),
@@ -113,15 +107,14 @@ const updateBridgeSchema = Joi.object({
         })
       )
       .optional(),
-    agent_status: Joi.string().valid("0", "1").optional()
+    agent_status: Joi.string().valid("0", "1").optional(),
+    built_in_tools: Joi.array().items(Joi.string()).optional(),
+    doc_ids: Joi.array().items(Joi.string()).optional(),
+    variables_path: Joi.object().optional(),
+    web_search_filters: Joi.alternatives().try(Joi.array().items(Joi.string()), Joi.object()).optional()
   }).optional(),
-  functionData: Joi.object({
-    function_id: Joi.string()
-      .pattern(/^[0-9a-fA-F]{24}$/)
-      .optional(),
-    function_operation: Joi.string().valid("0", "1").optional(),
-    script_id: Joi.string().optional()
-  }).optional(),
+  variables_state: Joi.object().optional(),
+  gtwy_web_search_filters: Joi.alternatives().try(Joi.array().items(Joi.string()), Joi.object()).optional(),
   version_description: Joi.string().allow("").optional()
 }).unknown(true); // Allow additional fields
 
