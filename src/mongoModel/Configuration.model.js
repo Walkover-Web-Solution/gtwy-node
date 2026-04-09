@@ -255,22 +255,24 @@ const configuration = new mongoose.Schema({
     type: Date,
     default: null
   },
-  bridge_limit: {
-    type: Number,
-    default: 0
-  },
-  bridge_usage: {
-    type: Number,
-    default: 0
-  },
-  bridge_limit_reset_period: {
-    type: String,
-    enum: ["monthly", "weekly", "daily"],
-    default: "monthly"
-  },
-  bridge_limit_start_date: {
-    type: Date,
-    default: Date.now
+  agent_limit: {
+    limit: {
+      type: Number,
+      default: 0
+    },
+    usage: {
+      type: Number,
+      default: 0
+    },
+    reset_period: {
+      type: String,
+      enum: ["monthly", "weekly", "daily"],
+      default: "monthly"
+    },
+    start_date: {
+      type: Date,
+      default: Date.now
+    }
   },
   last_used: {
     type: Date,
