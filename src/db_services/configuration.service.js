@@ -817,7 +817,7 @@ const getAllAgentsData = async (userEmail) => {
       { "agent_info.availability": "public" },
       {
         "agent_info.availability": "private",
-        "page_config.allowedUsers": userEmail
+        "settings.publicUsers": userEmail
       }
     ]
   };
@@ -831,7 +831,7 @@ const getAgentsData = async (slugName, userEmail) => {
         $and: [{ "agent_info.availability": "public" }, { "page_config.url_slugname": slugName }]
       },
       {
-        $and: [{ "agent_info.availability": "private" }, { "page_config.url_slugname": slugName }, { "page_config.allowedUsers": userEmail }]
+        $and: [{ "agent_info.availability": "private" }, { "page_config.url_slugname": slugName }, { "settings.publicUsers": userEmail }]
       }
     ]
   });
@@ -1169,7 +1169,15 @@ const getAllAgentsInOrg = async (org_id, folder_id, user_id, isEmbedUser) => {
       "agent_info.availability": 1,
       "agent_info.connected_agent_details": 1,
       "agent_info.variables_state": 1,
-      criteria_check: 1
+      criteria_check: 1,
+      "settings.publicUsers": 1,
+      "settings.responseStyle": 1,
+      "settings.tone": 1,
+      "settings.responseStylePrompt": 1,
+      "settings.tonePrompt": 1,
+      "settings.response_format": 1,
+      "settings.fall_back": 1,
+      "settings.guardrails": 1
     })
     .sort({ createdAt: -1 })
     .lean();
@@ -1234,6 +1242,68 @@ const getAgentUsers = async (agent_id, org_id) => {
   }
 };
 
+const getUniqueAgentNameAndSlug = async (org_id, baseName) => {
+  try {
+    let name = baseName || "untitled_agent";
+    const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+    const nameRegex = new RegExp(`^${escapeRegExp(name)}(?: (\\d+))?$`, "i");
+    const baseSlug = name.replace(/[^a-zA-Z0-9]/g, "_").toLowerCase();
+    const slugRegex = new RegExp(`^${escapeRegExp(baseSlug)}(?:_(\\d+))?$`, "i");
+
+    const existingAgents = await configurationModel
+      .find({
+        org_id: String(org_id),
+        $or: [{ name: { $regex: nameRegex } }, { slugName: { $regex: slugRegex } }]
+      })
+      .select({ name: 1, slugName: 1 })
+      .lean();
+
+    let max_name_count = 0;
+    let name_exists = false;
+    let max_slug_count = 0;
+    let slug_exists = false;
+
+    for (const agent of existingAgents) {
+      if (agent.name === name) name_exists = true;
+      if (agent.slugName === baseSlug) slug_exists = true;
+
+      const nameMatch = agent.name?.match(nameRegex);
+      if (nameMatch && nameMatch[1]) {
+        const num = parseInt(nameMatch[1], 10);
+        if (num > max_name_count) max_name_count = num;
+      }
+
+      const slugMatch = agent.slugName?.match(slugRegex);
+      if (slugMatch && slugMatch[1]) {
+        const num = parseInt(slugMatch[1], 10);
+        if (num > max_slug_count) max_slug_count = num;
+      }
+    }
+
+    let finalName = name;
+    if (name_exists || max_name_count > 0) {
+      const next_count = max_name_count === 0 ? 1 : max_name_count + 1;
+      finalName = `${name}_${next_count}`;
+    }
+
+    let finalSlug = baseSlug;
+    if (slug_exists || max_slug_count > 0) {
+      const next_count = max_slug_count === 0 ? 1 : max_slug_count + 1;
+      finalSlug = `${baseSlug}_${next_count}`;
+    }
+
+    return { name: finalName, slugName: finalSlug };
+  } catch (error) {
+    console.error(`Error in getUniqueAgentNameAndSlug: ${error}`);
+    const fallbackName = baseName || "untitled_agent";
+    return {
+      name: fallbackName,
+      slugName: fallbackName.replace(/[^a-zA-Z0-9]/g, "_").toLowerCase()
+    };
+  }
+};
+
 export default {
   deleteAgent,
   restoreAgent,
@@ -1265,5 +1335,6 @@ export default {
   getAgentsAndVersionsByModel,
   getAgentsWithoutTools,
   cloneAgentToOrg,
-  getAgentUsers
+  getAgentUsers,
+  getUniqueAgentNameAndSlug
 };

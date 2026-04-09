@@ -9,41 +9,7 @@ async function getAllApiCallsByOrgId(org_id, folder_id, user_id, isEmbedUser) {
   if (folder_id) query.folder_id = folder_id;
   if (user_id && isEmbedUser) query.user_id = user_id.toString();
 
-  const pipeline = [
-    { $match: query },
-    {
-      $addFields: {
-        _id: { $toString: "$_id" },
-        bridge_ids: {
-          $map: {
-            input: "$bridge_ids",
-            as: "bridge_id",
-            in: { $toString: "$$bridge_id" }
-          }
-        },
-        createdAt: {
-          $cond: {
-            if: { $eq: [{ $type: "$createdAt" }, "string"] },
-            then: "$createdAt",
-            else: { $dateToString: { format: "%Y-%m-%d %H:%M:%S", date: "$createdAt" } }
-          }
-        },
-        updatedAt: {
-          $cond: {
-            if: { $eq: [{ $type: "$updatedAt" }, "string"] },
-            then: "$updatedAt",
-            else: { $dateToString: { format: "%Y-%m-%d %H:%M:%S", date: "$updatedAt" } }
-          }
-        }
-      }
-    }
-  ];
-
-  let apiCalls = await apiCallModel.aggregate(pipeline);
-
-  // All documents should now be in v2 format after migration
-  // Fields are already in the correct object format: { paramName: { description, type, enum, required_params, parameter } }
-  // No transformation needed
+  let apiCalls = await apiCallModel.find(query).lean();
   return apiCalls || [];
 }
 

@@ -145,36 +145,6 @@ async function callGeminiApi(apiKey) {
   }
 }
 
-async function callAiMlApi(apiKey, model = "llama-3.1-8b-instruct") {
-  try {
-    const response = await fetch("https://backend.ai.ml/openai/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: model,
-        messages: [
-          {
-            role: "user",
-            content: "Hello!"
-          }
-        ]
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! Status: ${response.status}`);
-    }
-
-    const data = await response.json();
-    return { success: true, data };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-}
-
 async function callGrokApi(apiKey) {
   try {
     const response = await fetch("https://api.x.ai/v1/models", {
@@ -195,4 +165,24 @@ async function callGrokApi(apiKey) {
   }
 }
 
-export { callOpenAIModelsApi, callAnthropicApi, callGroqApi, callOpenRouterApi, callMistralApi, callGeminiApi, callAiMlApi, callGrokApi };
+async function callDeepgramApi(apiKey) {
+  try {
+    const response = await fetch("https://api.deepgram.com/v1/projects", {
+      method: "GET",
+      headers: {
+        Authorization: `Token ${apiKey}`
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return { success: true, data };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+export { callOpenAIModelsApi, callAnthropicApi, callGroqApi, callOpenRouterApi, callMistralApi, callGeminiApi, callGrokApi, callDeepgramApi };

@@ -92,10 +92,6 @@ const version = new mongoose.Schema({
     type: Object,
     default: {}
   },
-  tool_call_count: {
-    type: Number,
-    default: 3
-  },
   agent_variables: {
     type: Object,
     default: {}
@@ -124,14 +120,6 @@ const version = new mongoose.Schema({
     type: Array,
     default: []
   },
-  guardrails: {
-    type: Object,
-    default: {
-      is_enabled: false,
-      guardrails_configuration: {},
-      guardrails_custom_prompt: ""
-    }
-  },
   web_search_filters: {
     type: [String],
     default: []
@@ -143,14 +131,6 @@ const version = new mongoose.Schema({
   user_reference: {
     type: String,
     default: ""
-  },
-  fall_back: {
-    type: Object,
-    default: {
-      is_enable: false,
-      service: "",
-      model: ""
-    }
   },
   built_in_tools: {
     type: Array,
@@ -201,6 +181,27 @@ const version = new mongoose.Schema({
   IsstarterQuestionEnable: {
     type: Boolean,
     default: false
+  },
+  settings: {
+    type: Object,
+    default: {
+      maximum_iterations: 3,
+      responseStyle: "default",
+      tone: "",
+      tonePrompt: "",
+      response_format: { type: "default", cred: {} },
+      responseStylePrompt: "",
+      guardrails: {
+        is_enabled: false,
+        guardrails_configuration: {},
+        guardrails_custom_prompt: ""
+      },
+      fall_back: {
+        is_enable: false,
+        service: "",
+        model: ""
+      }
+    }
   },
   chatbot_auto_answers: {
     type: Boolean,
