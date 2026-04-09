@@ -192,12 +192,6 @@ const createAgentController = async (req, res, next) => {
       }
     }
 
-    const agent_limit = agents.agent_limit || {};
-    const bridge_limit = agent_limit.limit;
-    const bridge_usage = agent_limit.usage;
-    const bridge_limit_reset_period = agent_limit.reset_period;
-    const bridge_limit_start_date = agent_limit.start_date;
-
     const useAiData = purpose && Object.keys(agent_data).length > 0;
     const aiVal = (aiField, fallback) => (useAiData ? (aiField ?? fallback) : fallback);
 
@@ -213,12 +207,7 @@ const createAgentController = async (req, res, next) => {
       folder_id: folder_id,
       user_id: user_id,
       fall_back: aiVal(agent_data?.fall_back, fall_back),
-      agent_limit: {
-        limit: bridge_limit,
-        usage: bridge_usage,
-        reset_period: bridge_limit_reset_period,
-        start_date: bridge_limit_start_date
-      },
+      agent_limit: agents.agent_limit,
       bridge_status: 1,
       createdAt: new Date(),
       updatedAt: new Date(),
