@@ -333,7 +333,12 @@ async function getPromptEnhancerPercentage(parentId, prompt) {
     // Update the document in the configurationModel
     await configurationModel.updateOne(
       { _id: parentId },
-      { $set: { prompt_enhancer_percentage: prompt_enhancer_percentage, criteria_check: criteria_check } }
+      {
+        $set: {
+          "ai_updates.prompt_enhancer_percentage": prompt_enhancer_percentage,
+          "ai_updates.criteria_check": criteria_check
+        }
+      }
     );
 
     return { prompt_enhancer_percentage, criteria_check };

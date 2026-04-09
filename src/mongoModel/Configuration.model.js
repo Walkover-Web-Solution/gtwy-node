@@ -179,13 +179,12 @@ const configuration = new mongoose.Schema({
     type: Number,
     default: 0
   },
-  prompt_enhancer_percentage: {
-    type: Number,
-    default: 0
-  },
-  criteria_check: {
+  ai_updates: {
     type: Object,
-    default: {}
+    default: {
+      prompt_enhancer_percentage: 0,
+      criteria_check: {}
+    }
   },
   created_at: {
     type: Date,
