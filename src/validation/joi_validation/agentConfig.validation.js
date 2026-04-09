@@ -111,10 +111,10 @@ const updateBridgeSchema = Joi.object({
     built_in_tools: Joi.array().items(Joi.string()).optional(),
     doc_ids: Joi.array().items(Joi.string()).optional(),
     variables_path: Joi.object().optional(),
-    web_search_filters: Joi.alternatives().try(Joi.array().items(Joi.string()), Joi.object()).optional()
+    web_search_filters: Joi.alternatives().try(Joi.array().items(Joi.string()), Joi.object()).optional(),
+    gtwy_web_search_filters: Joi.alternatives().try(Joi.array().items(Joi.string()), Joi.object()).optional()
   }).optional(),
   variables_state: Joi.object().optional(),
-  gtwy_web_search_filters: Joi.alternatives().try(Joi.array().items(Joi.string()), Joi.object()).optional(),
   version_description: Joi.string().allow("").optional()
 }).unknown(true); // Allow additional fields
 

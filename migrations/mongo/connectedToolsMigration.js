@@ -70,6 +70,9 @@ async function migrateCollection(db, collectionName) {
       // Add web_search_filters with default if missing
       connected_tools.web_search_filters = doc.web_search_filters || [];
 
+      // Add gtwy_web_search_filters with default if missing
+      connected_tools.gtwy_web_search_filters = doc.gtwy_web_search_filters || [];
+
       // Add doc_ids with default if missing
       connected_tools.doc_ids = doc.doc_ids || [];
 
@@ -101,6 +104,9 @@ async function migrateCollection(db, collectionName) {
       }
       if (doc.web_search_filters !== undefined) {
         unsetFields.web_search_filters = 1;
+      }
+      if (doc.gtwy_web_search_filters !== undefined) {
+        unsetFields.gtwy_web_search_filters = 1;
       }
       if (doc.doc_ids !== undefined) {
         unsetFields.doc_ids = 1;
