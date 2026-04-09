@@ -41,7 +41,7 @@ const updateApiCalls = async (req, res, next) => {
 
   const bridge_ids = updated_function?.data?.bridge_ids || [];
   if (bridge_ids.length > 0) {
-    const keys_to_delete = bridge_ids.flatMap((id) => agentVersionService._buildCacheKeys(id, id, { bridges: [], versions: [] }, []));
+    const keys_to_delete = bridge_ids.flatMap((id) => agentVersionService._buildCacheKeys(id, id, { bridges: [], versions: [] }, [], org_id));
     deleteInCache(keys_to_delete);
   }
 

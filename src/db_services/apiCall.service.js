@@ -145,7 +145,7 @@ async function saveApi(desc, org_id, folder_id, user_id, api_data, bridge_ids = 
     const updatedApi = await apiCallModel.findOneAndUpdate({ _id: api_data._id }, { $set: updateData }, { new: true, upsert: true }).lean();
     const ids_to_purge = updatedApi?.bridge_ids || [];
     if (ids_to_purge.length > 0) {
-      const keys_to_delete = ids_to_purge.flatMap((id) => agentVersionService._buildCacheKeys(id, id, { bridges: [], versions: [] }, []));
+      const keys_to_delete = ids_to_purge.flatMap((id) => agentVersionService._buildCacheKeys(id, id, { bridges: [], versions: [] }, [], org_id));
       deleteInCache(keys_to_delete);
     }
     return { success: true, api_data: updatedApi };

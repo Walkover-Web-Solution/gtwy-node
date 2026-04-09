@@ -119,6 +119,7 @@ const updateApikey = async (req, res, next) => {
   let apikey = req.body.apikey;
   const { name, service, apikey_limit = 0, apikey_usage = -1, apikey_limit_reset_period } = req.body;
   const { apikey_id: apikey_object_id } = req.params;
+  const org_id = req.profile?.org?.id;
 
   // Check API key validity if provided
   if (apikey) {
@@ -146,7 +147,7 @@ const updateApikey = async (req, res, next) => {
 
   if (result.success) {
     // Clean up cache using the universal Redis utility for cost
-    await cleanupCache(cost_types.apikey, apikey_object_id);
+    await cleanupCache(cost_types.apikey, apikey_object_id, org_id);
     if (apikey_usage == 0) {
       await deleteInCache(`${redis_keys.apikeyusedcost_}${apikey_object_id}`);
     }
@@ -199,7 +200,7 @@ const deleteApikey = async (req, res, next) => {
   const result = await apikeyService.removeApikeyById(apikey_object_id, org_id);
 
   if (result.success) {
-    await cleanupCache(cost_types.apikey, apikey_object_id);
+    await cleanupCache(cost_types.apikey, apikey_object_id, org_id);
     res.locals = {
       success: true,
       message: "Apikey deleted successfully"

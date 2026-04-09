@@ -488,7 +488,7 @@ const updateAgentController = async (req, res, next) => {
   await addBulkUserEntries(user_history);
 
   try {
-    await purgeRelatedBridgeCaches(agent_id, body.bridge_usage !== undefined ? body.bridge_usage : -1);
+    await purgeRelatedBridgeCaches(agent_id, body.bridge_usage !== undefined ? body.bridge_usage : -1, org_id);
   } catch (e) {
     console.error(`Failed clearing agent related cache on update: ${e}`);
   }

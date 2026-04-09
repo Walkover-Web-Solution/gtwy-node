@@ -995,7 +995,13 @@ const updateAgent = async (agent_id, update_fields, version_id = null) => {
   const id_to_use = version_id ? version_id : agent_id;
   const result = await model.findOneAndUpdate({ _id: id_to_use }, { $set: update_fields }, { new: true });
 
-  const cacheKeysToDelete = agentVersionService._buildCacheKeys(version_id, agent_id || result.parent_id, { bridges: [], versions: [] }, []);
+  const cacheKeysToDelete = agentVersionService._buildCacheKeys(
+    version_id,
+    agent_id || result.parent_id,
+    { bridges: [], versions: [] },
+    [],
+    result.org_id
+  );
 
   if (cacheKeysToDelete.length > 0) {
     await deleteInCache(cacheKeysToDelete);
@@ -1006,7 +1012,7 @@ const updateAgent = async (agent_id, update_fields, version_id = null) => {
 
 const getAgentsWithTools = async (agent_id, org_id, version_id = null) => {
   try {
-    // const cacheKey = `${redis_keys.bridge_data_with_tools_}${version_id || agent_id}`;
+    // const cacheKey = `${redis_keys.bridge_data_with_tools_}${org_id}_${version_id || agent_id}`;
     // const cachedData = await findInCache(cacheKey);
     // if (cachedData) {
     //   return JSON.parse(cachedData);

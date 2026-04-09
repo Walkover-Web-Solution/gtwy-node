@@ -64,7 +64,7 @@ async function updateAgents(agent_id, data, version_id = null) {
       result = await configurationModel.findOneAndUpdate({ _id: agent_id }, updateQuery, { new: true });
     }
 
-    const cacheKeysToDelete = _buildCacheKeys(version_id, agent_id || result.parent_id, { bridges: [], versions: [] }, []);
+    const cacheKeysToDelete = _buildCacheKeys(version_id, agent_id || result.parent_id, { bridges: [], versions: [] }, [], result.org_id);
 
     if (cacheKeysToDelete.length > 0) {
       await deleteInCache(cacheKeysToDelete);
@@ -252,22 +252,25 @@ function _mergeImpactedIds(...impacts) {
   return merged;
 }
 
-function _buildCacheKeys(version_id, parent_id, impacted_ids, extra_keys) {
-  const cacheKeys = new Set([`${redis_keys.get_bridge_data_}${version_id}`, `${redis_keys.bridge_data_with_tools_}${version_id}`]);
+function _buildCacheKeys(version_id, parent_id, impacted_ids, extra_keys, org_id) {
+  const cacheKeys = new Set([
+    `${redis_keys.get_bridge_data_}${org_id}_${version_id}`,
+    `${redis_keys.bridge_data_with_tools_}${org_id}_${version_id}`
+  ]);
 
   if (parent_id) {
-    cacheKeys.add(`${redis_keys.get_bridge_data_}${parent_id}`);
-    cacheKeys.add(`${redis_keys.bridge_data_with_tools_}${parent_id}`);
+    cacheKeys.add(`${redis_keys.get_bridge_data_}${org_id}_${parent_id}`);
+    cacheKeys.add(`${redis_keys.bridge_data_with_tools_}${org_id}_${parent_id}`);
   }
 
   impacted_ids.bridges.forEach((id) => {
-    cacheKeys.add(`${redis_keys.get_bridge_data_}${id}`);
-    cacheKeys.add(`${redis_keys.bridge_data_with_tools_}${id}`);
+    cacheKeys.add(`${redis_keys.get_bridge_data_}${org_id}_${id}`);
+    cacheKeys.add(`${redis_keys.bridge_data_with_tools_}${org_id}_${id}`);
   });
 
   impacted_ids.versions.forEach((id) => {
-    cacheKeys.add(`${redis_keys.get_bridge_data_}${id}`);
-    cacheKeys.add(`${redis_keys.bridge_data_with_tools_}${id}`);
+    cacheKeys.add(`${redis_keys.get_bridge_data_}${org_id}_${id}`);
+    cacheKeys.add(`${redis_keys.bridge_data_with_tools_}${org_id}_${id}`);
   });
 
   extra_keys.forEach((key) => cacheKeys.add(key));
@@ -372,7 +375,7 @@ async function deleteAgentVersion(org_id, version_id) {
 
   const ragCacheKeys = _collectRagCacheKeys(versionDoc);
   const impactedIds = _mergeImpactedIds(connectedAgentsImpacted, apiCallsImpacted);
-  const cacheKeysToDelete = _buildCacheKeys(version_id, parentId, impactedIds, ragCacheKeys);
+  const cacheKeysToDelete = _buildCacheKeys(version_id, parentId, impactedIds, ragCacheKeys, org_id);
 
   if (cacheKeysToDelete.length > 0) {
     await deleteInCache(cacheKeysToDelete);
@@ -466,7 +469,7 @@ async function publish(org_id, version_id, user_id) {
     session.endSession();
   }
 
-  const cacheKeysToDelete = _buildCacheKeys(publishedVersionId, parentId, { bridges: [], versions: [] }, []);
+  const cacheKeysToDelete = _buildCacheKeys(publishedVersionId, parentId, { bridges: [], versions: [] }, [], org_id);
   if (cacheKeysToDelete.length > 0) {
     await deleteInCache(cacheKeysToDelete);
   }
