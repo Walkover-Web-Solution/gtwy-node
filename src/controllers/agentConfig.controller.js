@@ -115,8 +115,8 @@ const createAgentController = async (req, res, next) => {
     }
 
     const { name: uniqueName, slugName: uniqueSlugName } = await ConfigurationServices.getUniqueAgentNameAndSlug(org_id, name);
-    slugName = uniqueSlugName || slugName;
-    name = uniqueName || name;
+    slugName = slugName || uniqueSlugName;
+    name = name || uniqueName;
 
     // Construct model data based on model configuration
     const keys_to_update = [
