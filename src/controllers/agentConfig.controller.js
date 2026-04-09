@@ -330,11 +330,19 @@ const updateAgentController = async (req, res, next) => {
     }
   }
 
-  // Handle settings with deep merge to preserve existing settings
   if (body.settings !== undefined) {
     const current_settings = agent.settings || {};
     const merged_settings = { ...current_settings, ...body.settings };
     update_fields.settings = merged_settings;
+    if (body.settings.editAccess !== undefined && agent_id && !version_id) {
+      try {
+        if (Array.isArray(body.settings.editAccess)) {
+          update_fields.editAccess = body.settings.editAccess;
+        }
+      } catch (e) {
+        console.error(`Error updating users array for agent ${agent_id}:`, e);
+      }
+    }
   }
 
   if (body.bridge_limit !== undefined) update_fields.bridge_limit = body.bridge_limit;
@@ -428,52 +436,6 @@ const updateAgentController = async (req, res, next) => {
           await ConfigurationServices.updateAgentIdsInApiCalls(function_id, target_id, 0);
         }
       }
-    }
-  }
-
-  // Process users array update if agent_id is provided (not version_id)
-  // Only update agent's users array, not version
-  if (body.user_id !== undefined && typeof body.add_user_id === "boolean" && agent_id && !version_id) {
-    try {
-      // Get current agent to check if users array exists
-      const currentAgentData = await ConfigurationServices.getAgents(agent_id, org_id, null);
-      if (currentAgentData && currentAgentData.bridges) {
-        const user_id_to_update = body.user_id;
-        const add_user = body.add_user_id;
-
-        if (user_id_to_update !== null && user_id_to_update !== undefined) {
-          // Get current users array
-          let current_users = currentAgentData.bridges.users;
-
-          // Initialize users array if it doesn't exist
-          if (current_users === null || current_users === undefined) {
-            current_users = [];
-          } else if (!Array.isArray(current_users)) {
-            // If users exists but is not a list, initialize as empty list
-            current_users = [];
-          }
-
-          const user_id_str = String(user_id_to_update);
-
-          if (add_user) {
-            // Add user_id to users array if not already present
-            const user_exists = current_users.some((u) => String(u) === user_id_str);
-            if (!user_exists) {
-              current_users.push(user_id_to_update);
-              // Update agent directly (not version) - set version_id to null for this update
-              update_fields.users = current_users;
-            }
-          } else {
-            // Remove user_id from users array
-            current_users = current_users.filter((u) => String(u) !== user_id_str);
-            // Update agent directly (not version) - set version_id to null for this update
-            update_fields.users = current_users;
-          }
-        }
-      }
-    } catch (e) {
-      console.error(`Error updating users array for agent ${agent_id}:`, e);
-      // Continue with other updates even if users array update fails
     }
   }
 
