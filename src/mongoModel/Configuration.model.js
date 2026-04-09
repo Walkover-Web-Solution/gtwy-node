@@ -255,7 +255,7 @@ const configuration = new mongoose.Schema({
   settings: {
     type: Object,
     default: {
-      maximum_iterations: 0,
+      maximum_iterations: 3,
       publicUsers: [],
       editAccess: [],
       responseStyle: "default",
