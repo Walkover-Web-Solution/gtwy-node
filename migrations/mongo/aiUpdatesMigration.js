@@ -16,77 +16,80 @@ async function migrateAiUpdatesField() {
     console.log("Connected to MongoDB");
 
     const db = client.db();
-    const configurationsCollection = db.collection("configurations");
+    const collectionsToMigrate = ["configurations", "configuration_versions"];
 
-    // Migration for configurations
-    console.log("Starting migration for configurations...");
-    const configCursor = configurationsCollection.find({});
-    const configBatch = [];
-    let configProcessed = 0;
+    for (const collectionName of collectionsToMigrate) {
+      const collection = db.collection(collectionName);
+      console.log(`\nStarting migration for ${collectionName}...`);
 
-    for await (const doc of configCursor) {
-      configProcessed++;
+      const cursor = collection.find({});
+      const batch = [];
+      let processed = 0;
 
-      // Skip if ai_updates already exists
-      if (doc.ai_updates) {
-        console.log(`Skipping configuration ${doc._id} - ai_updates already exists`);
-        continue;
+      for await (const doc of cursor) {
+        processed++;
+
+        // Skip if ai_updates already exists
+        if (doc.ai_updates) {
+          console.log(`Skipping document ${doc._id} in ${collectionName} - ai_updates already exists`);
+          continue;
+        }
+
+        // Create ai_updates object from existing fields
+        const ai_updates = {
+          prompt_enhancer_percentage: doc.prompt_enhancer_percentage || 0,
+          criteria_check: doc.criteria_check || {}
+        };
+
+        const updateOp = {
+          $set: { ai_updates: ai_updates },
+          $unset: {
+            prompt_enhancer_percentage: 1,
+            criteria_check: 1
+          }
+        };
+
+        batch.push({
+          updateOne: {
+            filter: { _id: doc._id },
+            update: updateOp
+          }
+        });
+
+        // Process batch every 100 documents
+        if (batch.length >= 100) {
+          await collection.bulkWrite(batch);
+          console.log(`Processed batch of ${batch.length} documents in ${collectionName} (total: ${processed})`);
+          batch.length = 0; // Clear batch
+        }
       }
 
-      // Create ai_updates object from existing fields
-      const ai_updates = {
-        prompt_enhancer_percentage: doc.prompt_enhancer_percentage || 0,
-        criteria_check: doc.criteria_check || {}
-      };
+      // Process remaining documents
+      if (batch.length > 0) {
+        await collection.bulkWrite(batch);
+        console.log(`Processed final batch of ${batch.length} documents in ${collectionName} (total: ${processed})`);
+      }
 
-      const updateOp = {
-        $set: { ai_updates: ai_updates },
-        $unset: {
-          prompt_enhancer_percentage: 1,
-          criteria_check: 1
-        }
-      };
+      console.log(`Migration for ${collectionName} completed. Processed ${processed} documents.`);
 
-      configBatch.push({
-        updateOne: {
-          filter: { _id: doc._id },
-          update: updateOp
-        }
+      // Verification - count documents with ai_updates
+      const count = await collection.countDocuments({ ai_updates: { $exists: true } });
+
+      console.log(`\n=== Migration Summary for ${collectionName} ===`);
+      console.log(`Documents with ai_updates: ${count}`);
+
+      // Verify old fields are removed
+      const oldCount = await collection.countDocuments({
+        $or: [{ prompt_enhancer_percentage: { $exists: true } }, { criteria_check: { $exists: true } }]
       });
 
-      // Process batch every 100 documents
-      if (configBatch.length >= 100) {
-        await configurationsCollection.bulkWrite(configBatch);
-        console.log(`Processed batch of ${configBatch.length} configurations (total: ${configProcessed})`);
-        configBatch.length = 0; // Clear batch
+      console.log(`Documents with old fields remaining: ${oldCount}`);
+
+      if (oldCount === 0) {
+        console.log(`✅ Migration for ${collectionName} completed successfully!`);
+      } else {
+        console.log(`⚠️  Some old fields remain in ${collectionName} - manual cleanup may be required`);
       }
-    }
-
-    // Process remaining configurations
-    if (configBatch.length > 0) {
-      await configurationsCollection.bulkWrite(configBatch);
-      console.log(`Processed final batch of ${configBatch.length} configurations (total: ${configProcessed})`);
-    }
-
-    console.log(`Configuration migration completed. Processed ${configProcessed} documents.`);
-
-    // Verification - count documents with ai_updates
-    const configCount = await configurationsCollection.countDocuments({ ai_updates: { $exists: true } });
-
-    console.log("\n=== Migration Summary ===");
-    console.log(`Configurations with ai_updates: ${configCount}`);
-
-    // Verify old fields are removed
-    const oldConfigCount = await configurationsCollection.countDocuments({
-      $or: [{ prompt_enhancer_percentage: { $exists: true } }, { criteria_check: { $exists: true } }]
-    });
-
-    console.log(`Configurations with old fields remaining: ${oldConfigCount}`);
-
-    if (oldConfigCount === 0) {
-      console.log("✅ Migration completed successfully!");
-    } else {
-      console.log("⚠️  Some old fields remain - manual cleanup may be required");
     }
   } catch (error) {
     console.error("Migration failed:", error);
