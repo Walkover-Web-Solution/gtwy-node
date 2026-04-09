@@ -60,7 +60,7 @@ const configuration = new mongoose.Schema({
     default: ""
   },
   configuration: {
-    type: Object,
+    type: Schema.Types.Mixed,
     default: {}
   },
   apikey: {
