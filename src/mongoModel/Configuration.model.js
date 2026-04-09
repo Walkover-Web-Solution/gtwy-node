@@ -272,7 +272,8 @@ const configuration = new mongoose.Schema({
         is_enable: false,
         service: "",
         model: ""
-      }
+      },
+      stateless_conversation: false
     }
   },
   chatbot_auto_answers: {
