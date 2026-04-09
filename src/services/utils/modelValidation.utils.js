@@ -150,6 +150,46 @@ async function validateOpenAIModel(modelName) {
 }
 
 /**
+ * Validates if a model is supported by Deepgram
+ * @param {string} modelName - The model name to validate
+ * @returns {Promise<boolean>} - True if model is supported, false otherwise
+ */
+async function validateDeepgramModel(modelName) {
+  try {
+    const apiKey = process.env.DEEPGRAM_API_KEY;
+
+    if (!apiKey) {
+      console.error("Missing DEEPGRAM_API_KEY for Deepgram model validation");
+      return false;
+    }
+
+    const response = await axios.get("https://api.deepgram.com/v1/models", {
+      headers: {
+        Authorization: `Token ${apiKey}`
+      }
+    });
+
+    if (response.status !== 200) {
+      console.error("Failed to fetch models from Deepgram:", response.status);
+      return false;
+    }
+
+    const sttModels = response.data?.stt || [];
+    const normalizedModelName = modelName.toLowerCase();
+
+    return sttModels.some((model) => {
+      const architecture = model.architecture?.toLowerCase();
+      const canonicalName = model.canonical_name?.toLowerCase();
+      const name = model.name?.toLowerCase();
+      return architecture === normalizedModelName || canonicalName === normalizedModelName || name === normalizedModelName;
+    });
+  } catch (error) {
+    console.error("Error validating Deepgram model:", error.message);
+    return false;
+  }
+}
+
+/**
  * Validates if a model is supported by a specific service
  * @param {string} service - The service name (e.g., 'open_router', 'anthropic', 'openai')
  * @param {string} modelName - The model name to validate
@@ -172,10 +212,20 @@ async function validateModel(service, modelName) {
       return await validateGroqModel(modelName);
     case "mistral":
       return await validateMistralModel(modelName);
+    case "deepgram":
+      return await validateDeepgramModel(modelName);
     default:
       console.warn(`No validation method available for service: ${service}`);
       return true; // Default to true for services without validation
   }
 }
 
-export { validateModel, validateOpenRouterModel, validateAnthropicModel, validateOpenAIModel, validateGroqModel, validateMistralModel };
+export {
+  validateModel,
+  validateOpenRouterModel,
+  validateAnthropicModel,
+  validateOpenAIModel,
+  validateGroqModel,
+  validateMistralModel,
+  validateDeepgramModel
+};

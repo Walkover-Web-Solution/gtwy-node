@@ -1,7 +1,7 @@
 import Joi from "joi";
 
 const modelConfigSchema = Joi.object({
-  service: Joi.string().valid("openai", "openai_response", "gemini", "anthropic", "groq", "open_router", "mistral", "ai_ml").optional(),
+  service: Joi.string().valid("openai", "openai_response", "gemini", "anthropic", "groq", "open_router", "mistral", "deepgram").optional(),
   model_name: Joi.string()
     .pattern(/^[^\s]+$/)
     .message("model_name must not contain spaces")
@@ -13,7 +13,7 @@ const modelConfigSchema = Joi.object({
 }).unknown(true);
 
 const saveUserModelConfigurationBodySchema = Joi.object({
-  service: Joi.string().valid("openai", "openai_response", "gemini", "anthropic", "groq", "open_router", "mistral", "ai_ml").required(),
+  service: Joi.string().valid("openai", "openai_response", "gemini", "anthropic", "groq", "open_router", "mistral", "deepgram").required(),
   model_name: Joi.string()
     .pattern(/^[^\s]+$/)
     .message("model_name must not contain spaces")
@@ -29,7 +29,7 @@ const deleteUserModelConfigurationQuerySchema = Joi.object({
   model_name: Joi.string().required().messages({
     "any.required": "model_name is required"
   }),
-  service: Joi.string().valid("openai", "openai_response", "gemini", "anthropic", "groq", "open_router", "mistral", "ai_ml").required().messages({
+  service: Joi.string().valid("openai", "openai_response", "gemini", "anthropic", "groq", "open_router", "mistral", "deepgram").required().messages({
     "any.required": "service is required"
   })
 }).unknown(true);
@@ -37,7 +37,7 @@ const deleteUserModelConfigurationQuerySchema = Joi.object({
 // Legacy schema for backward compatibility
 const UserModelConfigSchema = Joi.object({
   org_id: Joi.string().required(),
-  service: Joi.string().valid("openai", "openai_response", "gemini", "anthropic", "groq", "open_router", "mistral", "ai_ml").required(),
+  service: Joi.string().valid("openai", "openai_response", "gemini", "anthropic", "groq", "open_router", "mistral", "deepgram").required(),
   model_name: Joi.string()
     .pattern(/^[^\s]+$/)
     .message("model_name must not contain spaces")

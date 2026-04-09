@@ -65,7 +65,7 @@ const updateBridgeSchema = Joi.object({
   })
     .unknown(true)
     .optional(),
-  service: Joi.string().valid("openai", "anthropic", "groq", "open_router", "mistral", "gemini", "ai_ml", "grok").optional(),
+  service: Joi.string().valid("openai", "anthropic", "groq", "open_router", "mistral", "gemini", "grok", "deepgram").optional(),
   apikey_object_id: Joi.object()
     .pattern(Joi.string(), Joi.string().pattern(/^[0-9a-fA-F]{24}$/))
     .optional(),

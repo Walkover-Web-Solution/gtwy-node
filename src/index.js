@@ -38,6 +38,7 @@ import converstaionRoutes from "./routes/conversation.routes.js";
 import internalRoutes from "./routes/internal.routes.js";
 import promptWrapperRoutes from "./routes/promptWrapper.routes.js";
 import richUiTemplateRoutes from "./routes/richUiTemplate.routes.js";
+import batchHistoryRoutes from "./routes/batchHistory.routes.js";
 const app = express();
 configDotenv();
 const PORT = process.env.PORT || 7072;
@@ -65,6 +66,7 @@ app.get("/healthcheck", async (req, res) => {
 app.use("/api/v1/config", converstaionRoutes);
 app.use("/api/agent", configRoutes);
 app.use("/api/history", historyRoutes);
+app.use("/api/batch", batchHistoryRoutes);
 app.use("/api/apikeys", apikeyRoutes);
 app.use("/api/service", serviceRoutes);
 app.use("/api/chatbot", chatbotRoutes);

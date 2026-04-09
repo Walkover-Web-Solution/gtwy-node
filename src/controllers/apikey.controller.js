@@ -8,8 +8,8 @@ import {
   callOpenRouterApi,
   callMistralApi,
   callGeminiApi,
-  callAiMlApi,
-  callGrokApi
+  callGrokApi,
+  callDeepgramApi
 } from "../services/utils/aiServices.js";
 import { redis_keys, cost_types, new_agent_service } from "../configs/constant.js";
 import { cleanupCache } from "../services/utils/redis.utils.js";
@@ -218,7 +218,7 @@ const deleteApikey = async (req, res, next) => {
 
 const checkApikey = async (apikey, service) => {
   let check;
-  const model = new_agent_service[service];
+  const model = new_agent_service[service].model;
 
   switch (service) {
     case "openai":
@@ -239,11 +239,11 @@ const checkApikey = async (apikey, service) => {
     case "gemini":
       check = await callGeminiApi(apikey, model);
       break;
-    case "ai_ml":
-      check = await callAiMlApi(apikey, model);
-      break;
     case "grok":
       check = await callGrokApi(apikey);
+      break;
+    case "deepgram":
+      check = await callDeepgramApi(apikey);
       break;
     default:
       const error = new Error("Invalid service provided");

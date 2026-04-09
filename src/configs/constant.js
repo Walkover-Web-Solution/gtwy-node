@@ -53,6 +53,14 @@ const redis_keys = {
   last_transffered_agent_: "last_transffered_agent_"
 };
 
+const embed_cache = {
+  keys: {
+    folder: (folderId) => `embed:folder_${folderId}`,
+    org: (orgId) => `embed:org_${orgId}`,
+    user: (userId, orgId) => `embed:user_${userId}:${orgId}`
+  }
+};
+
 const cost_types = {
   bridge: "bridge",
   folder: "folder",
@@ -69,17 +77,17 @@ const prebuilt_prompt_bridge_id = [
 ];
 
 const new_agent_service = {
-  openai: "gpt-5-nano",
-  anthropic: "claude-sonnet-4-20250514",
-  groq: "openai/gpt-oss-120b",
-  open_router: "openai/gpt-4o",
-  mistral: "mistral-small-latest",
-  gemini: "gemini-2.5-pro",
-  ai_ml: "gpt-oss-120b",
-  grok: "grok-4-fast"
+  openai: { model: "gpt-5-nano", default_name: "OpenAI" },
+  anthropic: { model: "claude-sonnet-4-20250514", default_name: "Anthropic" },
+  groq: { model: "openai/gpt-oss-120b", default_name: "Groq" },
+  open_router: { model: "openai/gpt-4o", default_name: "Open Router" },
+  mistral: { model: "mistral-small-latest", default_name: "Mistral" },
+  gemini: { model: "gemini-2.5-pro", default_name: "Gemini" },
+  grok: { model: "grok-4-fast", default_name: "Grok" },
+  deepgram: { model: "nova-3", default_name: "Deepgram" }
 };
 
-export { collectionNames, bridge_ids, redis_keys, cost_types, prebuilt_prompt_bridge_id, new_agent_service };
+export { collectionNames, bridge_ids, redis_keys, cost_types, prebuilt_prompt_bridge_id, new_agent_service, embed_cache };
 
 export const AI_OPERATION_CONFIG = {
   optimize_prompt: {
