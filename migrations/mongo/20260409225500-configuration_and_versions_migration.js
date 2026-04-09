@@ -1,14 +1,21 @@
-import { MongoClient, ObjectId } from "mongodb";
+import { ObjectId } from "mongodb";
 import { Sequelize, QueryTypes } from "sequelize";
 import axios from "axios";
-import dotenv from "dotenv";
-dotenv.config();
 
-const MONGODB_URI = process.env.MONGODB_CONNECTION_URI;
 const TODAY = new Date();
 
-async function migrateConfigurations() {
-  const client = new MongoClient(MONGODB_URI);
+/**
+ * @param db {import('mongodb').Db}
+ * @param client {import('mongodb').MongoClient}
+ * @returns {Promise<void>}
+ */
+export const up = async (db) => {
+  console.log("Starting configuration and versions migration...");
+
+  const configurations = db.collection("configurations");
+  const versions = db.collection("configuration_versions");
+
+  // Initialize sequelize for user_id resolution
   const sequelize = new Sequelize(process.env.POSTGRES_URI, {
     dialect: "postgres",
     logging: false
@@ -21,20 +28,10 @@ async function migrateConfigurations() {
   const orgOwnerCache = {};
 
   try {
-    await client.connect();
-    console.log("Connected to MongoDB");
     await sequelize.authenticate();
-    console.log("Connected to PostgreSQL");
 
-    const db = client.db();
-    const configurations = db.collection("configurations");
-    const versions = db.collection("configuration_versions");
-
-    // -------------------------------------------------------
-    // STEP 1 + 9: Remove extra keys (parallel — different collections)
-    // -------------------------------------------------------
+    // STEP 1 + 9: Remove extra keys
     console.log("\n--- Step 1 + 9: Removing extra keys from configurations & versions ---");
-
     const [step1, step9] = await Promise.all([
       configurations.updateMany(
         {},
@@ -137,74 +134,59 @@ async function migrateConfigurations() {
     console.log(`  ✓ Removed extra keys from ${step1.modifiedCount} configuration documents`);
     console.log(`  ✓ Removed extra keys from ${step9.modifiedCount} version documents`);
 
-    // -------------------------------------------------------
-    // STEP 4: Rename fields (tool_call_count, chatbot_auto_answers, image_size)
-    // -------------------------------------------------------
+    // STEP 4: Rename fields
     console.log("\n--- Step 4: Renaming fields ---");
-
-    // Rename tool_call_count to maximum_iterations in versions
     const renameToolCallCount = await versions.updateMany(
       { tool_call_count: { $exists: true } },
       { $rename: { tool_call_count: "maximum_iterations" } }
     );
     console.log(`  ✓ Renamed tool_call_count to maximum_iterations: ${renameToolCallCount.modifiedCount} versions`);
 
-    // Rename chatbot_auto_answers to cache_response in configurations
     const renameChatbotAutoAnswersConfig = await configurations.updateMany(
       { chatbot_auto_answers: { $exists: true } },
       { $rename: { chatbot_auto_answers: "cache_response" } }
     );
     console.log(`  ✓ Renamed chatbot_auto_answers to cache_response: ${renameChatbotAutoAnswersConfig.modifiedCount} configurations`);
 
-    // Rename chatbot_auto_answers to cache_response in versions
     const renameChatbotAutoAnswersVersion = await versions.updateMany(
       { chatbot_auto_answers: { $exists: true } },
       { $rename: { chatbot_auto_answers: "cache_response" } }
     );
     console.log(`  ✓ Renamed chatbot_auto_answers to cache_response: ${renameChatbotAutoAnswersVersion.modifiedCount} versions`);
 
-    // Handle image_size → size migration in configurations
-    // First: Copy image_size to size where size doesn't exist
+    // Handle image_size → size migration
     const copyImageSizeToSizeConfig = await configurations.updateMany(
       { "configuration.image_size": { $exists: true }, "configuration.size": { $exists: false } },
       [{ $set: { "configuration.size": "$configuration.image_size" } }]
     );
     console.log(`  ✓ Copied image_size to size (where size missing): ${copyImageSizeToSizeConfig.modifiedCount} configurations`);
 
-    // Then: Remove image_size from configurations
     const unsetImageSizeConfig = await configurations.updateMany(
       { "configuration.image_size": { $exists: true } },
       { $unset: { "configuration.image_size": "" } }
     );
     console.log(`  ✓ Removed image_size: ${unsetImageSizeConfig.modifiedCount} configurations`);
 
-    // Handle image_size → size migration in versions
-    // First: Copy image_size to size where size doesn't exist
     const copyImageSizeToSizeVersion = await versions.updateMany(
       { "configuration.image_size": { $exists: true }, "configuration.size": { $exists: false } },
       [{ $set: { "configuration.size": "$configuration.image_size" } }]
     );
     console.log(`  ✓ Copied image_size to size (where size missing): ${copyImageSizeToSizeVersion.modifiedCount} versions`);
 
-    // Then: Remove image_size from versions
     const unsetImageSizeVersion = await versions.updateMany(
       { "configuration.image_size": { $exists: true } },
       { $unset: { "configuration.image_size": "" } }
     );
     console.log(`  ✓ Removed image_size: ${unsetImageSizeVersion.modifiedCount} versions`);
 
-    // Handle case where neither image_size nor size exist - set default
     const setDefaultSizeVersion = await versions.updateMany(
       { "configuration.image_size": { $exists: false }, "configuration.size": { $exists: false } },
       { $set: { "configuration.size": "" } }
     );
     console.log(`  ✓ Set default size (where both missing): ${setDefaultSizeVersion.modifiedCount} versions`);
 
-    // -------------------------------------------------------
-    // STEP 2 + 3 + 10: Set safe defaults (parallel — different collections + independent updates)
-    // -------------------------------------------------------
-    console.log("\n--- Step 2 + 3 + 10: Setting safe defaults (configurations & versions in parallel) ---");
-
+    // STEP 2 + 3 + 10: Set safe defaults
+    console.log("\n--- Step 2 + 3 + 10: Setting safe defaults ---");
     const rootDefaults = [
       [{ meta: { $exists: false } }, { $set: { meta: {} } }],
       [{ deletedAt: { $exists: false } }, { $set: { deletedAt: null } }],
@@ -227,7 +209,6 @@ async function migrateConfigurations() {
         { "configuration.parallel_tool_calls": { $exists: false }, configuration: { $type: "object" } },
         { $set: { "configuration.parallel_tool_calls": false } }
       ],
-
       [{ "configuration.size": { $exists: false }, configuration: { $type: "object" } }, { $set: { "configuration.size": "" } }],
       [{ "configuration.style": { $exists: false }, configuration: { $type: "object" } }, { $set: { "configuration.style": "" } }],
       [
@@ -249,7 +230,6 @@ async function migrateConfigurations() {
       [{ starterQuestion: { $exists: false } }, { $set: { starterQuestion: [] } }],
       [{ apikey_object_id: { $exists: false } }, { $set: { apikey_object_id: {} } }],
       [{ maximum_iterations: { $exists: false } }, { $set: { maximum_iterations: 0 } }],
-
       [{ folder_id: { $exists: false } }, { $set: { folder_id: null } }],
       [{ agent_variables: { $exists: false } }, { $set: { agent_variables: {} } }],
       [{ IsstarterQuestionEnable: { $exists: false } }, { $set: { IsstarterQuestionEnable: false } }]
@@ -260,7 +240,6 @@ async function migrateConfigurations() {
         { "configuration.response_type": { $exists: false }, configuration: { $type: "object" } },
         { $set: { "configuration.response_type": "default" } }
       ],
-
       [{ "configuration.dimensions": { $exists: false }, configuration: { $type: "object" } }, { $set: { "configuration.dimensions": "" } }],
       [{ "configuration.style": { $exists: false }, configuration: { $type: "object" } }, { $set: { "configuration.style": "" } }],
       [
@@ -272,7 +251,6 @@ async function migrateConfigurations() {
         { $set: { "configuration.auto_model_select": false } }
       ],
       [{ "configuration.size": { $exists: false }, configuration: { $type: "object" } }, { $set: { "configuration.size": "" } }],
-
       [{ "configuration.tool_choice": { $exists: false }, configuration: { $type: "object" } }, { $set: { "configuration.tool_choice": "default" } }],
       [
         { "configuration.parallel_tool_calls": { $exists: false }, configuration: { $type: "object" } },
@@ -280,7 +258,6 @@ async function migrateConfigurations() {
       ]
     ];
 
-    // Fire all 4 default arrays in parallel (root+config for configurations, root+config for versions)
     const [rootResults, configResults, versionRootResults, versionConfigResults] = await Promise.all([
       Promise.all(rootDefaults.map(([filter, update]) => configurations.updateMany(filter, update))),
       Promise.all(configDefaults.map(([filter, update]) => configurations.updateMany(filter, update))),
@@ -305,19 +282,12 @@ async function migrateConfigurations() {
       if (r.modifiedCount > 0) console.log(`    ✓ ${Object.keys(versionConfigDefaults[i][1].$set)[0]} → ${r.modifiedCount} docs`);
     });
 
-    // -------------------------------------------------------
-    // STEP 5: Hard delete agents with missing configuration.model + their versions
-    // -------------------------------------------------------
+    // STEP 5: Hard delete agents with missing configuration.model
     console.log("\n--- Step 5: Deleting agents with missing configuration.model ---");
-
-    const missingModelAgents = await configurations
-      .find({
-        "configuration.model": { $exists: false }
-      })
-      .toArray();
-
+    const missingModelAgents = await configurations.find({ "configuration.model": { $exists: false } }).toArray();
     const step5ConfigOps = [];
     const step5VersionDeleteIds = [];
+
     for (const agent of missingModelAgents) {
       step5ConfigOps.push({ deleteOne: { filter: { _id: agent._id } } });
       const vIds = (agent.versions || [])
@@ -341,17 +311,9 @@ async function migrateConfigurations() {
     deletedCount += missingModelAgents.length;
     console.log(`  ✓ Hard deleted ${missingModelAgents.length} agents + ${step5VersionDeleteIds.length} versions`);
 
-    // -------------------------------------------------------
     // STEP 6: Handle agents with missing configuration.prompt
-    // -------------------------------------------------------
     console.log("\n--- Step 6: Handling agents with missing configuration.prompt ---");
-
-    const missingPromptAgents = await configurations
-      .find({
-        "configuration.prompt": { $exists: false }
-      })
-      .toArray();
-
+    const missingPromptAgents = await configurations.find({ "configuration.prompt": { $exists: false } }).toArray();
     const step6HardDeleteConfigOps = [];
     const step6HardDeleteVersionIds = [];
     const step6SoftDeleteConfigOps = [];
@@ -391,17 +353,9 @@ async function migrateConfigurations() {
     console.log(`  ✓ Hard deleted ${step6HardDeleteConfigOps.length} agents + ${step6HardDeleteVersionIds.length} versions`);
     console.log(`  ✓ Soft deleted ${step6SoftDeleteConfigOps.length} agents + ${step6SoftDeleteVersionIds.length} versions`);
 
-    // -------------------------------------------------------
-    // STEP 8: Fix missing user_id from PG history or org owner
-    // -------------------------------------------------------
+    // STEP 8: Fix missing user_id
     console.log("\n--- Step 8: Fixing missing user_id ---");
-
-    const missingUserIdAgents = await configurations
-      .find({
-        user_id: { $exists: false }
-      })
-      .toArray();
-
+    const missingUserIdAgents = await configurations.find({ user_id: { $exists: false } }).toArray();
     const step8UpdateOps = [];
 
     for (const agent of missingUserIdAgents) {
@@ -409,7 +363,6 @@ async function migrateConfigurations() {
       const orgId = agent.org_id;
       let userId = null;
 
-      // Try oldest entry in user_bridge_config_history
       try {
         const rows = await sequelize.query(`SELECT user_id FROM user_bridge_config_history WHERE bridge_id = :bridge_id ORDER BY time ASC LIMIT 1`, {
           replacements: { bridge_id: bridgeId },
@@ -423,7 +376,6 @@ async function migrateConfigurations() {
         console.log(`  PG query failed for ${bridgeId}: ${e.message}`);
       }
 
-      // Fallback: org owner from proxy
       if (!userId && orgId) {
         if (!orgOwnerCache[orgId]) {
           try {
@@ -455,30 +407,16 @@ async function migrateConfigurations() {
     }
     console.log(`  ⏭ Skipped ${skippedCount} agents (could not resolve user_id)`);
 
-    // -------------------------------------------------------
-    // STEP 9: Handle orphaned versions (missing model → hard delete, missing prompt → soft/hard delete)
-    // -------------------------------------------------------
+    // STEP 9: Handle orphaned versions
     console.log("\n--- Step 9: Handling orphaned versions with missing model/prompt ---");
-
-    const missingModelVersions = await versions
-      .find({
-        "configuration.model": { $exists: false },
-        deletedAt: null
-      })
-      .toArray();
+    const missingModelVersions = await versions.find({ "configuration.model": { $exists: false }, deletedAt: null }).toArray();
 
     if (missingModelVersions.length > 0) {
       await versions.deleteMany({ _id: { $in: missingModelVersions.map((v) => v._id) } });
     }
     console.log(`  ✓ Hard deleted ${missingModelVersions.length} versions (missing model)`);
 
-    const missingPromptVersions = await versions
-      .find({
-        "configuration.prompt": { $exists: false },
-        deletedAt: null
-      })
-      .toArray();
-
+    const missingPromptVersions = await versions.find({ "configuration.prompt": { $exists: false }, deletedAt: null }).toArray();
     const versionHardDeleteIds = [];
     const versionSoftDeleteIds = [];
 
@@ -506,14 +444,55 @@ async function migrateConfigurations() {
     console.log(`  Soft deleted:       ${softDeletedCount}`);
     console.log(`  Skipped:            ${skippedCount}`);
     console.log("=".repeat(60));
-  } catch (error) {
-    console.error("Migration failed:", error);
-    throw error;
   } finally {
-    await client.close();
     await sequelize.close();
-    console.log("\nConnections closed");
   }
-}
+};
 
-export { migrateConfigurations };
+/**
+ * @param db {import('mongodb').Db}
+ * @param client {import('mongodb').MongoClient}
+ * @returns {Promise<void>}
+ */
+export const down = async (db) => {
+  console.log("Rolling back configuration and versions migration...");
+  console.log("⚠️  WARNING: This migration involves hard/soft deletes that cannot be fully reversed.");
+  console.log("⚠️  Only field renames and defaults will be rolled back.");
+
+  const configurations = db.collection("configurations");
+  const versions = db.collection("configuration_versions");
+
+  // Reverse field renames
+  console.log("\n--- Reversing field renames ---");
+
+  const reverseMaximumIterations = await versions.updateMany(
+    { maximum_iterations: { $exists: true } },
+    { $rename: { maximum_iterations: "tool_call_count" } }
+  );
+  console.log(`  ✓ Renamed maximum_iterations back to tool_call_count: ${reverseMaximumIterations.modifiedCount} versions`);
+
+  const reverseCacheResponseConfig = await configurations.updateMany(
+    { cache_response: { $exists: true } },
+    { $rename: { cache_response: "chatbot_auto_answers" } }
+  );
+  console.log(`  ✓ Renamed cache_response back to chatbot_auto_answers: ${reverseCacheResponseConfig.modifiedCount} configurations`);
+
+  const reverseCacheResponseVersion = await versions.updateMany(
+    { cache_response: { $exists: true } },
+    { $rename: { cache_response: "chatbot_auto_answers" } }
+  );
+  console.log(`  ✓ Renamed cache_response back to chatbot_auto_answers: ${reverseCacheResponseVersion.modifiedCount} versions`);
+
+  // Reverse image_size migration (restore image_size from size)
+  const restoreImageSizeConfig = await configurations.updateMany({ "configuration.size": { $exists: true } }, [
+    { $set: { "configuration.image_size": "$configuration.size" } }
+  ]);
+  console.log(`  ✓ Restored image_size from size: ${restoreImageSizeConfig.modifiedCount} configurations`);
+
+  const restoreImageSizeVersion = await versions.updateMany({ "configuration.size": { $exists: true } }, [
+    { $set: { "configuration.image_size": "$configuration.size" } }
+  ]);
+  console.log(`  ✓ Restored image_size from size: ${restoreImageSizeVersion.modifiedCount} versions`);
+
+  console.log("\n⚠️  Note: Deleted documents cannot be restored. Only reversible changes have been applied.");
+};
