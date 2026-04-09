@@ -74,7 +74,6 @@ const updateBridgeSchema = Joi.object({
   bridge_summary: Joi.string().allow("").optional(),
   expected_qna: Joi.array().optional(),
   slugName: Joi.string().optional(),
-  tool_call_count: Joi.number().min(0).optional(),
   user_reference: Joi.string().optional(),
   gpt_memory: Joi.boolean().optional(),
   gpt_memory_context: Joi.number().optional(),
@@ -84,12 +83,21 @@ const updateBridgeSchema = Joi.object({
   name: Joi.string().optional(),
   bridgeType: Joi.string().valid("api", "chatbot").optional(),
   meta: Joi.object().optional(),
-  fall_back: Joi.object({
-    is_enable: Joi.boolean().optional(),
-    service: Joi.string().optional(),
-    model: Joi.string().optional()
+  settings: Joi.object({
+    publicUsers: Joi.array().items(Joi.string()).optional(),
+    responseStyle: Joi.object().optional(),
+    tone: Joi.object().optional(),
+    responseStylePrompt: Joi.string().optional(),
+    tonePrompt: Joi.string().optional(),
+    maximum_iterations: Joi.number().min(3).optional(),
+    response_format: Joi.object().optional(),
+    fall_back: Joi.object({
+      is_enable: Joi.boolean().optional(),
+      service: Joi.string().optional(),
+      model: Joi.string().optional()
+    }).optional(),
+    guardrails: Joi.object().optional()
   }).optional(),
-  guardrails: Joi.object().optional(),
   web_search_filters: Joi.alternatives().try(Joi.array().items(Joi.string()), Joi.object()).optional(),
   gtwy_web_search_filters: Joi.alternatives().try(Joi.array().items(Joi.string()), Joi.object()).optional(),
   bridge_limit: Joi.number().min(0).optional(),
