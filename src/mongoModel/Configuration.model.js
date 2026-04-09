@@ -31,10 +31,6 @@ const pageConfigSchema = new Schema(
       type: String,
       enum: ["public", "private"],
       default: "private"
-    },
-    allowedUsers: {
-      type: [String],
-      default: []
     }
   },
   { _id: false }
@@ -111,10 +107,6 @@ const configuration = new mongoose.Schema({
     type: Array,
     default: []
   },
-  tool_call_count: {
-    type: Number,
-    default: 0
-  },
   version_description: {
     type: String,
     default: ""
@@ -127,25 +119,9 @@ const configuration = new mongoose.Schema({
     type: Array,
     default: []
   },
-  guardrails: {
-    type: Object,
-    default: {
-      is_enabled: false,
-      guardrails_configuration: {},
-      guardrails_custom_prompt: ""
-    }
-  },
   built_in_tools: {
     type: Array,
     default: []
-  },
-  fall_back: {
-    type: Object,
-    default: {
-      is_enable: false,
-      service: "",
-      model: ""
-    }
   },
   bridge_summary: {
     type: String,
@@ -276,9 +252,28 @@ const configuration = new mongoose.Schema({
     type: Date,
     default: null
   },
-  users: {
-    type: [mongoose.Schema.Types.Mixed],
-    default: undefined
+  settings: {
+    type: Object,
+    default: {
+      maximum_iterations: 3,
+      publicUsers: [],
+      editAccess: [],
+      responseStyle: "default",
+      tone: "",
+      tonePrompt: "",
+      response_format: { type: "default", cred: {} },
+      responseStylePrompt: "",
+      guardrails: {
+        is_enabled: false,
+        guardrails_configuration: {},
+        guardrails_custom_prompt: ""
+      },
+      fall_back: {
+        is_enable: false,
+        service: "",
+        model: ""
+      }
+    }
   },
   chatbot_auto_answers: {
     type: Boolean,

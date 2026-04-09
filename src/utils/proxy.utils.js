@@ -1,6 +1,8 @@
 import axios from "axios";
 import { generateIdentifier } from "../services/utils/utility.service.js";
 import { createOrFindUserAndCompany } from "../services/proxy.service.js";
+import { findInCache, storeInCache, deleteInCache } from "../cache_service/index.js";
+import { embed_cache } from "../configs/constant.js";
 
 async function getallOrgs() {
   try {
@@ -17,6 +19,16 @@ async function getallOrgs() {
 }
 
 const createOrGetUser = async (checkToken, decodedToken, orgTokenFromDb) => {
+  const cacheKeyUser = embed_cache.keys.user(decodedToken.user_id, decodedToken.org_id);
+  const cachedUser = await findInCache(cacheKeyUser);
+
+  if (cachedUser) {
+    try {
+      return JSON.parse(cachedUser);
+    } catch {
+      await deleteInCache(cacheKeyUser);
+    }
+  }
   const userDetails = {
     name: generateIdentifier(14, "emb", false),
     email: `${decodedToken.org_id}${checkToken.user_id}@gtwy.ai`,
@@ -36,7 +48,9 @@ const createOrGetUser = async (checkToken, decodedToken, orgTokenFromDb) => {
     role_id: process.env.PROXY_USER_ROLE_ID
   };
   const proxyResponse = await createOrFindUserAndCompany(proxyObject); // proxy api call
-  return { proxyResponse, name: userDetails.name, email: userDetails.email };
+  const result = { proxyResponse, name: userDetails.name, email: userDetails.email };
+  await storeInCache(cacheKeyUser, result);
+  return result;
 };
 
 export { getallOrgs, createOrGetUser };

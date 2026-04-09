@@ -8,7 +8,6 @@ const service_name = {
   open_router: "open_router",
   mistral: "mistral",
   gemini: "gemini",
-  ai_ml: "ai_ml",
   openai_completion: "openai_completion",
   deepgram: "deepgram"
 };

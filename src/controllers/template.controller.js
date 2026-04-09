@@ -208,12 +208,11 @@ const createAgentFromTemplateController = async (req, res, next) => {
 
     let model_data = { ...(template_content?.configuration || {}) };
     model_data.type = model_data.type || type;
-    model_data.response_format = model_data.response_format || { type: "default", cred: {} };
     if (model_data.is_rich_text === undefined) model_data.is_rich_text = false;
     model_data.prompt = model_data.prompt || prompt;
     model_data.tool_choice = "default";
 
-    const fall_back = template_content?.fall_back || { is_enable: true, service: "ai_ml", model: "gpt-oss-120b" };
+    const fall_back = template_content?.settings?.fall_back || { is_enable: true, service: "openai", model: "gpt-5.1" };
     const template_fields = [
       "variables_state",
       "built_in_tools",
@@ -221,7 +220,6 @@ const createAgentFromTemplateController = async (req, res, next) => {
       "user_reference",
       "bridge_summary",
       "agent_variables",
-      "guardrails",
       "actions",
       "variables_path",
       "bridge_status",
@@ -229,13 +227,13 @@ const createAgentFromTemplateController = async (req, res, next) => {
       "IsstarterQuestionEnable",
       "defaultQuestions",
       "page_config",
+      "settings",
       "criteria_check",
       "auto_model_select",
       "connected_agent_details",
       "meta",
       "cache_on",
       "chatbot_auto_answers",
-      "tool_call_count",
       "version_description"
     ];
     const template_values = {};
@@ -418,7 +416,6 @@ const createAgentFromTemplateController = async (req, res, next) => {
         const childNameSlug = getUniqueNameAndSlug(agent_name, all_agent);
         const child_model_data = { ...(child_details.configuration || {}) };
         child_model_data.type = child_model_data.type || type;
-        child_model_data.response_format = child_model_data.response_format || { type: "default", cred: {} };
         if (child_model_data.is_rich_text === undefined) child_model_data.is_rich_text = false;
         child_model_data.prompt = child_model_data.prompt || prompt;
         child_model_data.tool_choice = "default";

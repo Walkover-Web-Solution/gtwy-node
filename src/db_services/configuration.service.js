@@ -806,7 +806,7 @@ const getAllAgentsData = async (userEmail) => {
       { "page_config.availability": "public" },
       {
         "page_config.availability": "private",
-        "page_config.allowedUsers": userEmail
+        "settings.publicUsers": userEmail
       }
     ]
   };
@@ -820,7 +820,7 @@ const getAgentsData = async (slugName, userEmail) => {
         $and: [{ "page_config.availability": "public" }, { "page_config.url_slugname": slugName }]
       },
       {
-        $and: [{ "page_config.availability": "private" }, { "page_config.url_slugname": slugName }, { "page_config.allowedUsers": userEmail }]
+        $and: [{ "page_config.availability": "private" }, { "page_config.url_slugname": slugName }, { "settings.publicUsers": userEmail }]
       }
     ]
   });
@@ -1157,7 +1157,15 @@ const getAllAgentsInOrg = async (org_id, folder_id, user_id, isEmbedUser) => {
       updatedAt: 1,
       prompt_total_tokens: 1,
       prompt_enhancer_percentage: 1,
-      criteria_check: 1
+      criteria_check: 1,
+      "settings.publicUsers": 1,
+      "settings.responseStyle": 1,
+      "settings.tone": 1,
+      "settings.responseStylePrompt": 1,
+      "settings.tonePrompt": 1,
+      "settings.response_format": 1,
+      "settings.fall_back": 1,
+      "settings.guardrails": 1
     })
     .sort({ createdAt: -1 })
     .lean();

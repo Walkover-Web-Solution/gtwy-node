@@ -15,14 +15,15 @@ const GtwyEmbeddecodeToken = async (req, res, next) => {
       return res.status(401).json({ message: "unauthorized user, user id, folder id or org id not provided" });
     }
     if (decodedToken) {
-      // const orgTokenFromDb = await orgDbServices.find(decodedToken.org_id);
       const orgTokenFromDb = await getOrganizationById(decodedToken?.org_id);
       const orgToken = orgTokenFromDb?.meta?.gtwyAccessToken;
       if (orgToken) {
         const checkToken = jwt.verify(token, orgToken);
         if (checkToken) {
           if (checkToken.user_id) checkToken.user_id = encryptString(checkToken.user_id);
-          const { proxyResponse, name, email } = await createOrGetUser(checkToken, decodedToken, orgTokenFromDb);
+
+          const proxyUserData = await createOrGetUser(checkToken, decodedToken, orgTokenFromDb);
+          const { proxyResponse, name, email } = proxyUserData;
           req.Embed = {
             ...checkToken,
             email: email,

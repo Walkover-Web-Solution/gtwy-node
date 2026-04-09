@@ -11,6 +11,86 @@ import Sequelize from "sequelize";
  * @param {number} limit - Items per page (default: 30)
  * @returns {Object} - Success status and data
  */
+async function findBatchConversationLogsByAgentId(org_id, bridge_id, filter, page = 1, limit = 30, version_id = null) {
+  try {
+    const offset = (page - 1) * limit;
+
+    // Build where conditions - all parameters are required
+    const whereConditions = {
+      org_id: org_id,
+      bridge_id: bridge_id,
+      batch_data: { [Sequelize.Op.ne]: null },
+      "batch_data.status": filter ? filter : "completed"
+    };
+
+    if (version_id) {
+      whereConditions.version_id = version_id;
+    }
+
+    // Get paginated data
+    const logs = await models.pg.conversation_logs.findAll({
+      where: whereConditions,
+      order: [["created_at", "DESC"]],
+      limit: limit,
+      offset: offset
+    });
+
+    // Reverse the conversation logs array
+    const reversedLogs = logs.reverse();
+
+    return {
+      success: true,
+      data: reversedLogs
+    };
+  } catch (error) {
+    console.error("Error fetching conversation logs:", error);
+    return {
+      success: false,
+      message: "Failed to fetch conversation logs",
+      error: error.message
+    };
+  }
+}
+async function findBatchConversationLogsCountByAgentId(org_id, bridge_id) {
+  try {
+    // Build where conditions - all parameters are required
+    const whereConditions = {
+      org_id: org_id,
+      bridge_id: bridge_id,
+      batch_data: { [Sequelize.Op.ne]: null },
+      "batch_data.status": { [Sequelize.Op.in]: ["completed", "queued", "processing"] }
+    };
+
+    // Get count
+    const batchStatusCounts = await models.pg.conversation_logs.findAll({
+      attributes: [
+        [Sequelize.fn("COUNT", Sequelize.literal("CASE WHEN batch_data->>'status' = 'queued' THEN 1 END")), "queued"],
+        [Sequelize.fn("COUNT", Sequelize.literal("CASE WHEN batch_data->>'status' = 'processing' THEN 1 END")), "processing"],
+        [Sequelize.fn("COUNT", Sequelize.literal("CASE WHEN batch_data->>'status' = 'completed' THEN 1 END")), "completed"]
+      ],
+      where: whereConditions
+    });
+
+    const statusCounts = batchStatusCounts[0]?.dataValues || {};
+
+    return {
+      success: true,
+      data: {
+        completed: parseInt(statusCounts.completed) || 0,
+        queued: parseInt(statusCounts.queued) || 0,
+        processing: parseInt(statusCounts.processing) || 0
+      }
+    };
+  } catch (error) {
+    console.error("Error fetching conversation logs count:", error);
+    return {
+      success: false,
+      message: "Failed to fetch conversation logs count",
+      error: error.message
+    };
+  }
+}
+
 async function findConversationLogsByIds(org_id, bridge_id, thread_id, sub_thread_id, page = 1, limit = 30, version_id = null) {
   try {
     const offset = (page - 1) * limit;
@@ -65,7 +145,7 @@ async function findConversationLogsByIds(org_id, bridge_id, thread_id, sub_threa
  * @param {number} limit - Items per page (default: 30)
  * @returns {Object} - Success status and data
  */
-async function findRecentThreadsByBridgeId(org_id, bridge_id, filters, user_feedback, error, page = 1, limit = 30, version_id = null) {
+async function findRecentThreadsByBridgeId(org_id, bridge_id, filters, user_feedback, error, page = 1, limit = 30, version_id = null, type = null) {
   try {
     const offset = (page - 1) * limit;
 
@@ -81,6 +161,10 @@ async function findRecentThreadsByBridgeId(org_id, bridge_id, filters, user_feed
 
     if (error !== "false") {
       whereConditions.error = error;
+    }
+
+    if (type === "batch") {
+      whereConditions.batch_data = { [Sequelize.Op.ne]: null };
     }
 
     if (version_id) {
@@ -102,19 +186,39 @@ async function findRecentThreadsByBridgeId(org_id, bridge_id, filters, user_feed
     }
 
     // Add keyword search across recommended columns
-    if (filters?.keyword?.length > 0 && filters?.keyword !== "") {
-      const keywordConditions = {
-        [Sequelize.Op.or]: [
-          { message_id: { [Sequelize.Op.iLike]: `%${filters.keyword}%` } },
-          { thread_id: { [Sequelize.Op.iLike]: `%${filters.keyword}%` } },
-          { sub_thread_id: { [Sequelize.Op.iLike]: `%${filters.keyword}%` } },
-          { llm_message: { [Sequelize.Op.iLike]: `%${filters.keyword}%` } },
-          { user: { [Sequelize.Op.iLike]: `%${filters.keyword}%` } },
-          { chatbot_message: { [Sequelize.Op.iLike]: `%${filters.keyword}%` } },
-          { updated_llm_message: { [Sequelize.Op.iLike]: `%${filters.keyword}%` } }
-        ]
-      };
-      whereConditions[Sequelize.Op.and] = [keywordConditions];
+    const searchableColumns = ["message_id", "thread_id", "sub_thread_id", "llm_message", "user", "chatbot_message", "updated_llm_message"];
+    const filterBy = filters?.filter_by;
+
+    if (filterBy && typeof filterBy === "object" && Object.keys(filterBy).length > 0) {
+      const orConditions = [];
+      for (const [col, keyword] of Object.entries(filterBy)) {
+        if (!keyword || keyword === "") continue;
+        const escapedKw = keyword.replace(/'/g, "''");
+        if (col === "variables") {
+          orConditions.push(
+            Sequelize.literal(
+              `EXISTS (SELECT 1 FROM jsonb_each_text(COALESCE("conversation_logs"."variables", '{}'::jsonb)) AS kv WHERE jsonb_typeof(COALESCE("conversation_logs"."variables", 'null'::jsonb)) = 'object' AND kv.value ILIKE '%${escapedKw}%')`
+            )
+          );
+        } else if (searchableColumns.includes(col)) {
+          orConditions.push({ [col]: { [Sequelize.Op.iLike]: `%${keyword}%` } });
+        }
+      }
+      if (orConditions.length > 0) {
+        whereConditions[Sequelize.Op.and] = [{ [Sequelize.Op.or]: orConditions }];
+      }
+    } else if (filters?.keyword?.length > 0 && filters?.keyword !== "") {
+      const escapedKeyword = filters.keyword.replace(/'/g, "''");
+      whereConditions[Sequelize.Op.and] = [
+        {
+          [Sequelize.Op.or]: [
+            ...searchableColumns.map((col) => ({ [col]: { [Sequelize.Op.iLike]: `%${filters.keyword}%` } })),
+            Sequelize.literal(
+              `EXISTS (SELECT 1 FROM jsonb_each_text(COALESCE("conversation_logs"."variables", '{}'::jsonb)) AS kv WHERE jsonb_typeof(COALESCE("conversation_logs"."variables", 'null'::jsonb)) = 'object' AND kv.value ILIKE '%${escapedKeyword}%')`
+            )
+          ]
+        }
+      ];
     }
 
     // Get recent threads with distinct thread_id, ordered by updated_at
@@ -188,6 +292,39 @@ async function findRecentThreadsByBridgeId(org_id, bridge_id, filters, user_feed
               }))
           }));
         }
+      });
+    }
+
+    // Get batch status counts per thread_id when type is batch
+    if (type === "batch" && formattedThreads.length > 0) {
+      const threadIds = formattedThreads.map((t) => t.thread_id);
+      const batchStatusCounts = await models.pg.conversation_logs.findAll({
+        attributes: [
+          "thread_id",
+          [Sequelize.fn("COUNT", Sequelize.literal("CASE WHEN batch_data->>'status' = 'queued' THEN 1 END")), "queued"],
+          [Sequelize.fn("COUNT", Sequelize.literal("CASE WHEN batch_data->>'status' = 'processing' THEN 1 END")), "processing"],
+          [Sequelize.fn("COUNT", Sequelize.literal("CASE WHEN batch_data->>'status' = 'completed' THEN 1 END")), "completed"]
+        ],
+        where: {
+          org_id,
+          bridge_id,
+          thread_id: { [Sequelize.Op.in]: threadIds },
+          batch_data: { [Sequelize.Op.ne]: null }
+        },
+        group: ["thread_id"]
+      });
+
+      const statusMap = {};
+      batchStatusCounts.forEach((row) => {
+        statusMap[row.dataValues.thread_id] = {
+          queued: parseInt(row.dataValues.queued) || 0,
+          processing: parseInt(row.dataValues.processing) || 0,
+          completed: parseInt(row.dataValues.completed) || 0
+        };
+      });
+
+      formattedThreads.forEach((thread) => {
+        thread.batch_status_counts = statusMap[thread.thread_id] || { queued: 0, processing: 0, completed: 0 };
       });
     }
 
@@ -589,5 +726,7 @@ export {
   findHistoryByMessageId,
   findHistoryByMessageId as getHistoryByMessageId,
   createConversationLog,
-  findChatbotThreadHistory
+  findChatbotThreadHistory,
+  findBatchConversationLogsByAgentId,
+  findBatchConversationLogsCountByAgentId
 };

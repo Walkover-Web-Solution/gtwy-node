@@ -169,18 +169,9 @@ const createAgentController = async (req, res, next) => {
       }
 
       model_data.type = type;
-      model_data.response_format = {
-        type: "default",
-        cred: {}
-      };
       model_data.is_rich_text = false;
       model_data.prompt = prompt;
     }
-    const fall_back = {
-      is_enable: true,
-      service: "openai",
-      model: "gpt-5.1"
-    };
 
     if (folder_data) {
       const api_key_object_ids = folder_data.apikey_object_id || {};
@@ -211,7 +202,7 @@ const createAgentController = async (req, res, next) => {
       gpt_memory: aiVal(agent_data?.gpt_memory, true),
       folder_id: folder_id,
       user_id: user_id,
-      fall_back: aiVal(agent_data?.fall_back, fall_back),
+      settings: aiVal(agent_data?.settings),
       bridge_limit: agent_limit,
       bridge_usage: agent_usage,
       bridge_limit_reset_period: agent_limit_reset_period,
@@ -316,7 +307,6 @@ const updateAgentController = async (req, res, next) => {
     "bridge_summary",
     "expected_qna",
     "slugName",
-    "tool_call_count",
     "user_reference",
     "gpt_memory",
     "gpt_memory_context",
@@ -326,8 +316,6 @@ const updateAgentController = async (req, res, next) => {
     "name",
     "bridgeType",
     "meta",
-    "fall_back",
-    "guardrails",
     "web_search_filters",
     "gtwy_web_search_filters",
     "chatbot_auto_answers",
@@ -339,6 +327,21 @@ const updateAgentController = async (req, res, next) => {
   for (const field of simple_fields) {
     if (body[field] !== undefined) {
       update_fields[field] = body[field];
+    }
+  }
+
+  if (body.settings !== undefined) {
+    const current_settings = agent.settings || {};
+    const merged_settings = { ...current_settings, ...body.settings };
+    update_fields.settings = merged_settings;
+    if (body.settings.editAccess !== undefined && agent_id && !version_id) {
+      try {
+        if (Array.isArray(body.settings.editAccess)) {
+          update_fields.editAccess = body.settings.editAccess;
+        }
+      } catch (e) {
+        console.error(`Error updating users array for agent ${agent_id}:`, e);
+      }
     }
   }
 
@@ -433,52 +436,6 @@ const updateAgentController = async (req, res, next) => {
           await ConfigurationServices.updateAgentIdsInApiCalls(function_id, target_id, 0);
         }
       }
-    }
-  }
-
-  // Process users array update if agent_id is provided (not version_id)
-  // Only update agent's users array, not version
-  if (body.user_id !== undefined && typeof body.add_user_id === "boolean" && agent_id && !version_id) {
-    try {
-      // Get current agent to check if users array exists
-      const currentAgentData = await ConfigurationServices.getAgents(agent_id, org_id, null);
-      if (currentAgentData && currentAgentData.bridges) {
-        const user_id_to_update = body.user_id;
-        const add_user = body.add_user_id;
-
-        if (user_id_to_update !== null && user_id_to_update !== undefined) {
-          // Get current users array
-          let current_users = currentAgentData.bridges.users;
-
-          // Initialize users array if it doesn't exist
-          if (current_users === null || current_users === undefined) {
-            current_users = [];
-          } else if (!Array.isArray(current_users)) {
-            // If users exists but is not a list, initialize as empty list
-            current_users = [];
-          }
-
-          const user_id_str = String(user_id_to_update);
-
-          if (add_user) {
-            // Add user_id to users array if not already present
-            const user_exists = current_users.some((u) => String(u) === user_id_str);
-            if (!user_exists) {
-              current_users.push(user_id_to_update);
-              // Update agent directly (not version) - set version_id to null for this update
-              update_fields.users = current_users;
-            }
-          } else {
-            // Remove user_id from users array
-            current_users = current_users.filter((u) => String(u) !== user_id_str);
-            // Update agent directly (not version) - set version_id to null for this update
-            update_fields.users = current_users;
-          }
-        }
-      }
-    } catch (e) {
-      console.error(`Error updating users array for agent ${agent_id}:`, e);
-      // Continue with other updates even if users array update fails
     }
   }
 
