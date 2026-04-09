@@ -238,8 +238,11 @@ async function findRecentThreadsByBridgeId(org_id, bridge_id, filters, user_feed
       updated_at: thread.dataValues.updated_at
     }));
 
-    // If keyword search is active, fetch matching messages for the found threads
-    if (filters?.keyword && formattedThreads?.length > 0) {
+    const isKeywordSearch = filters?.keyword?.length > 0 && filters?.keyword !== "";
+    const isFilterBySearch = filterBy && typeof filterBy === "object" && Object.keys(filterBy).length > 0;
+
+    // If keyword or filter_by search is active, fetch matching messages for the found threads
+    if ((isKeywordSearch || isFilterBySearch) && formattedThreads?.length > 0) {
       const threadIds = formattedThreads.map((t) => t.thread_id);
 
       const messagesWhere = {
@@ -257,19 +260,23 @@ async function findRecentThreadsByBridgeId(org_id, bridge_id, filters, user_feed
         const threadMessages = matchedMessages.filter((m) => m.thread_id === thread.thread_id);
 
         thread.message = threadMessages.map((msg) => {
-          // Determine the content to display
           let content = "";
-          if (msg.user && msg.user.toLowerCase().includes(filters.keyword.toLowerCase())) {
-            content = msg.user;
-          } else if ((msg.llm_message || "").toLowerCase().includes(filters.keyword.toLowerCase())) {
-            content = msg.llm_message;
-          } else if ((msg.chatbot_message || "").toLowerCase().includes(filters.keyword.toLowerCase())) {
-            content = msg.chatbot_message;
-          } else if ((msg.updated_llm_message || "").toLowerCase().includes(filters.keyword.toLowerCase())) {
-            content = msg.updated_llm_message;
+          if (isKeywordSearch) {
+            const kw = filters.keyword.toLowerCase();
+            if (msg.user && msg.user.toLowerCase().includes(kw)) {
+              content = msg.user;
+            } else if ((msg.llm_message || "").toLowerCase().includes(kw)) {
+              content = msg.llm_message;
+            } else if ((msg.chatbot_message || "").toLowerCase().includes(kw)) {
+              content = msg.chatbot_message;
+            } else if ((msg.updated_llm_message || "").toLowerCase().includes(kw)) {
+              content = msg.updated_llm_message;
+            } else {
+              content = msg.user || msg.llm_message || msg.chatbot_message || "Match found in ID or metadata";
+            }
           } else {
-            // Fallback if match query matched ID or something else
-            content = msg.user || msg.llm_message || msg.chatbot_message || "Match found in ID or metadata";
+            // filter_by: pick first non-empty message field as content
+            content = msg.user || msg.llm_message || msg.chatbot_message || msg.updated_llm_message || "Match found";
           }
 
           return {
@@ -288,7 +295,7 @@ async function findRecentThreadsByBridgeId(org_id, bridge_id, filters, user_feed
               .filter((m) => m.sub_thread_id === stId)
               .map((msg) => ({
                 message_id: msg.message_id,
-                message: msg.user || msg.llm_message || "Match found" // Simplify for subthread view
+                message: msg.user || msg.llm_message || "Match found"
               }))
           }));
         }
