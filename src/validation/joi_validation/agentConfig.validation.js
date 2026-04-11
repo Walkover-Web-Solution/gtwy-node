@@ -87,8 +87,6 @@ const updateBridgeSchema = Joi.object({
     publicUsers: Joi.array().items(Joi.string()).optional(),
     responseStyle: Joi.object().optional(),
     tone: Joi.object().optional(),
-    responseStylePrompt: Joi.string().optional(),
-    tonePrompt: Joi.string().optional(),
     maximum_iterations: Joi.number().min(3).optional(),
     response_format: Joi.object().optional(),
     fall_back: Joi.object({
