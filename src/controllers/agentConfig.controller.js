@@ -111,6 +111,12 @@ const createAgentController = async (req, res, next) => {
     }
 
     const { name: uniqueName, slugName: uniqueSlugName } = await ConfigurationServices.getUniqueAgentNameAndSlug(org_id, name);
+    // If name is "chatbot preview" and uniqueName differs, it means one already exists for this org
+    if (name === "chatbot preview" && uniqueName !== name) {
+      res.locals = { success: true, message: "Agent with name 'chatbot preview' already exists for this organization" };
+      req.statusCode = 200;
+      return next();
+    }
     slugName = uniqueSlugName || slugName;
     name = uniqueName || name;
 
