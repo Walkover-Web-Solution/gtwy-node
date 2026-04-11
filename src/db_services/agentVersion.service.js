@@ -317,7 +317,7 @@ async function calculateAndSavePromptTokens(parentId, prompt, tools) {
     const promptTotalTokens = promptTokens + toolsTokens;
 
     // Update the document in the configurationModel
-    await configurationModel.updateOne({ _id: parentId }, { $set: { prompt_total_tokens: promptTotalTokens } });
+    await configurationModel.updateOne({ _id: parentId }, { $set: { "agent_info.prompt_total_tokens": promptTotalTokens } });
 
     return promptTotalTokens;
   } catch (error) {
@@ -400,7 +400,7 @@ async function publish(org_id, version_id, user_id) {
 
   // Extract agent variables logic
   const prompt = convertPromptToString(getVersionData.configuration?.prompt || "");
-  const variableState = getVersionData.variables_state || {};
+  const variableState = getVersionData.agent_info?.variables_state || {};
   const variablePath = getVersionData.variables_path || {};
 
   if (Array.isArray(getVersionData.pre_tools)) {
@@ -433,8 +433,9 @@ async function publish(org_id, version_id, user_id) {
   }
 
   // Update connected_agent_details with agent variables
-  updatedConfiguration.connected_agent_details = {
-    ...(updatedConfiguration.connected_agent_details || {}),
+  updatedConfiguration.agent_info = updatedConfiguration.agent_info || {};
+  updatedConfiguration.agent_info.connected_agent_details = {
+    ...(updatedConfiguration.agent_info.connected_agent_details || {}),
     agent_variables: {
       fields: transformedAgentVariables.fields,
       required_params: transformedAgentVariables.required_params
@@ -532,7 +533,7 @@ async function getAllConnectedAgents(id, org_id, type) {
     }
 
     const agentName = doc.name || `Agent_${agentId}`;
-    const connectedAgentDetails = doc.connected_agent_details || {};
+    const connectedAgentDetails = doc.agent_info?.connected_agent_details || {};
     const threadId = connectedAgentDetails.thread_id || false;
     const description = connectedAgentDetails.description;
 

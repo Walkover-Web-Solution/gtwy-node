@@ -613,19 +613,30 @@ const getAgentsByUserId = async (orgId, userId, agent_id) => {
     if (agent_id) {
       query._id = agent_id;
     }
-    const agents = await configurationModel.find(query, {
-      _id: 1,
-      name: 1,
-      service: 1,
-      "configuration.model": 1,
-      "configuration.prompt": 1,
-      "configuration.type": 1,
-      bridgeType: 1,
-      slugName: 1,
-      variables_state: 1,
-      meta: 1,
-      deletedAt: 1
-    });
+    const agents = await configurationModel.aggregate([
+      { $match: query },
+      {
+        $addFields: {
+          variables_state: { $ifNull: ["$agent_info.variables_state"] }
+        }
+      },
+      {
+        $project: {
+          _id: 1,
+          name: 1,
+          service: 1,
+          "configuration.model": 1,
+          "configuration.prompt": 1,
+          "configuration.type": 1,
+          bridgeType: 1,
+          slugName: 1,
+          variables_state: 1,
+          meta: 1,
+          deletedAt: 1
+        }
+      }
+    ]);
+
     return agents.map((agent) => {
       const agentData = agent._doc;
       const filtered = {};
@@ -803,9 +814,9 @@ const findIdsByModelAndService = async (model, service, org_id) => {
 const getAllAgentsData = async (userEmail) => {
   const query = {
     $or: [
-      { "page_config.availability": "public" },
+      { "agent_info.availability": "public" },
       {
-        "page_config.availability": "private",
+        "agent_info.availability": "private",
         "settings.publicUsers": userEmail
       }
     ]
@@ -817,10 +828,10 @@ const getAgentsData = async (slugName, userEmail) => {
   return await configurationModel.findOne({
     $or: [
       {
-        $and: [{ "page_config.availability": "public" }, { "page_config.url_slugname": slugName }]
+        $and: [{ "agent_info.availability": "public" }, { "page_config.url_slugname": slugName }]
       },
       {
-        $and: [{ "page_config.availability": "private" }, { "page_config.url_slugname": slugName }, { "settings.publicUsers": userEmail }]
+        $and: [{ "agent_info.availability": "private" }, { "page_config.url_slugname": slugName }, { "settings.publicUsers": userEmail }]
       }
     ]
   });
@@ -1144,12 +1155,10 @@ const getAllAgentsInOrg = async (org_id, folder_id, user_id, isEmbedUser) => {
       versions: 1,
       published_version_id: 1,
       total_tokens: 1,
-      variables_state: 1,
       agent_variables: 1,
       bridge_status: 1,
       connected_agents: 1,
       function_ids: 1,
-      connected_agent_details: 1,
       bridge_summary: 1,
       deletedAt: 1,
       bridge_limit: 1,
@@ -1161,8 +1170,11 @@ const getAllAgentsInOrg = async (org_id, folder_id, user_id, isEmbedUser) => {
       users: 1,
       createdAt: 1,
       updatedAt: 1,
-      prompt_total_tokens: 1,
       prompt_enhancer_percentage: 1,
+      "agent_info.prompt_total_tokens": 1,
+      "agent_info.availability": 1,
+      "agent_info.connected_agent_details": 1,
+      "agent_info.variables_state": 1,
       criteria_check: 1,
       "settings.publicUsers": 1,
       "settings.responseStyle": 1,

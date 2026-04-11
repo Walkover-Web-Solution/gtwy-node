@@ -17,6 +17,25 @@ const actionTypeModel = new Schema(
     _id: false
   }
 );
+
+const agentInfoSchema = new Schema(
+  {
+    prompt_total_tokens: {
+      type: Number,
+      default: 0
+    },
+    connected_agent_details: {
+      type: Object,
+      default: {}
+    },
+    variables_state: {
+      type: Object,
+      default: {}
+    }
+  },
+  { _id: false }
+);
+
 const version = new mongoose.Schema({
   org_id: {
     type: String,
@@ -61,9 +80,9 @@ const version = new mongoose.Schema({
     type: String,
     default: null
   },
-  variables_state: {
-    type: Object,
-    default: {}
+  agent_info: {
+    type: agentInfoSchema,
+    default: () => ({})
   },
   function_ids: {
     type: [mongoose.Schema.Types.ObjectId],
@@ -116,10 +135,6 @@ const version = new mongoose.Schema({
   built_in_tools: {
     type: Array,
     default: []
-  },
-  connected_agent_details: {
-    type: Object,
-    default: {}
   },
   created_at: {
     type: Date,
