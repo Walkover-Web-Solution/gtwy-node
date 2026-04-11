@@ -1285,13 +1285,13 @@ const getUniqueAgentNameAndSlug = async (org_id, baseName) => {
     }
 
     let finalName = name;
-    if (name_exists || max_name_count > 0) {
+    if (name_exists) {
       const next_count = max_name_count + 1;
       finalName = `${name}_${next_count}`;
     }
 
     let finalSlug = baseSlug;
-    if (slug_exists || max_slug_count > 0) {
+    if (slug_exists) {
       const next_count = max_slug_count + 1;
       finalSlug = `${baseSlug}_${next_count}`;
     }
