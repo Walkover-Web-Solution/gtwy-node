@@ -90,7 +90,7 @@ const createAgentController = async (req, res, next) => {
     let agent_data = {};
 
     if (purpose) {
-      const environment = String(process.env.ENVIROMENT || "").toUpperCase() === "PRODUCTION" ? "prod" : "test";
+      const environment = String(process.env.ENVIRONMENT || "").toUpperCase() === "PRODUCTION" ? "prod" : "test";
       const variables = {
         purpose: purpose,
         environment: environment,
