@@ -55,6 +55,6 @@ try {
   db.sequelize = sequelize;
   db.Sequelize = Sequelize;
 } catch (error) {
-  if (process.env.ENVIROMENT != "local") console.error("Error while connecting to the Timescaledb:", error);
+  if (process.env.ENVIRONMENT != "local") console.error("Error while connecting to the Timescaledb:", error);
 }
 export default db;
