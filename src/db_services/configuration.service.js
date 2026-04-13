@@ -1241,8 +1241,10 @@ const getUniqueAgentNameAndSlug = async (org_id, baseName) => {
     let name = baseName || "untitled_agent";
     const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-    const nameRegex = new RegExp(`^${escapeRegExp(name)}(?: (\\d+))?$`, "i");
     const baseSlug = name.replace(/[^a-zA-Z0-9]/g, "_").toLowerCase();
+
+    // Match exact name or name with _number suffix (e.g., "my_agent" or "my_agent_1")
+    const nameRegex = new RegExp(`^${escapeRegExp(name)}(?:_(\\d+))?$`, "i");
     const slugRegex = new RegExp(`^${escapeRegExp(baseSlug)}(?:_(\\d+))?$`, "i");
 
     const existingAgents = await configurationModel
@@ -1259,15 +1261,22 @@ const getUniqueAgentNameAndSlug = async (org_id, baseName) => {
     let slug_exists = false;
 
     for (const agent of existingAgents) {
-      if (agent.name === name) name_exists = true;
-      if (agent.slugName === baseSlug) slug_exists = true;
-
+      // Check if exact name matches
+      if (agent.name === name) {
+        name_exists = true;
+      }
+      // Check if name matches pattern with number suffix
       const nameMatch = agent.name?.match(nameRegex);
       if (nameMatch && nameMatch[1]) {
         const num = parseInt(nameMatch[1], 10);
         if (num > max_name_count) max_name_count = num;
       }
 
+      // Check if exact slug matches
+      if (agent.slugName === baseSlug) {
+        slug_exists = true;
+      }
+      // Check if slug matches pattern with number suffix
       const slugMatch = agent.slugName?.match(slugRegex);
       if (slugMatch && slugMatch[1]) {
         const num = parseInt(slugMatch[1], 10);
@@ -1276,14 +1285,14 @@ const getUniqueAgentNameAndSlug = async (org_id, baseName) => {
     }
 
     let finalName = name;
-    if (name_exists || max_name_count > 0) {
-      const next_count = max_name_count === 0 ? 1 : max_name_count + 1;
+    if (name_exists) {
+      const next_count = max_name_count + 1;
       finalName = `${name}_${next_count}`;
     }
 
     let finalSlug = baseSlug;
-    if (slug_exists || max_slug_count > 0) {
-      const next_count = max_slug_count === 0 ? 1 : max_slug_count + 1;
+    if (slug_exists) {
+      const next_count = max_slug_count + 1;
       finalSlug = `${baseSlug}_${next_count}`;
     }
 
