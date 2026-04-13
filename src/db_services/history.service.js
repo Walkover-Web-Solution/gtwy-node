@@ -190,16 +190,37 @@ async function findRecentThreadsByBridgeId(org_id, bridge_id, filters, user_feed
     if (filterBy && typeof filterBy === "object" && Object.keys(filterBy).length > 0) {
       const orConditions = [];
       for (const [col, keyword] of Object.entries(filterBy)) {
-        if (!keyword || keyword === "") continue;
-        const escapedKw = keyword.replace(/'/g, "''");
         if (col === "variables") {
-          orConditions.push(
-            Sequelize.literal(
-              `EXISTS (SELECT 1 FROM jsonb_each_text(COALESCE("conversation_logs"."variables", '{}'::jsonb)) AS kv WHERE jsonb_typeof(COALESCE("conversation_logs"."variables", 'null'::jsonb)) = 'object' AND kv.value ILIKE '%${escapedKw}%')`
-            )
-          );
-        } else if (searchableColumns.includes(col)) {
-          orConditions.push({ [col]: { [Sequelize.Op.iLike]: `%${keyword}%` } });
+          if (!keyword) continue;
+          if (typeof keyword === "string" && keyword.trim() !== "") {
+            const escapedValue = keyword.trim().replace(/'/g, "''");
+            orConditions.push(
+              Sequelize.literal(
+                `EXISTS (SELECT 1 FROM jsonb_each_text(COALESCE("conversation_logs"."variables", '{}'::jsonb)) AS kv WHERE jsonb_typeof(COALESCE("conversation_logs"."variables", 'null'::jsonb)) = 'object' AND kv.value ILIKE '%${escapedValue}%')`
+              )
+            );
+            continue;
+          }
+          if (typeof keyword !== "object" || Object.keys(keyword).length === 0) continue;
+          for (const [varName, varVal] of Object.entries(keyword)) {
+            const escapedKey = varName.trim().replace(/'/g, "''");
+            const trimmedVal = typeof varVal === "string" ? varVal.trim() : null;
+            const hasValue = trimmedVal && trimmedVal !== "";
+            if (!escapedKey) continue;
+            const escapedValue = hasValue ? trimmedVal.replace(/'/g, "''") : null;
+            let varCondition;
+            if (hasValue) {
+              varCondition = `EXISTS (SELECT 1 FROM jsonb_each_text(COALESCE("conversation_logs"."variables", '{}'::jsonb)) AS kv WHERE jsonb_typeof(COALESCE("conversation_logs"."variables", 'null'::jsonb)) = 'object' AND kv.key = '${escapedKey}' AND kv.value = '${escapedValue}')`;
+            } else {
+              varCondition = `EXISTS (SELECT 1 FROM jsonb_each_text(COALESCE("conversation_logs"."variables", '{}'::jsonb)) AS kv WHERE jsonb_typeof(COALESCE("conversation_logs"."variables", 'null'::jsonb)) = 'object' AND kv.key = '${escapedKey}')`;
+            }
+            orConditions.push(Sequelize.literal(varCondition));
+          }
+        } else {
+          if (!keyword || keyword === "") continue;
+          if (searchableColumns.includes(col)) {
+            orConditions.push({ [col]: { [Sequelize.Op.iLike]: `%${keyword}%` } });
+          }
         }
       }
       if (orConditions.length > 0) {
