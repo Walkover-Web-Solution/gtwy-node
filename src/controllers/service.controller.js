@@ -5,6 +5,7 @@ import { getSupportedModelSet } from "../services/utils/notDiamond.utils.js";
 const getAllServiceModelsController = async (req, res, next) => {
   const { service } = req.params;
   const service_lower = service.toLowerCase();
+  const current_org_id = req.org_id;
 
   if (!modelConfigDocument[service_lower]) {
     res.locals = {};
@@ -17,6 +18,12 @@ const getAllServiceModelsController = async (req, res, next) => {
 
   for (const [model_name, config] of Object.entries(service_models)) {
     if (config.status !== 1) continue;
+    // Apply org_id filtering for OpenRouter models
+    if (service_lower === "open_router") {
+      if (config.org_id && config.org_id !== current_org_id) {
+        continue;
+      }
+    }
     const type = config.validationConfig?.type || "chat";
     if (result[type]) {
       // Transform config to desired format
