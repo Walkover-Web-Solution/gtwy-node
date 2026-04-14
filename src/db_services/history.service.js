@@ -214,6 +214,10 @@ async function findRecentThreadsByBridgeId(org_id, bridge_id, filters, user_feed
             }
             orConditions.push(Sequelize.literal(varCondition));
           }
+        } else if (col === "batch_id") {
+          if (!keyword || keyword === "") continue;
+          const escapedBatch = keyword.replace(/'/g, "''");
+          orConditions.push(Sequelize.literal(`"conversation_logs"."batch_data"->>'batch_id' ILIKE '%${escapedBatch}%'`));
         } else {
           if (!keyword || keyword === "") continue;
           if (searchableColumns.includes(col)) {
@@ -232,7 +236,8 @@ async function findRecentThreadsByBridgeId(org_id, bridge_id, filters, user_feed
             ...searchableColumns.map((col) => ({ [col]: { [Sequelize.Op.iLike]: `%${filters.keyword}%` } })),
             Sequelize.literal(
               `EXISTS (SELECT 1 FROM jsonb_each_text(COALESCE("conversation_logs"."variables", '{}'::jsonb)) AS kv WHERE jsonb_typeof(COALESCE("conversation_logs"."variables", 'null'::jsonb)) = 'object' AND kv.value ILIKE '%${escapedKeyword}%')`
-            )
+            ),
+            Sequelize.literal(`"conversation_logs"."batch_data"->>'batch_id' ILIKE '%${escapedKeyword}%'`)
           ]
         }
       ];
