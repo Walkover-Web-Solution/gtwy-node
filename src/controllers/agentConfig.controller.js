@@ -10,6 +10,7 @@ const { storeSystemPrompt, addBulkUserEntries } = conversationDbService;
 import { getDefaultValuesController } from "../services/utils/getDefaultValue.js";
 import { purgeRelatedBridgeCaches } from "../services/utils/redis.utils.js";
 import { validateJsonSchemaConfiguration } from "../services/utils/common.utils.js";
+import { ensureChatbotPreview } from "../services/utility.service.js";
 import { modelConfigDocument } from "../services/utils/loadModelConfigs.js";
 import { sendAgentCreatedWebhook } from "../services/utils/agentWebhook.utils.js";
 import { convertPromptToString } from "../utils/promptWrapper.utils.js";
@@ -142,11 +143,20 @@ const createAgentController = async (req, res, next) => {
 
     // Use AI configuration if purpose exists and valid, otherwise build manually
     let model_data;
+    let finalSettings;
     if (purpose && agent_data?.configuration) {
       // Use AI configuration as-is
+      // Define the fixed AI-created agent settings
+      finalSettings = {
+        maximum_iterations: 3,
+        publicUsers: [],
+        editAccess: [],
+        response_format: { type: "default" },
+        guardrails: agent_data.guardrails,
+        fall_back: agent_data.fall_back
+      };
       model_data = {
         type: type,
-        response_format: { type: "default", cred: {} },
         is_rich_text: false,
         prompt: prompt,
         ...agent_data.configuration
@@ -191,8 +201,11 @@ const createAgentController = async (req, res, next) => {
     const useAiData = purpose && Object.keys(agent_data).length > 0;
     const aiVal = (aiField, fallback) => (useAiData ? (aiField ?? fallback) : fallback);
     const mergedConfiguration = { ...(useAiData ? agent_data?.configuration : {}), ...model_data };
+    const cleanAgentData = { ...(useAiData ? agent_data : {}) };
+    delete cleanAgentData.guardrails;
+    delete cleanAgentData.fall_back;
     const result = await ConfigurationServices.createAgent({
-      ...(useAiData ? agent_data : {}),
+      ...cleanAgentData,
       configuration: mergedConfiguration,
       name: aiVal(agent_data?.name, name),
       slugName: slugName,
@@ -202,7 +215,7 @@ const createAgentController = async (req, res, next) => {
       gpt_memory: aiVal(agent_data?.gpt_memory, true),
       folder_id: folder_id,
       user_id: user_id,
-      settings: aiVal(agent_data?.settings),
+      settings: useAiData ? finalSettings : aiVal(agent_data?.settings),
       bridge_limit: agent_limit,
       bridge_usage: agent_usage,
       bridge_limit_reset_period: agent_limit_reset_period,
@@ -604,6 +617,9 @@ const getAllAgentController = async (req, res, next) => {
     const isEmbedUser = req.embed;
 
     const agents = await ConfigurationServices.getAllAgentsInOrg(org_id, folder_id, user_id, isEmbedUser);
+    if (!isEmbedUser && !folder_id) {
+      await ensureChatbotPreview(org_id, user_id, agents);
+    }
 
     // Get role_name from middleware (first layer check)
     const role_name = req.role_name || null;
@@ -661,7 +677,7 @@ const getAllAgentController = async (req, res, next) => {
     res.locals = {
       success: true,
       message: "Get all agents successfully",
-      agent: agents,
+      agent: agents.filter((agent) => agent.slugName !== "chatbot_preview"),
       org_id: org_id,
       access: role_name,
       embed_token: embed_token,
