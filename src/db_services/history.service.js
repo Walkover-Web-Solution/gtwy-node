@@ -152,8 +152,7 @@ async function findRecentThreadsByBridgeId(org_id, bridge_id, filters, user_feed
     // Build where conditions
     const whereConditions = {
       org_id: org_id,
-      bridge_id: bridge_id,
-      batch_data: { [Sequelize.Op.eq]: null }
+      bridge_id: bridge_id
     };
 
     if (user_feedback !== "all" && user_feedback !== "undefined") {
