@@ -132,6 +132,10 @@ export default (sequelize, DataTypes) => {
       batch_data: {
         type: DataTypes.JSONB,
         allowNull: true
+      },
+      plans: {
+        type: DataTypes.JSONB,
+        allowNull: true
       }
     },
     {
