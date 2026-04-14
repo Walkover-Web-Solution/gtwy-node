@@ -100,8 +100,7 @@ async function findConversationLogsByIds(org_id, bridge_id, thread_id, sub_threa
       org_id: org_id,
       bridge_id: bridge_id,
       thread_id: thread_id,
-      sub_thread_id: sub_thread_id,
-      batch_data: { [Sequelize.Op.eq]: null }
+      sub_thread_id: sub_thread_id
     };
 
     if (version_id) {
