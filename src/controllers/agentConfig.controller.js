@@ -423,7 +423,7 @@ const updateAgentController = async (req, res, next) => {
           await ConfigurationServices.updateAgentIdsInApiCalls(function_id, target_id, 1);
         }
       } else {
-        const resolved_script_id = script_id || function_name || agent?.apiCalls?.[function_id]?.script_id;
+        const resolved_script_id = script_id || function_name;
         if (resolved_script_id && current_variables_path[resolved_script_id]) {
           delete current_variables_path[resolved_script_id];
           update_fields.variables_path = current_variables_path;
