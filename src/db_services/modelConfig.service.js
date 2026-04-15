@@ -33,6 +33,21 @@ async function saveModelConfig(modelConfigData) {
   return { id: result._id.toString(), ...modelConfigData };
 }
 
+async function setModelStatusAdmin(model_name, service, status, org_id) {
+  const query = { model_name, service };
+  if (org_id) query.org_id = org_id;
+
+  const update = { $set: { status } };
+  if (status === 0) {
+    update.$set.disabled_at = new Date();
+  } else {
+    update.$set.disabled_at = null;
+  }
+
+  const result = await ModelsConfigModel.findOneAndUpdate(query, update, { new: true });
+  return result;
+}
+
 async function deleteModelConfig(model_name, service) {
   const result = await ModelsConfigModel.findOneAndDelete({ model_name, service });
   return result;
@@ -114,6 +129,7 @@ export default {
   getAllModelConfigsForService,
   deleteModelConfig,
   deleteUserModelConfig,
+  setModelStatusAdmin,
   checkModelConfigExists,
   getModelConfigsByNameAndService,
   checkModel,
