@@ -49,4 +49,23 @@ const UserModelConfigSchema = Joi.object({
   validationConfig: Joi.object().unknown(true).required()
 }).unknown(true);
 
-export { modelConfigSchema, UserModelConfigSchema, saveUserModelConfigurationBodySchema, deleteUserModelConfigurationQuerySchema };
+const setModelStatusAdminBodySchema = Joi.object({
+  model_name: Joi.string().required().messages({
+    "any.required": "model_name is required"
+  }),
+  service: Joi.string().valid("openai", "openai_response", "gemini", "anthropic", "groq", "open_router", "mistral", "deepgram").required().messages({
+    "any.required": "service is required"
+  }),
+  status: Joi.number().valid(0, 1).required().messages({
+    "any.required": "status is required",
+    "any.only": "status must be 0 (disable) or 1 (enable)"
+  })
+});
+
+export {
+  modelConfigSchema,
+  UserModelConfigSchema,
+  saveUserModelConfigurationBodySchema,
+  deleteUserModelConfigurationQuerySchema,
+  setModelStatusAdminBodySchema
+};

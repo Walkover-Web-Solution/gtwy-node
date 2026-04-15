@@ -5,6 +5,7 @@ import { getKnowledgeBaseToken } from "./rag.controller.js";
 import { createOrgToken } from "./chatBot.controller.js";
 import embedController from "./embed.controller.js";
 import { getUsers } from "../services/proxy.service.js";
+import modelConfigDbService from "../db_services/modelConfig.service.js";
 
 const clearRedisCache = async (req, res, next) => {
   const { id, ids } = req.body;
@@ -168,11 +169,42 @@ const getAffiliateEmbedToken = async (req, res, next) => {
   return next();
 };
 
+const setModelStatus = async (req, res, next) => {
+  const { model_name, service, status: parsedStatus } = req.body;
+
+  const existing = await modelConfigDbService.getModelConfigsByNameAndService(model_name, service);
+
+  if (!existing || existing.length === 0) {
+    res.locals = { success: false, message: "Model configuration not found." };
+    req.statusCode = 404;
+    return next();
+  }
+
+  if (existing[0].status === parsedStatus) {
+    const state = parsedStatus === 0 ? "already disabled" : "already enabled";
+    res.locals = { success: false, message: `Model '${model_name}' for service '${service}' is ${state}.` };
+    req.statusCode = 409;
+    return next();
+  }
+
+  const result = await modelConfigDbService.setModelStatusAdmin(model_name, service, parsedStatus);
+
+  const action = parsedStatus === 0 ? "disabled" : "enabled";
+  res.locals = {
+    success: true,
+    message: `Model '${model_name}' for service '${service}' has been ${action}.`,
+    result
+  };
+  req.statusCode = 200;
+  return next();
+};
+
 export default {
   clearRedisCache,
   getRedisCache,
   callGtwy,
   generateToken,
   getCurrentOrgUsers,
-  getAffiliateEmbedToken
+  getAffiliateEmbedToken,
+  setModelStatus
 };
