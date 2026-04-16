@@ -1,8 +1,11 @@
 import agentVersionDbService from "../db_services/agentVersion.service.js";
 import ConfigurationServices from "../db_services/configuration.service.js";
 import folderDbService from "../db_services/folder.service.js";
+import conversationDbService from "../db_services/conversation.service.js";
 import { modelConfigDocument } from "../services/utils/loadModelConfigs.js";
 import { selectBestModel } from "../services/utils/notDiamond.utils.js";
+
+const { addBulkUserEntries } = conversationDbService;
 
 const createVersion = async (req, res, next) => {
   const { version_id, version_description } = req.body;
@@ -26,6 +29,17 @@ const createVersion = async (req, res, next) => {
   if (agentData.bridges.apikey_object_id) {
     await ConfigurationServices.updateApikeyCreds(create_new_version, agentData.bridges.apikey_object_id);
   }
+
+  await addBulkUserEntries([
+    {
+      user_id,
+      org_id,
+      bridge_id: parent_id,
+      version_id: create_new_version,
+      type: "Version created",
+      time: new Date()
+    }
+  ]);
 
   res.locals = {
     success: true,

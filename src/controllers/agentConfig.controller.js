@@ -206,6 +206,25 @@ const createAgentController = async (req, res, next) => {
     const update_fields = { versions: [create_version._id.toString()] };
     const updated_agent_result = await ConfigurationServices.updateAgent(result.bridge._id.toString(), update_fields);
 
+    await addBulkUserEntries([
+      {
+        user_id: user_id,
+        org_id: org_id,
+        bridge_id: result.bridge._id.toString(),
+        version_id: create_version._id.toString(),
+        type: "Version created",
+        time: new Date()
+      },
+      {
+        user_id: user_id,
+        org_id: org_id,
+        bridge_id: result.bridge._id.toString(),
+        version_id: create_version._id.toString(),
+        type: "Agent created",
+        time: new Date()
+      }
+    ]);
+
     res.locals = {
       success: true,
       message: "Agent created successfully",
