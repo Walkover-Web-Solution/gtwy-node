@@ -28,7 +28,8 @@ export const subscribe = async (req, res, next) => {
     validationConfig.vision && "vision",
     modelConfig?.stream === true && "stream",
     modelConfig?.response_type?.is_template && "widget",
-    modelConfig?.type === "image" && "image_model"
+    modelConfig?.type === "image" && "image_model",
+    ["openai", "anthropic"].includes(service) && "planning"
   ].filter(Boolean);
 
   const supportedServices = apikey_object_id ? Object.keys(apikey_object_id) : [];
