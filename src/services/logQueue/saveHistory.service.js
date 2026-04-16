@@ -165,4 +165,30 @@ async function updateBatchHistory(updates) {
   }
 }
 
-export { saveConversationHistory, saveOrchestratorHistory, saveBatchHistory, updateBatchHistory };
+/**
+ * Update an existing conversation log entry by message_id.
+ * Used when Python sends update_history with partial data to update a previously created log.
+ *
+ * @param {Object} updateData - Update payload with message_id and fields to update
+ */
+async function updateConversationHistory(updateData) {
+  if (!updateData || !updateData.message_id) return;
+
+  try {
+    await models.pg.conversation_logs.update(
+      {
+        llm_message: updateData.llm_message ?? null,
+        plans: updateData.plans ?? null,
+        finish_reason: updateData.finish_reason ?? null,
+        status: updateData.status ?? false
+      },
+      {
+        where: { message_id: updateData.message_id }
+      }
+    );
+  } catch (err) {
+    logger.error(`Error updating conversation log (message_id=${updateData.message_id}): ${err.message}`);
+  }
+}
+
+export { saveConversationHistory, saveOrchestratorHistory, saveBatchHistory, updateBatchHistory, updateConversationHistory };

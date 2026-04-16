@@ -8,7 +8,13 @@ import { saveToAgentMemory } from "../services/logQueue/saveToAgentMemory.servic
 import { saveFilesToRedis } from "../services/logQueue/saveFilesToRedis.service.js";
 import { sendApiHitEvent } from "../services/logQueue/sendApiHitEvent.service.js";
 import { broadcastResponseWebhook } from "../services/logQueue/broadcastResponseWebhook.service.js";
-import { saveConversationHistory, saveOrchestratorHistory, saveBatchHistory, updateBatchHistory } from "../services/logQueue/saveHistory.service.js";
+import {
+  saveConversationHistory,
+  saveOrchestratorHistory,
+  saveBatchHistory,
+  updateBatchHistory,
+  updateConversationHistory
+} from "../services/logQueue/saveHistory.service.js";
 import { saveMetrics, saveFlatMetrics } from "../services/logQueue/saveMetrics.service.js";
 
 async function processLogQueueMessage(messages) {
@@ -19,6 +25,10 @@ async function processLogQueueMessage(messages) {
   if (messages["save_history"]) {
     await saveConversationHistory(messages["save_history"]);
     await saveMetrics(messages["save_history"]);
+  }
+
+  if (messages["update_history"]) {
+    await updateConversationHistory(messages["update_history"]);
   }
 
   if (messages["save_orchestrator_history"]) {
