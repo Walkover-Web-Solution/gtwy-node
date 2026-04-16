@@ -159,8 +159,8 @@ async function findRecentThreadsByBridgeId(org_id, bridge_id, filters, user_feed
       whereConditions.user_feedback = user_feedback === "all" ? 0 : user_feedback;
     }
 
-    if (error !== "false") {
-      whereConditions.error = error;
+    if (error === "true" || error === true) {
+      whereConditions.error = { [Sequelize.Op.ne]: null };
     }
 
     if (version_id) {
