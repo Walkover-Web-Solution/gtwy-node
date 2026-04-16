@@ -71,7 +71,7 @@ const createApi = async (req, res, next) => {
     const user_id = req.profile.user.id;
     const isEmbedUser = req.embed;
 
-    if (status === "published" || status === "updated") {
+    if (status === "published" || status === "updated" || status === "initiated") {
       const properties = req.body?.openaiToolJson?.function?.parameters?.properties || {};
       const required = req.body?.openaiToolJson?.function?.parameters?.required || [];
 
