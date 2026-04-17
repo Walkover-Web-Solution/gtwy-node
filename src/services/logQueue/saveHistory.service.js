@@ -171,21 +171,45 @@ async function updateBatchHistory(updates) {
  *
  * @param {Object} updateData - Update payload with message_id and fields to update
  */
+const UPDATABLE_COLS = new Set([
+  "llm_message",
+  "reasoning",
+  "chatbot_message",
+  "updated_llm_message",
+  "error",
+  "tools_call_data",
+  "user_urls",
+  "llm_urls",
+  "AiConfig",
+  "fallback_model",
+  "service",
+  "model",
+  "status",
+  "tokens",
+  "variables",
+  "latency",
+  "firstAttemptError",
+  "finish_reason",
+  "plans",
+  "prompt"
+]);
+
 async function updateConversationHistory(updateData) {
   if (!updateData || !updateData.message_id) return;
 
+  const updateFields = {};
+  for (const [key, value] of Object.entries(updateData)) {
+    if (UPDATABLE_COLS.has(key) && value !== undefined) {
+      updateFields[key] = value;
+    }
+  }
+
+  if (Object.keys(updateFields).length === 0) return;
+
   try {
-    await models.pg.conversation_logs.update(
-      {
-        llm_message: updateData.llm_message ?? null,
-        plans: updateData.plans ?? null,
-        finish_reason: updateData.finish_reason ?? null,
-        status: updateData.status ?? false
-      },
-      {
-        where: { message_id: updateData.message_id }
-      }
-    );
+    await models.pg.conversation_logs.update(updateFields, {
+      where: { message_id: updateData.message_id }
+    });
   } catch (err) {
     logger.error(`Error updating conversation log (message_id=${updateData.message_id}): ${err.message}`);
   }
