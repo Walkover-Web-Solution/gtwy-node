@@ -213,7 +213,8 @@ const createAgentController = async (req, res, next) => {
       bridge_status: 1,
       createdAt: new Date(),
       updatedAt: new Date(),
-      meta: meta
+      meta: meta,
+      stateless_conversation: agentType === "api" ? true : agents.stateless_conversation || false
     });
 
     const create_version = await agentVersionDbService.createAgentVersion(result.bridge);
@@ -324,7 +325,8 @@ const updateAgentController = async (req, res, next) => {
     "chatbot_auto_answers",
     "auto_model_select",
     "cache_on",
-    "pre_tools"
+    "pre_tools",
+    "stateless_conversation"
   ];
 
   for (const field of simple_fields) {
