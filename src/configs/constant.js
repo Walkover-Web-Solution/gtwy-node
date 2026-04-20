@@ -78,14 +78,13 @@ const prebuilt_prompt_bridge_id = [
 
 const new_agent_service = {
   openai: { model: "gpt-5-nano", default_name: "OpenAI" },
-  anthropic: { model: "claude-sonnet-4-20250514", default_name: "Anthropic" },
+  anthropic: { model: "claude-sonnet-4-6", default_name: "Anthropic" },
   groq: { model: "openai/gpt-oss-120b", default_name: "Groq" },
   open_router: { model: "openai/gpt-4o", default_name: "Open Router" },
   mistral: { model: "mistral-small-latest", default_name: "Mistral" },
   gemini: { model: "gemini-2.5-pro", default_name: "Gemini" },
   grok: { model: "grok-4-fast", default_name: "Grok" },
   deepgram: { model: "nova-3", default_name: "Deepgram" }
-
 };
 
 export { collectionNames, bridge_ids, redis_keys, cost_types, prebuilt_prompt_bridge_id, new_agent_service, embed_cache };
