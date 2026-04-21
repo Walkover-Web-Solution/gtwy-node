@@ -1235,7 +1235,7 @@ const getUniqueAgentNameAndSlug = async (org_id, baseName) => {
     let name = baseName || "untitled_agent";
     const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-    const nameRegex = new RegExp(`^${escapeRegExp(name)}(?: (\\d+))?$`, "i");
+    const nameRegex = new RegExp(`^${escapeRegExp(name)}(?:_(\\d+))?$`, "i");
     const baseSlug = name.replace(/[^a-zA-Z0-9]/g, "_").toLowerCase();
     const slugRegex = new RegExp(`^${escapeRegExp(baseSlug)}(?:_(\\d+))?$`, "i");
 
