@@ -237,7 +237,7 @@ const genrateToken = async (req, res, next) => {
     }
   }
 
-  res.locals = { embedToken };
+  res.locals = { embedToken, gtwyAccessToken };
   req.statusCode = 200;
   return next();
 };

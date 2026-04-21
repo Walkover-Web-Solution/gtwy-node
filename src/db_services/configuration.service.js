@@ -399,9 +399,10 @@ const deleteAgent = async (agent_id, org_id) => {
         }
       );
     }
+    const agentLabel = agent.name || agent_id;
     const statusMessage = agentAlreadyDeleted
-      ? `Agent ID: ${agent_id} was already soft deleted, updated timestamp. ${deletedVersions.modifiedCount} versions marked for deletion.`
-      : `Agent ID: ${agent_id} and ${deletedVersions.modifiedCount} versions marked for deletion. They will be permanently deleted after 30 days.`;
+      ? `Agent "${agentLabel}" was already soft deleted, updated timestamp. ${deletedVersions.modifiedCount} versions marked for deletion.`
+      : `Agent "${agentLabel}" and ${deletedVersions.modifiedCount} versions marked for deletion. They will be permanently deleted after 30 days.`;
 
     return {
       success: true,
