@@ -288,7 +288,7 @@ function calculateTokens(text) {
   }
 }
 
-async function calculateAndSavePromptTokens(parentId, prompt, tools) {
+function calculatePromptTokens(prompt, tools) {
   try {
     let promptTokens = 0;
     let toolsTokens = 0;
@@ -313,16 +313,10 @@ async function calculateAndSavePromptTokens(parentId, prompt, tools) {
       }
     }
 
-    // Calculate total tokens
-    const promptTotalTokens = promptTokens + toolsTokens;
-
-    // Update the document in the configurationModel
-    await configurationModel.updateOne({ _id: parentId }, { $set: { prompt_total_tokens: promptTotalTokens } });
-
-    return promptTotalTokens;
+    return promptTokens + toolsTokens;
   } catch (error) {
-    console.error("Error calculating and saving prompt tokens:", error);
-    return null;
+    console.error("Error calculating prompt tokens:", error);
+    return 0;
   }
 }
 
@@ -441,13 +435,10 @@ async function publish(org_id, version_id, user_id) {
     }
   };
 
-  // Background tasks
   const tools = getVersionData.apiCalls;
 
-  makeQuestion(parentId, prompt, tools, true).catch(console.error);
-  getPromptEnhancerPercentage(parentId, prompt).catch(console.error);
-  calculateAndSavePromptTokens(parentId, prompt, tools).catch(console.error);
-  // deleteCurrentTestcaseHistory(version_id).catch(console.error); // Implement if needed
+  // Calculate token count and include in transaction update (avoids a separate DB write)
+  updatedConfiguration.prompt_total_tokens = calculatePromptTokens(prompt, tools);
 
   // Transaction
   const session = await mongoose.startSession();
@@ -468,6 +459,11 @@ async function publish(org_id, version_id, user_id) {
   } finally {
     session.endSession();
   }
+
+  // Background tasks (after transaction to avoid write conflicts on configurationModel)
+  makeQuestion(parentId, prompt, tools, true).catch(console.error);
+  getPromptEnhancerPercentage(parentId, prompt).catch(console.error);
+  // deleteCurrentTestcaseHistory(version_id).catch(console.error); // Implement if needed
 
   const cacheKeysToDelete = _buildCacheKeys(publishedVersionId, parentId, { bridges: [], versions: [] }, [], org_id);
   if (cacheKeysToDelete.length > 0) {
