@@ -1165,7 +1165,8 @@ const getAllAgentsInOrg = async (org_id, folder_id, user_id, isEmbedUser) => {
       prompt_total_tokens: 1,
       prompt_enhancer_percentage: 1,
       criteria_check: 1,
-      settings: 1
+      settings: 1,
+      meta: 1
     })
     .sort({ createdAt: -1 })
     .lean();
