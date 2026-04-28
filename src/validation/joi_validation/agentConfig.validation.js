@@ -94,7 +94,8 @@ const updateBridgeSchema = Joi.object({
       service: Joi.string().optional(),
       model: Joi.string().optional()
     }).optional(),
-    guardrails: Joi.object().optional()
+    guardrails: Joi.object().optional(),
+    reviewer_agent: Joi.objectId().optional()
   }).optional(),
   web_search_filters: Joi.alternatives().try(Joi.array().items(Joi.string()), Joi.object()).optional(),
   gtwy_web_search_filters: Joi.alternatives().try(Joi.array().items(Joi.string()), Joi.object()).optional(),
