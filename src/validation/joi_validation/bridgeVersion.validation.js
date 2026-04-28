@@ -65,7 +65,8 @@ const getConnectedAgents = {
     .unknown(true),
   query: Joi.object()
     .keys({
-      type: Joi.string().optional()
+      type: Joi.string().optional(),
+      key: Joi.string().valid("orchestral", "flow").optional().default("orchestral")
     })
     .unknown(true)
 };
