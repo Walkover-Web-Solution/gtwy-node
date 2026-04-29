@@ -60,9 +60,9 @@ class Helper {
     return response;
   }
 
-  static traverseBody(body, path = [], paths = [], fields = {}, required_params = []) {
+  static traverseBody(body, path = [], paths = [], fields = {}, required = []) {
     if (!body) {
-      return { paths, fields, required_params };
+      return { paths, fields, required };
     }
 
     for (const key in body) {
@@ -75,7 +75,7 @@ class Helper {
             description: "",
             type: "object",
             enum: [],
-            required_params: [],
+            required: [],
             parameter: {}
           };
         }
@@ -88,8 +88,8 @@ class Helper {
             parentObj = parentObj.parameter[path[i]];
           }
 
-          if (!parentObj.required_params.includes(key)) {
-            parentObj.required_params.push(key);
+          if (!parentObj.required.includes(key)) {
+            parentObj.required.push(key);
           }
 
           if (!parentObj.parameter[key]) {
@@ -97,16 +97,16 @@ class Helper {
               description: "",
               type: "object",
               enum: [],
-              required_params: [],
+              required: [],
               parameter: {}
             };
           }
         }
-        Helper.traverseBody(value, currentPath, paths, fields, required_params);
+        Helper.traverseBody(value, currentPath, paths, fields, required);
       } else if (value === "your_value_here") {
         paths.push(currentPath.join("."));
-        if (!required_params.includes(key)) {
-          required_params.push(key);
+        if (!required.includes(key)) {
+          required.push(key);
         }
 
         if (path.length > 0) {
@@ -115,15 +115,15 @@ class Helper {
             parentObj = parentObj.parameter[path[i]];
           }
 
-          if (!parentObj.required_params.includes(key)) {
-            parentObj.required_params.push(key);
+          if (!parentObj.required.includes(key)) {
+            parentObj.required.push(key);
           }
 
           parentObj.parameter[key] = {
             description: "",
             type: "string",
             enum: [],
-            required_params: [],
+            required: [],
             parameter: {}
           };
         } else {
@@ -131,19 +131,19 @@ class Helper {
             description: "",
             type: "string",
             enum: [],
-            required_params: [],
+            required: [],
             parameter: {}
           };
         }
       }
     }
 
-    return { paths, fields, required_params };
+    return { paths, fields, required };
   }
 
   /**
    * Transforms fields structure by normalizing each field's properties
-   * and replacing 'required' with 'required_params'.
+   * and keeping the 'required' array for each field.
    * @param {Object} fields - The fields object to transform
    * @returns {Object} Transformed fields object with normalized structure, or {} if input is invalid
    */
@@ -153,7 +153,7 @@ class Helper {
     const transformed = {};
     for (const [key, val] of Object.entries(props)) {
       if (val === null) {
-        transformed[key] = { description: "", type: "string", enum: [], required_params: [], parameter: {} };
+        transformed[key] = { description: "", type: "string", enum: [], required: [], parameter: {} };
         continue;
       }
       transformed[key] = {
@@ -161,7 +161,7 @@ class Helper {
         type: val.type || "string",
         enum: val.enum || [],
         // Filters required array to only include keys that exist in transformed fields
-        required_params: Array.isArray(val.required) ? val.required : [],
+        required: Array.isArray(val.required) ? val.required : [],
         parameter:
           val.properties && typeof val.properties === "object" && Object.keys(val.properties).length > 0
             ? Helper.transformFieldsStructure(val.properties)

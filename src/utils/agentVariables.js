@@ -65,7 +65,7 @@ function transformAgentVariableToToolCallFormat(inputData) {
           type: "object",
           description: "",
           enum: [],
-          required_params: [],
+          required: [],
           parameter: {}
         };
       } else if (!current[part].parameter) {
@@ -89,7 +89,7 @@ function transformAgentVariableToToolCallFormat(inputData) {
       type: paramType,
       description: "",
       enum: [],
-      required_params: []
+      required: []
     };
 
     if (isRequired) {
@@ -102,8 +102,8 @@ function transformAgentVariableToToolCallFormat(inputData) {
         const parentKey = parts[i];
         const childKey = parts[i + 1];
 
-        if (!currentLevel[parentKey].required_params.includes(childKey)) {
-          currentLevel[parentKey].required_params.push(childKey);
+        if (!currentLevel[parentKey].required.includes(childKey)) {
+          currentLevel[parentKey].required.push(childKey);
         }
       }
 
@@ -130,7 +130,7 @@ function transformAgentVariableToToolCallFormat(inputData) {
         type: paramType,
         description: "",
         enum: [],
-        required_params: []
+        required: []
       };
 
       if (isRequired && !requiredParams.includes(key)) {
@@ -141,7 +141,7 @@ function transformAgentVariableToToolCallFormat(inputData) {
 
   return {
     fields: fields,
-    required_params: requiredParams
+    required: requiredParams
   };
 }
 

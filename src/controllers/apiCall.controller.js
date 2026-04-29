@@ -71,17 +71,15 @@ const createApi = async (req, res, next) => {
     const user_id = req.profile.user.id;
     const isEmbedUser = req.embed;
 
-    if (status === "published" || status === "updated" || status === "initiated") {
-      const properties = req.body?.openaiToolJson?.function?.parameters?.properties || {};
-      const required = req.body?.openaiToolJson?.function?.parameters?.required || [];
-
-      const fields = Helper.transformFieldsStructure(properties);
-      const required_params = required.filter((k) => fields[k]);
+    if (status === "published" || status === "updated") {
+      const fields = req.body?.openaiToolJson?.function?.parameters?.properties || {};
+      const requiredList = req.body?.openaiToolJson?.function?.parameters?.required || [];
+      const required = requiredList.filter((k) => fields[k]);
 
       const api_data = await service.getApiData(org_id, script_id, folder_id, user_id, isEmbedUser);
       const cleanedTitle = Helper.makeFunctionName(title || script_id || "");
 
-      const result = await service.saveApi(desc, org_id, folder_id, user_id, api_data, [], script_id, fields, cleanedTitle, required_params);
+      const result = await service.saveApi(desc, org_id, folder_id, user_id, api_data, [], script_id, fields, cleanedTitle, required);
       if (result.success) {
         const responseData = result.api_data;
         responseData._id = responseData._id.toString();
