@@ -417,6 +417,142 @@ const deleteAgent = async (agent_id, org_id) => {
   }
 };
 
+const permanentlyDeleteAgent = async (agent_id, org_id) => {
+  try {
+    const agent = await configurationModel.findOne({
+      _id: new ObjectId(agent_id),
+      org_id: org_id
+    });
+    if (!agent) {
+      return {
+        success: false,
+        error: "Agent not found"
+      };
+    }
+
+    // Check if any other agent/version references this agent in connected_agents
+    const [connectedFromVersions, connectedFromConfigurations] = await Promise.all([
+      versionModel.aggregate([
+        {
+          $match: {
+            org_id: org_id,
+            connected_agents: { $exists: true, $ne: null }
+          }
+        },
+        {
+          $addFields: {
+            hasConnection: {
+              $anyElementTrue: {
+                $map: {
+                  input: { $objectToArray: "$connected_agents" },
+                  as: "agent",
+                  in: { $eq: ["$$agent.v.bridge_id", agent_id] }
+                }
+              }
+            },
+            bridgeId: { $ifNull: ["$parent_id", "$_id"] }
+          }
+        },
+        { $match: { hasConnection: true } },
+        { $group: { _id: "$bridgeId" } }
+      ]),
+      configurationModel.aggregate([
+        {
+          $match: {
+            org_id: org_id,
+            connected_agents: { $exists: true, $ne: null }
+          }
+        },
+        {
+          $addFields: {
+            hasConnection: {
+              $anyElementTrue: {
+                $map: {
+                  input: { $objectToArray: "$connected_agents" },
+                  as: "agent",
+                  in: { $eq: ["$$agent.v.bridge_id", agent_id] }
+                }
+              }
+            }
+          }
+        },
+        { $match: { hasConnection: true } },
+        { $group: { _id: "$_id" } }
+      ])
+    ]);
+
+    const allConnectedAgentIds = [...connectedFromVersions.map((item) => item._id), ...connectedFromConfigurations.map((item) => item._id)];
+    const uniqueAgentIds = [...new Set(allConnectedAgentIds.map((id) => id.toString()))].filter((id) => id !== agent_id.toString());
+
+    if (uniqueAgentIds.length > 0) {
+      const connectedAgents = await configurationModel
+        .find({
+          _id: { $in: uniqueAgentIds.map((id) => new ObjectId(id)) },
+          org_id: org_id
+        })
+        .select({ _id: 1, name: 1 })
+        .lean();
+
+      const agentNames = connectedAgents.map((a) => a.name || `Agent ${a._id}`);
+
+      return {
+        success: false,
+        error: `Cannot delete agent. It is connected to the following ${agentNames.length === 1 ? "agent" : "agents"}: ${agentNames.join(", ")}`,
+        connected_agents: connectedAgents.map((a) => ({ _id: a._id, name: a.name }))
+      };
+    }
+
+    // Hard delete all versions for this agent (by parent_id and by versions array)
+    const versionIdsFromArray = Array.isArray(agent.versions)
+      ? agent.versions
+          .map((id) => {
+            try {
+              return new ObjectId(id);
+            } catch {
+              return null;
+            }
+          })
+          .filter(Boolean)
+      : [];
+
+    const versionDeleteFilter = {
+      org_id: org_id,
+      $or: [{ parent_id: agent_id.toString() }, { parent_id: agent_id }]
+    };
+    if (versionIdsFromArray.length > 0) {
+      versionDeleteFilter.$or.push({ _id: { $in: versionIdsFromArray } });
+    }
+
+    const deletedVersions = await versionModel.deleteMany(versionDeleteFilter);
+
+    // Hard delete the agent itself
+    const deletedAgent = await configurationModel.deleteOne({
+      _id: new ObjectId(agent_id),
+      org_id: org_id
+    });
+
+    if (deletedAgent.deletedCount === 0) {
+      return {
+        success: false,
+        error: "Failed to delete agent"
+      };
+    }
+
+    const agentLabel = agent.name || agent_id;
+    return {
+      success: true,
+      message: `Agent "${agentLabel}" permanently deleted along with ${deletedVersions.deletedCount} version(s).`,
+      deletedVersionsCount: deletedVersions.deletedCount
+    };
+  } catch (error) {
+    console.error("permanentlyDeleteAgent error:", error);
+    return {
+      success: false,
+      error: "something went wrong!!"
+    };
+  }
+};
+
 const restoreAgent = async (agent_id, org_id) => {
   try {
     // First, find the soft-deleted agent
@@ -1295,6 +1431,7 @@ const getUniqueAgentNameAndSlug = async (org_id, baseName) => {
 
 export default {
   deleteAgent,
+  permanentlyDeleteAgent,
   restoreAgent,
   getApiCallById,
   getAgentsWithSelectedData,
