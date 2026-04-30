@@ -1,5 +1,9 @@
 import ModelsConfigModel from "../mongoModel/ModelConfig.model.js";
 import { flatten } from "flat";
+import ConfigurationServices from "./configuration.service.js";
+import configurationModel from "../mongoModel/Configuration.model.js";
+import versionModel from "../mongoModel/BridgeVersion.model.js";
+import { new_agent_service } from "../configs/constant.js";
 
 async function checkModel(model_name, service) {
   //function to check if a model configuration exists
@@ -45,7 +49,50 @@ async function setModelStatusAdmin(model_name, service, status, org_id) {
   }
 
   const result = await ModelsConfigModel.findOneAndUpdate(query, update, { new: true });
-  return result;
+  // If disabling the model, find all agents and versions using it and replace with default model
+  let usageInfo = null;
+  let updatedVersions = new Set();
+  if (status === 0 && result) {
+    usageInfo = await ConfigurationServices.findIdsByModelAndService(model_name, service, null);
+
+    const defaultModel = new_agent_service[service]?.model;
+    if (defaultModel && usageInfo?.data) {
+      const versionIds = usageInfo.data.versions.map((v) => v.id);
+      if (versionIds.length > 0) {
+        // Update primary model in versions
+        await versionModel.updateMany(
+          { _id: { $in: versionIds }, "configuration.model": model_name },
+          { $set: { "configuration.model": defaultModel } }
+        );
+        // Update fallback model in versions
+        await versionModel.updateMany(
+          { _id: { $in: versionIds }, "settings.fall_back.model": model_name },
+          { $set: { "settings.fall_back.model": defaultModel } }
+        );
+        versionIds.forEach((id) => updatedVersions.add(id));
+      }
+
+      const agentIds = usageInfo.data.agents.map((a) => a.id);
+      if (agentIds.length > 0) {
+        // Update primary model in agents
+        await configurationModel.updateMany(
+          { _id: { $in: agentIds }, "configuration.model": model_name },
+          { $set: { "configuration.model": defaultModel } }
+        );
+        // Update fallback model in agents
+        await configurationModel.updateMany(
+          { _id: { $in: agentIds }, "settings.fall_back.model": model_name },
+          { $set: { "settings.fall_back.model": defaultModel } }
+        );
+      }
+    }
+  }
+
+  return {
+    modelConfig: result,
+    usageInfo: usageInfo,
+    updatedVersions: Array.from(updatedVersions)
+  };
 }
 
 async function deleteModelConfig(model_name, service) {

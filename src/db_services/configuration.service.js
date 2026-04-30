@@ -896,24 +896,32 @@ const getAgentByUrlSlugname = async (url_slugName) => {
 };
 
 const findIdsByModelAndService = async (model, service, org_id) => {
-  const query = {
+  // Query for models in configuration.model
+  const primaryQuery = {
     "configuration.model": model
   };
-  if (service) query.service = service;
-  if (org_id) query.org_id = org_id;
+  if (service) primaryQuery.service = service;
+  if (org_id) primaryQuery.org_id = org_id;
 
-  // Find matching configurations in configurationModel
+  // Query for models in fallback settings
+  const fallbackQuery = {
+    "settings.fall_back.model": model
+  };
+  if (service) fallbackQuery["settings.fall_back.service"] = service;
+  if (org_id) fallbackQuery.org_id = org_id;
+
+  // Find matching configurations in configurationModel (both primary and fallback)
   const configMatches = await configurationModel
-    .find(query)
+    .find({ $or: [primaryQuery, fallbackQuery] })
     .select({
       _id: 1,
       name: 1
     })
     .lean();
 
-  // Find matching configurations in versionModel
+  // Find matching configurations in versionModel (both primary and fallback)
   const versionMatches = await versionModel
-    .find(query)
+    .find({ $or: [primaryQuery, fallbackQuery] })
     .select({
       _id: 1,
       name: 1

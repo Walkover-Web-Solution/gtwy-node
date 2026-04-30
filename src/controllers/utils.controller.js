@@ -190,11 +190,23 @@ const setModelStatus = async (req, res, next) => {
   const result = await modelConfigDbService.setModelStatusAdmin(model_name, service, parsedStatus);
 
   const action = parsedStatus === 0 ? "disabled" : "enabled";
-  res.locals = {
+  const response = {
     success: true,
     message: `Model '${model_name}' for service '${service}' has been ${action}.`,
-    result
+    modelConfig: result.modelConfig
   };
+
+  if (parsedStatus === 0) {
+    if (result.usageInfo) {
+      response.usageInfo = result.usageInfo;
+    }
+    response.updatedVersions = result.updatedVersions;
+    if (result.updatedVersions && result.updatedVersions.length > 0) {
+      response.message += ` Updated ${result.updatedVersions.length} agent version(s) to use default model.`;
+    }
+  }
+
+  res.locals = response;
   req.statusCode = 200;
   return next();
 };
