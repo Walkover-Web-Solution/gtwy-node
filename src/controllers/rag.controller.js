@@ -272,15 +272,15 @@ export const createResourceInCollection = async (req, res, next) => {
     if (collection_details == "high_accuracy") {
       const collection = existingCollections.find((col) => col.name == "high_accuracy");
       collectionId = collection?.collection_id;
-      settings = { ...settings, ...filterUndefined(collection?.settings) };
+      settings = { ...filterUndefined(collection?.settings), ...filterUndefined(settings) };
     } else if (collection_details == "moderate") {
       const collection = existingCollections.find((col) => col.name == "moderate");
       collectionId = collection?.collection_id;
-      settings = { ...settings, ...filterUndefined(collection?.settings) };
+      settings = { ...filterUndefined(collection?.settings), ...filterUndefined(settings) };
     } else {
       const collection = existingCollections.find((col) => col.name == "fastest");
       collectionId = collection?.collection_id;
-      settings = { ...settings, ...filterUndefined(collection?.settings) };
+      settings = { ...filterUndefined(collection?.settings), ...filterUndefined(settings) };
     }
 
     if (!collectionId) {
