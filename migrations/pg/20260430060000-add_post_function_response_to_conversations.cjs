@@ -7,7 +7,7 @@ module.exports = {
     try {
       await queryInterface.addColumn(
         "conversations",
-        "post_function_response",
+        "post_tool_response",
         {
           type: Sequelize.JSON,
           allowNull: true,
@@ -26,7 +26,7 @@ module.exports = {
   async down(queryInterface) {
     const transaction = await queryInterface.sequelize.transaction();
     try {
-      await queryInterface.removeColumn("conversations", "post_function_response", { transaction });
+      await queryInterface.removeColumn("conversations", "post_tool_response", { transaction });
 
       await transaction.commit();
     } catch (error) {
