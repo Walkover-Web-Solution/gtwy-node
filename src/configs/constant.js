@@ -94,12 +94,16 @@ export const AI_OPERATION_CONFIG = {
     bridgeIdConst: bridge_ids["optimze_prompt"],
     prebuiltKey: "optimze_prompt",
     getContext: async (req, org_id) => {
-      const { version_id, bridge_id } = req.body;
+      const { version_id, bridge_id, variables } = req.body;
       const bridgeResult = await ConfigurationServices.getAgents(bridge_id, org_id, version_id);
-      return { bridge: bridgeResult.bridges };
+      return { bridge: bridgeResult.bridges, variables };
     },
     getPrompt: (context) => context.bridge.configuration?.prompt || "",
-    getVariables: (req, context) => ({ query: req.body.query, fields: context.bridge.configuration?.prompt }),
+    getVariables: (req, context) => {
+      const prompt = context.bridge.configuration?.prompt;
+      const fields = prompt && typeof prompt === "object" ? { [context.variables.variable_key]: prompt[context.variables.variable_key] } : prompt;
+      return { query: req.body.query, fields };
+    },
     getMessage: () => "optimize the prompt according the data contain in the fields",
     successMessage: "Prompt optimized successfully"
   },
