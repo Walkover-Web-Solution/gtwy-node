@@ -18,11 +18,19 @@ import {
 import { saveMetrics, saveFlatMetrics } from "../services/logQueue/saveMetrics.service.js";
 
 async function processLogQueueMessage(messages) {
-  if (messages["save_sub_thread_id_and_name"]) {
-    await saveSubThreadIdAndName(messages["save_sub_thread_id_and_name"]);
-  }
-
   if (messages["save_history"]) {
+    const conv = messages["save_history"]?.[0]?.conversation_log_data;
+    if (conv?.sub_thread_id) {
+      await saveSubThreadIdAndName({
+        org_id: conv.org_id,
+        thread_id: conv.thread_id,
+        sub_thread_id: conv.sub_thread_id,
+        bridge_id: conv.bridge_id,
+        user: conv.user,
+        thread_flag: conv.thread_flag,
+        response_format: conv.response_format
+      });
+    }
     await saveConversationHistory(messages["save_history"]);
     await saveMetrics(messages["save_history"]);
   }
@@ -32,10 +40,26 @@ async function processLogQueueMessage(messages) {
   }
 
   if (messages["save_orchestrator_history"]) {
+    const orchestratorSubThreadData = messages["save_orchestrator_history"]?.sub_thread_data;
+    if (orchestratorSubThreadData) {
+      await saveSubThreadIdAndName(orchestratorSubThreadData);
+    }
     await saveOrchestratorHistory(messages["save_orchestrator_history"]);
   }
 
   if (messages["save_batch_history"]) {
+    const batchEntry = messages["save_batch_history"]?.[0];
+    if (batchEntry?.sub_thread_id) {
+      await saveSubThreadIdAndName({
+        org_id: batchEntry.org_id,
+        thread_id: batchEntry.thread_id,
+        sub_thread_id: batchEntry.sub_thread_id,
+        bridge_id: batchEntry.bridge_id,
+        user: batchEntry.user,
+        thread_flag: batchEntry.thread_flag,
+        response_format: batchEntry.response_format
+      });
+    }
     await saveBatchHistory(messages["save_batch_history"]);
   }
 
