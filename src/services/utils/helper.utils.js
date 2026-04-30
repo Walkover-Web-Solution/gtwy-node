@@ -76,7 +76,7 @@ class Helper {
             type: "object",
             enum: [],
             required_params: [],
-            parameter: {}
+            properties: {}
           };
         }
       }
@@ -85,20 +85,20 @@ class Helper {
         if (path.length > 0) {
           let parentObj = fields[path[0]];
           for (let i = 1; i < path.length; i++) {
-            parentObj = parentObj.parameter[path[i]];
+            parentObj = parentObj.properties[path[i]];
           }
 
           if (!parentObj.required_params.includes(key)) {
             parentObj.required_params.push(key);
           }
 
-          if (!parentObj.parameter[key]) {
-            parentObj.parameter[key] = {
+          if (!parentObj.properties[key]) {
+            parentObj.properties[key] = {
               description: "",
               type: "object",
               enum: [],
               required_params: [],
-              parameter: {}
+              properties: {}
             };
           }
         }
@@ -112,19 +112,19 @@ class Helper {
         if (path.length > 0) {
           let parentObj = fields[path[0]];
           for (let i = 1; i < path.length; i++) {
-            parentObj = parentObj.parameter[path[i]];
+            parentObj = parentObj.properties[path[i]];
           }
 
           if (!parentObj.required_params.includes(key)) {
             parentObj.required_params.push(key);
           }
 
-          parentObj.parameter[key] = {
+          parentObj.properties[key] = {
             description: "",
             type: "string",
             enum: [],
             required_params: [],
-            parameter: {}
+            properties: {}
           };
         } else {
           fields[key] = {
@@ -132,7 +132,7 @@ class Helper {
             type: "string",
             enum: [],
             required_params: [],
-            parameter: {}
+            properties: {}
           };
         }
       }
@@ -153,7 +153,7 @@ class Helper {
     const transformed = {};
     for (const [key, val] of Object.entries(props)) {
       if (val === null) {
-        transformed[key] = { description: "", type: "string", enum: [], required_params: [], parameter: {} };
+        transformed[key] = { description: "", type: "string", enum: [], required_params: [], properties: {} };
         continue;
       }
       transformed[key] = {
@@ -162,7 +162,7 @@ class Helper {
         enum: val.enum || [],
         // Filters required array to only include keys that exist in transformed fields
         required_params: Array.isArray(val.required) ? val.required : [],
-        parameter:
+        properties:
           val.properties && typeof val.properties === "object" && Object.keys(val.properties).length > 0
             ? Helper.transformFieldsStructure(val.properties)
             : {}

@@ -7,7 +7,7 @@ const fieldValueSchema = new mongoose.Schema(
     enum: { type: [String], default: () => [] },
     items: { type: mongoose.Schema.Types.Mixed, default: undefined },
     required_params: { type: [String], default: () => [] },
-    parameter: { type: mongoose.Schema.Types.Mixed, default: () => ({}) }
+    properties: { type: mongoose.Schema.Types.Mixed, default: () => ({}) }
   },
   { _id: false }
 );
