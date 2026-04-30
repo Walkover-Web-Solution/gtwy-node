@@ -98,7 +98,7 @@ const publicChatbotAuth = async (req, res, next) => {
     }
     return { success: false };
   } catch (err) {
-    console.error(err);
+    if (err.name !== "JsonWebTokenError") console.error(err);
     return { success: false };
   }
 };
