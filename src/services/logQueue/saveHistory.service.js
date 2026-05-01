@@ -43,7 +43,8 @@ async function saveConversationHistory(historyEntries) {
       finish_reason: data.finish_reason ?? null,
       parent_id: data.parent_id ?? null,
       child_id: data.child_id ?? null,
-      plans: data.plans ?? null
+      plans: data.plans ?? null,
+      post_tool_response: data.post_tool_response ?? null
     });
   } catch (err) {
     logger.error(`Error saving conversation log (message_id=${data.message_id}): ${err.message}`);
