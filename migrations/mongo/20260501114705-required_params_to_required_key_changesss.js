@@ -4,7 +4,7 @@
  * @returns {Promise<void>}
  */
 export const up = async (db) => {
-  const collection = db.collection("aicalls");
+  const collection = db.collection("apicalls");
   const documents = await collection.find({}).toArray();
   const operations = [];
 
@@ -32,7 +32,7 @@ export const up = async (db) => {
  * @returns {Promise<void>}
  */
 export const down = async (db) => {
-  const collection = db.collection("aicalls");
+  const collection = db.collection("apicalls");
   const documents = await collection.find({}).toArray();
   const operations = [];
 
