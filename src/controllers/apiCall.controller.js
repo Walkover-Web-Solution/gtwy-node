@@ -4,6 +4,7 @@ import ConfigurationServices from "../db_services/configuration.service.js";
 import Helper from "../services/utils/helper.utils.js";
 import agentVersionService from "../db_services/agentVersion.service.js";
 import { deleteInCache } from "../cache_service/index.js";
+import { syncToolToViasocketEmbed } from "../services/utils/viasocketSync.utils.js";
 
 const getAllApiCalls = async (req, res, next) => {
   const org_id = req.profile?.org?.id;
@@ -27,6 +28,7 @@ const updateApiCalls = async (req, res, next) => {
   const org_id = req.profile?.org?.id;
   const { function_id } = req.params;
   const { dataToSend } = req.body;
+  const explicitVersionId = req.body?.version_id || null;
   let data_to_update = validateRequiredParams(dataToSend);
 
   const data = await service.getFunctionById(function_id);
@@ -38,6 +40,21 @@ const updateApiCalls = async (req, res, next) => {
   };
 
   const updated_function = await service.updateApiCallByFunctionId(org_id, function_id, data_to_update);
+
+  try {
+    await syncToolToViasocketEmbed(
+      updated_function.data,
+      org_id,
+      {
+        folder_id: req.folder_id || null,
+        user_id: req.profile?.user?.id || null,
+        isEmbedUser: req.embed
+      },
+      explicitVersionId
+    );
+  } catch (error) {
+    console.error(`Failed to sync tool ${updated_function?.data?.script_id} to viasocket embed:`, error.message);
+  }
 
   const bridge_ids = updated_function?.data?.bridge_ids || [];
   if (bridge_ids.length > 0) {

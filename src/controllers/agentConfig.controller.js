@@ -14,6 +14,7 @@ import { ensureChatbotPreview } from "../services/utility.service.js";
 import { modelConfigDocument } from "../services/utils/loadModelConfigs.js";
 import { sendAgentCreatedWebhook } from "../services/utils/agentWebhook.utils.js";
 import { convertPromptToString } from "../utils/promptWrapper.utils.js";
+import { syncToolToViasocketEmbed } from "../services/utils/viasocketSync.utils.js";
 
 const createAgentController = async (req, res, next) => {
   try {
@@ -506,6 +507,73 @@ const updateAgentController = async (req, res, next) => {
   }
 
   const updatedAgent = await ConfigurationServices.getAgentsWithTools(agent_id, org_id, version_id);
+
+  if (version_id && (body.variables_path !== undefined || body.pre_tools !== undefined)) {
+    try {
+      const toolsFromVersion = updatedAgent?.bridges?.apiCalls || {};
+      const toolsByScriptId = {};
+      for (const tool of Object.values(toolsFromVersion)) {
+        if (tool?.script_id) {
+          toolsByScriptId[tool.script_id] = tool;
+        }
+      }
+
+      const toolsToSync = new Map();
+
+      if (body.variables_path && typeof body.variables_path === "object") {
+        for (const scriptId of Object.keys(body.variables_path)) {
+          if (!scriptId) continue;
+          const tool = toolsByScriptId[scriptId];
+          if (tool?._id) {
+            toolsToSync.set(tool._id.toString(), { tool, source: "tool" });
+          }
+        }
+      }
+
+      if (body.pre_tools !== undefined) {
+        const preToolsPayload = Array.isArray(body.pre_tools) ? body.pre_tools : [];
+        for (const preTool of preToolsPayload) {
+          if (preTool?.type !== "custom_function" || !preTool?.config?.function_id) {
+            continue;
+          }
+
+          const functionId = preTool.config.function_id.toString();
+          if (toolsToSync.has(functionId)) {
+            continue;
+          }
+
+          const preToolApiResult = await ConfigurationServices.getApiCallById(functionId);
+          if (preToolApiResult?.success && preToolApiResult?.apiCall) {
+            toolsToSync.set(functionId, {
+              tool: preToolApiResult.apiCall.toObject ? preToolApiResult.apiCall.toObject() : preToolApiResult.apiCall,
+              source: "pre_tool"
+            });
+          }
+        }
+      }
+
+      for (const entry of toolsToSync.values()) {
+        try {
+          const tool = entry.tool;
+          await syncToolToViasocketEmbed(
+            tool,
+            org_id,
+            {
+              folder_id: req.folder_id || null,
+              user_id: req.profile?.user?.id || null,
+              isEmbedUser: req.embed
+            },
+            version_id,
+            entry.source
+          );
+        } catch (error) {
+          console.error(`Failed to sync version tool ${entry?.tool?.script_id || "unknown"} to viasocket embed:`, error.message);
+        }
+      }
+    } catch (error) {
+      console.error(`Failed to sync tools for version ${version_id}:`, error.message);
+    }
+  }
 
   await addBulkUserEntries(user_history);
 
