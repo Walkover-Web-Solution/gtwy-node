@@ -58,6 +58,7 @@ const getRedisCache = async (req, res, next) => {
 
 const callGtwy = async (req, res, next) => {
   const { type } = req.body;
+
   const org_id = req.profile?.org?.id;
 
   const config = AI_OPERATION_CONFIG[type];

@@ -76,7 +76,7 @@ const callAi = {
         otherwise: Joi.forbidden()
       }),
       variables: Joi.alternatives().conditional("type", {
-        is: "improve_prompt",
+        is: "optimize_prompt",
         then: Joi.object().required(),
         otherwise: Joi.forbidden()
       }),
