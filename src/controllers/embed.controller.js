@@ -277,11 +277,45 @@ const getEmbedDataByUserId = async (req, res, next) => {
     return next();
   }
 };
+const updateAgentMetadataController = async (req, res, next) => {
+  try {
+    const { agent_id } = req.params;
+    const org_id = String(req.profile.org.id);
+    const { name, meta } = req.body;
+
+    const agent = await ConfigurationServices.getAgentsWithTools(agent_id, org_id);
+    if (!agent.bridges) {
+      res.locals = { success: false, message: "Agent not found" };
+      req.statusCode = 404;
+      return next();
+    }
+
+    const update_fields = { updatedAt: new Date() };
+    if (name !== undefined) update_fields.name = name;
+    if (meta !== undefined) update_fields.meta = meta;
+
+    await ConfigurationServices.updateAgent(agent_id, update_fields);
+
+    res.locals = {
+      success: true,
+      message: "Agent metadata updated successfully",
+      agent: { ...agent.bridges, ...update_fields }
+    };
+    req.statusCode = 200;
+    return next();
+  } catch (e) {
+    res.locals = { success: false, message: e.message };
+    req.statusCode = 400;
+    return next();
+  }
+};
+
 export default {
   embedLogin,
   createEmbed,
   getAllEmbed,
   genrateToken,
   updateEmbed,
-  getEmbedDataByUserId
+  getEmbedDataByUserId,
+  updateAgentMetadataController
 };
