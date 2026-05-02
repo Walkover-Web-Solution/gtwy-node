@@ -23,6 +23,7 @@ export const up = async (db) => {
 
   if (operations.length > 0) {
     await collection.bulkWrite(operations);
+    console.log(`Updated ${operations.length} documents in 'apicalls' collection.`);
   }
 };
 
@@ -68,7 +69,7 @@ function renameKeyDeep(value, fromKey, toKey) {
     return { value: nextValue, changed };
   }
 
-  if (!value || typeof value !== "object") {
+  if (!value || typeof value !== "object" || value.constructor !== Object) {
     return { value, changed: false };
   }
 
