@@ -126,8 +126,18 @@ const getAllEmbed = async (req, res, next) => {
 
 const updateEmbed = async (req, res, next) => {
   try {
-    const { folder_id, config, apikey_object_id, folder_limit, folder_usage, folder_limit_reset_period, variables_path, tools_id, pre_tool_id } =
-      req.body;
+    const {
+      folder_id,
+      config,
+      apikey_object_id,
+      folder_limit,
+      folder_usage,
+      folder_limit_reset_period,
+      variables_path,
+      tools_id,
+      pre_tool_id,
+      name
+    } = req.body;
     const org_id = req.profile.org.id;
 
     const folder = await FolderModel.findOne({ _id: folder_id, org_id });
@@ -171,6 +181,9 @@ const updateEmbed = async (req, res, next) => {
     if (folder_limit_reset_period) {
       folder.folder_limit_reset_period = folder_limit_reset_period;
       folder.folder_limit_start_date = new Date();
+    }
+    if (name) {
+      folder.name = name;
     }
     await folder.save();
     await cleanupCache(cost_types.folder, folder_id, org_id);

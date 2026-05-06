@@ -322,8 +322,25 @@ const EmbeddecodeToken = async (req, res, next) => {
     return res.status(401).json({ message: "unauthorized user ", err });
   }
 };
+
 const InternalAuth = async (req, res, next) => {
-  return next();
+  try {
+    const allowedEmailList = ["ankit@whozzat.com", "husain@whozzat.com", "harsh@whozzat.com"];
+
+    const userEmail = req.profile?.user?.email?.toLowerCase();
+    if (!userEmail) {
+      return res.status(403).json({ success: false, message: "Access denied: email not found in token" });
+    }
+
+    if (!allowedEmailList.includes(userEmail)) {
+      return res.status(403).json({ success: false, message: "Access denied: you are not authorized for this action" });
+    }
+
+    return next();
+  } catch (err) {
+    console.error("InternalAuth middleware error =>", err);
+    return res.status(403).json({ success: false, message: "Access denied" });
+  }
 };
 
 const loginAuth = async (req, res, next) => {
