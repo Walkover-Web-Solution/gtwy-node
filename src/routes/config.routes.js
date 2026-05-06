@@ -13,7 +13,7 @@ router.get("/:agent_id", middleware, validate(agentConfigValidation.getAgent), a
 
 router.post("/", middleware, requireAdminRole, validate(agentConfigValidation.createAgent), agentConfigController.createAgentController);
 
-router.put("/:agent_id", middleware, requireAdminRole, agentConfigController.updateAgentController);
+router.put("/:agent_id", middleware, requireAdminRole, validate(agentConfigValidation.updateBridge), agentConfigController.updateAgentController);
 
 router.post("/clone", middleware, requireAdminRole, validate(agentConfigValidation.cloneAgent), agentConfigController.cloneAgentController);
 
