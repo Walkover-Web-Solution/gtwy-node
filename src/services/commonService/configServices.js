@@ -9,6 +9,7 @@ import { FineTuneSchema } from "../../validation/fineTuneValidation.js";
 import { chatbotHistoryValidationSchema } from "../../validation/joi_validation/chatBot.validation.js";
 import { send_error_to_webhook } from "../sendErrorWebhook.service.js";
 import { findThreadHistoryFormatted, updateStatus, createConversationLog } from "../../db_services/history.service.js";
+import { createThread } from "../thread.service.js";
 
 const getThreads = async (req, res, next) => {
   let page = parseInt(req.query.pageNo) || 1;
@@ -218,6 +219,16 @@ export const createEntry = async (req, res, next) => {
       error: error.details
     });
   }
+  // Upsert subthread mapping in Mongo (no-op if already exists for this thread/sub_thread/org)
+
+  await createThread({
+    thread_id,
+    sub_thread_id: thread_id,
+    display_name: thread_id,
+    org_id: org_id?.toString(),
+    bridge_id
+  });
+
   // Use the new conversation_logs service instead of the old conversations table
   const threads = await createConversationLog(payload);
   res.locals = threads;
