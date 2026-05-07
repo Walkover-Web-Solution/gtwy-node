@@ -99,15 +99,15 @@ async function getApiData(org_id, script_id, folder_id, user_id, isEmbedUser) {
 }
 
 /**
- * @param {Array} required_params - List of top-level field keys required for this API call
+ * @param {Array} required - List of top-level field keys required for this API call
  */
-async function saveApi(desc, org_id, folder_id, user_id, api_data, bridge_ids = [], script_id, fields, title, required_params = []) {
+async function saveApi(desc, org_id, folder_id, user_id, api_data, bridge_ids = [], script_id, fields, title, required = []) {
   const updateData = {
     description: desc,
     org_id: org_id,
     script_id: script_id,
     title: title,
-    required_params: required_params
+    required: required
   };
 
   // Helper function to check if a value is empty
