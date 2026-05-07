@@ -431,7 +431,7 @@ async function publish(org_id, version_id, user_id) {
     ...(updatedConfiguration.connected_agent_details || {}),
     agent_variables: {
       fields: transformedAgentVariables.fields,
-      required_params: transformedAgentVariables.required_params
+      required: transformedAgentVariables.required
     }
   };
 

@@ -6,8 +6,8 @@ const fieldValueSchema = new mongoose.Schema(
     type: { type: String, default: "string" },
     enum: { type: [String], default: () => [] },
     items: { type: mongoose.Schema.Types.Mixed, default: undefined },
-    required_params: { type: [String], default: () => [] },
-    parameter: { type: mongoose.Schema.Types.Mixed, default: () => ({}) }
+    required: { type: [String], default: () => [] },
+    properties: { type: mongoose.Schema.Types.Mixed, default: () => ({}) }
   },
   { _id: false }
 );
@@ -40,7 +40,7 @@ const apiCall = new mongoose.Schema(
       of: fieldValueSchema,
       default: () => ({})
     },
-    required_params: {
+    required: {
       type: [String],
       default: () => []
     },
