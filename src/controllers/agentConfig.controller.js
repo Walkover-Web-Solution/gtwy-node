@@ -26,8 +26,12 @@ const createAgentController = async (req, res, next) => {
     const user_id = req.profile.user.id;
     const all_agent = await ConfigurationServices.getAgentsByUserId(org_id); // Assuming this returns all agents for org
 
-    let prompt =
-      "Role: AI Bot\nObjective: Respond logically and clearly, maintaining a neutral, automated tone.\nGuidelines:\nIdentify the task or question first.\nProvide brief reasoning before the answer or action.\nKeep responses concise and contextually relevant.\nAvoid emotion, filler, or self-reference.\nUse examples or placeholders only when helpful.";
+    let prompt = {
+      role: "AI Bot",
+      goal: "Respond logically and clearly, maintaining a neutral, automated tone.",
+      instruction:
+        "Guidelines:\nIdentify the task or question first.\nProvide brief reasoning before the answer or action.\nKeep responses concise and contextually relevant.\nAvoid emotion, filler, or self-reference.\nUse examples or placeholders only when helpful."
+    };
     let name = agents?.name || null;
     let slugName = agents?.slugName || null;
     const meta = req.body.meta || null;
