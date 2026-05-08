@@ -5,6 +5,9 @@ import Helper from "../services/utils/helper.utils.js";
 import agentVersionService from "../db_services/agentVersion.service.js";
 import { deleteInCache } from "../cache_service/index.js";
 import { syncToolToViasocketEmbed } from "../services/utils/viasocketSync.utils.js";
+import conversationDbService from "../db_services/conversation.service.js";
+
+const { addBulkUserEntries } = conversationDbService;
 
 const getAllApiCalls = async (req, res, next) => {
   const org_id = req.profile?.org?.id;
@@ -144,6 +147,7 @@ const addPreTool = async (req, res, next) => {
     const { agent_id: bridgeId } = req.params;
     const { version_id, pre_tools: pre_tool_entry, status } = req.body;
     const org_id = req.profile.org.id;
+    const user_id = req.profile.user.id;
 
     const model_config = await ConfigurationServices.getAgentsWithTools(bridgeId, org_id, version_id);
 
@@ -154,6 +158,7 @@ const addPreTool = async (req, res, next) => {
     }
 
     const current_pre_tools = model_config.bridges?.pre_tools || [];
+    const parent_id = model_config.bridges?.parent_id || bridgeId;
     const data_to_update = {};
 
     if (status === "1") {
@@ -167,12 +172,33 @@ const addPreTool = async (req, res, next) => {
     } else {
       data_to_update["pre_tools"] = current_pre_tools.filter((t) => t.type !== pre_tool_entry?.type);
     }
+
+    if (version_id) {
+      data_to_update["is_drafted"] = true;
+    }
+
     await ConfigurationServices.updateAgent(bridgeId, data_to_update, version_id);
     const result = await ConfigurationServices.getAgentsWithTools(bridgeId, org_id, version_id);
 
     // Only update ApiCall bridge_ids for custom_function type (others are not tracked as functions)
     if (pre_tool_entry.type === "custom_function" && pre_tool_entry?.config?.function_id) {
       await ConfigurationServices.updateAgentIdsInApiCalls(pre_tool_entry?.config?.function_id, version_id || bridgeId, parseInt(status));
+    }
+
+    try {
+      await addBulkUserEntries([
+        {
+          user_id: String(user_id),
+          org_id: String(org_id),
+          bridge_id: String(parent_id),
+          version_id: version_id ? String(version_id) : null,
+          type: "pre_tools",
+          time: new Date()
+        }
+      ]);
+    } catch (historyError) {
+      // History should not block pre-tool update responses.
+      console.error("Failed to add pre_tools history:", historyError);
     }
 
     if (result.success) {
