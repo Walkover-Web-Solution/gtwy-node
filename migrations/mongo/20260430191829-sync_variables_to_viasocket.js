@@ -2,16 +2,12 @@ import axios from "axios";
 import Helper from "../../src/services/utils/helper.utils.js";
 
 const BATCH_SIZE = 50;
-// Version lookup helpers removed — not required after removing static variable sync.
-
-// Static variable extraction and sending removed from migration.
 
 const getViasocketEmbedUserId = (tool) => {
   let viasocketEmbedUserId = String(tool.org_id);
   const toolUserId = tool?.user_id ? String(tool.user_id) : "";
   const toolFolderId = tool?.folder_id ? String(tool.folder_id) : "";
 
-  // Match getAllAgent style for embed-scoped identity.
   if (toolUserId && toolFolderId) {
     viasocketEmbedUserId = `${viasocketEmbedUserId}_${toolFolderId}_${toolUserId}`;
   }
@@ -38,7 +34,6 @@ const syncToolToViasocket = async (db, tool) => {
   }
 
   const embedToken = getViasocketEmbedToken(tool);
-
   await axios.put(
     `https://flow-api.viasocket.com/projects/updateflowembed/${tool.script_id}`,
     {
@@ -67,26 +62,32 @@ export const up = async (db) => {
   let failed = 0;
   let offset = 0;
 
-  while (true) {
-    const tools = await apiCallsCollection.find({}).skip(offset).limit(BATCH_SIZE).toArray();
-    if (tools.length === 0) {
-      break;
-    }
+  try {
+    while (true) {
+      const tools = await apiCallsCollection.find({}).skip(offset).limit(BATCH_SIZE).toArray();
+      if (tools.length === 0) break;
 
-    for (const tool of tools) {
-      try {
-        await syncToolToViasocket(db, tool);
-        processed += 1;
-      } catch (error) {
-        failed += 1;
-        console.error(
-          `Viasocket sync failed for tool ${tool?._id?.toString?.() || "unknown"} (script_id: ${tool?.script_id || "N/A"}):`,
-          error.message
-        );
-      }
-    }
+      // 1. Fire all API calls in parallel for the current batch
+      const results = await Promise.allSettled(tools.map((tool) => syncToolToViasocket(db, tool)));
 
-    offset += tools.length;
+      // 2. Tally results without throwing
+      results.forEach((result, index) => {
+        if (result.status === "fulfilled") {
+          processed += 1;
+        } else {
+          failed += 1;
+          const tool = tools[index];
+          console.error(
+            `Viasocket sync failed for tool ${tool?._id?.toString?.() || "unknown"} (script_id: ${tool?.script_id || "N/A"}):`,
+            result.reason?.message
+          );
+        }
+      });
+
+      offset += tools.length;
+    }
+  } catch (error) {
+    console.error("Viasocket sync migration encountered an unexpected error:", error.message);
   }
 
   console.log(`Viasocket sync migration completed. Success: ${processed}, Failed: ${failed}`);
