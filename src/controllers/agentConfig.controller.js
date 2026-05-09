@@ -23,7 +23,6 @@ const createAgentController = async (req, res, next) => {
     const folder_id = req.folder_id || null;
     const folder_data = await folderDbService.getFolderData(folder_id);
     const user_id = req.profile.user.id;
-    const all_agent = await ConfigurationServices.getAgentsByUserId(org_id); // Assuming this returns all agents for org
 
     let prompt =
       "Role: AI Bot\nObjective: Respond logically and clearly, maintaining a neutral, automated tone.\nGuidelines:\nIdentify the task or question first.\nProvide brief reasoning before the answer or action.\nKeep responses concise and contextually relevant.\nAvoid emotion, filler, or self-reference.\nUse examples or placeholders only when helpful.";
@@ -85,8 +84,6 @@ const createAgentController = async (req, res, next) => {
       }
     }
 
-    const all_agent_name = all_agent.map((agent) => agent.name);
-
     let agent_data = {};
 
     if (purpose) {
@@ -94,7 +91,6 @@ const createAgentController = async (req, res, next) => {
       const variables = {
         purpose: purpose,
         environment: environment,
-        all_bridge_names: all_agent_name,
         token: req.headers.authorization,
         fields:
           folder_data && folder_data?.config?.prompt?.useDefaultPrompt === false
