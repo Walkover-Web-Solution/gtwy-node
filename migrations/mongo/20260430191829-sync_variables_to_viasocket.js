@@ -1,7 +1,7 @@
 import axios from "axios";
 import Helper from "../../src/services/utils/helper.utils.js";
 
-const BATCH_SIZE = 50;
+const BATCH_SIZE = 200;
 
 const getViasocketEmbedUserId = (tool) => {
   let viasocketEmbedUserId = String(tool.org_id);
@@ -60,32 +60,54 @@ export const up = async (db) => {
   const apiCallsCollection = db.collection("apicalls");
   let processed = 0;
   let failed = 0;
-  let offset = 0;
+
+  // Skip docs already succeeded or permanently ignored
+  const filter = { success: { $ne: true }, ignore: { $ne: true } };
 
   try {
     while (true) {
-      const tools = await apiCallsCollection.find({}).skip(offset).limit(BATCH_SIZE).toArray();
+      const tools = await apiCallsCollection.find(filter).limit(BATCH_SIZE).toArray();
       if (tools.length === 0) break;
 
       // 1. Fire all API calls in parallel for the current batch
       const results = await Promise.allSettled(tools.map((tool) => syncToolToViasocket(db, tool)));
 
-      // 2. Tally results without throwing
-      results.forEach((result, index) => {
+      // 2. Build bulk update operations
+      const bulkOps = results.map((result, index) => {
+        const tool = tools[index];
         if (result.status === "fulfilled") {
           processed += 1;
+          return {
+            updateOne: {
+              filter: { _id: tool._id },
+              update: { $set: { success: true } }
+            }
+          };
         } else {
           failed += 1;
-          const tool = tools[index];
           console.error(
             `Viasocket sync failed for tool ${tool?._id?.toString?.() || "unknown"} (script_id: ${tool?.script_id || "N/A"}):`,
             result.reason?.message
           );
+          return {
+            updateOne: {
+              filter: { _id: tool._id },
+              update: { $set: { ignore: true } }
+            }
+          };
         }
       });
 
-      offset += tools.length;
+      // 3. Flush all updates in a single round-trip
+      await apiCallsCollection.bulkWrite(bulkOps, { ordered: false });
     }
+
+    console.log("Migration tracking keys (success, ignore) removed from all documents.");
+    // ✅ Cleanup: remove migration tracking keys from all documents
+    await apiCallsCollection.updateMany(
+      { $or: [{ success: { $exists: true } }, { ignore: { $exists: true } }] },
+      { $unset: { success: "", ignore: "" } }
+    );
   } catch (error) {
     console.error("Viasocket sync migration encountered an unexpected error:", error.message);
   }
