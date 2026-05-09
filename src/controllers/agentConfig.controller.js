@@ -24,7 +24,6 @@ const createAgentController = async (req, res, next) => {
     const folder_id = req.folder_id || null;
     const folder_data = await folderDbService.getFolderData(folder_id);
     const user_id = req.profile.user.id;
-    const all_agent = await ConfigurationServices.getAgentsByUserId(org_id); // Assuming this returns all agents for org
 
     let prompt = {
       role: "AI Bot",
@@ -90,8 +89,6 @@ const createAgentController = async (req, res, next) => {
       }
     }
 
-    const all_agent_name = all_agent.map((agent) => agent.name);
-
     let agent_data = {};
 
     if (purpose) {
@@ -112,7 +109,6 @@ const createAgentController = async (req, res, next) => {
       const variables = {
         purpose: purpose,
         environment: environment,
-        all_bridge_names: all_agent_name,
         token: req.headers.authorization,
         viasocket_embed_token: viasocket_embed_token,
         fields:
