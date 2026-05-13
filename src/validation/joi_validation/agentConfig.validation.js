@@ -25,7 +25,6 @@ const updateBridgeSchema = Joi.object({
   bridge_limit: Joi.number().min(0).optional(),
   bridge_limit_reset_period: Joi.string().valid("monthly", "weekly", "daily").optional(),
   bridgeType: Joi.string().valid("api", "chatbot").optional(),
-  stateless_conversation: Joi.boolean().optional(),
   page_config: Joi.object().optional(),
   connected_agent_details: Joi.object().optional(),
   settings: Joi.object({
@@ -48,7 +47,7 @@ const updateBridgeSchema = Joi.object({
   bridge_limit_start_date: Joi.date().optional(),
   variables_path: Joi.object().optional(),
   built_in_tools_data: Joi.object({
-    built_in_tools: Joi.array().items(Joi.string()).optional(),
+    built_in_tools: Joi.string().optional(),
     built_in_tools_operation: Joi.string().valid("0", "1").optional()
   }).optional(),
   agents: Joi.object({
@@ -72,7 +71,7 @@ const updateBridgeSchema = Joi.object({
     script_id: Joi.string().optional()
   }).optional(),
   version_description: Joi.string().allow("").optional()
-}).unknown(true); // Allow additional fields
+});
 
 const bridgeIdParamSchema = Joi.object({
   agent_id: Joi.string()
