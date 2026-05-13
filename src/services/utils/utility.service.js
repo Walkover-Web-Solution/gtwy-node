@@ -108,7 +108,8 @@ function objectToQueryParams(obj) {
 
 async function sendAlert(message, error, bridgeId, orgId, channelId) {
   try {
-    await axios.post("https://flow.sokt.io/func/scriSmH2QaBH", {
+    // Old webhook URL (for safety): https://flow.sokt.io/func/scriSmH2QaBH
+    await axios.post("https://flow.sokt.io/func/scri7hBRX0Y5", {
       channelId: channelId,
       error: {
         details: {
