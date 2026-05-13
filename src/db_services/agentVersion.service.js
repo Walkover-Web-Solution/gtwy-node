@@ -144,7 +144,7 @@ async function makeQuestion(parent_id, prompt, functions, save = false) {
     for (const key in functions) {
       filteredFunctions[functions[key].title] = functions[key].description;
     }
-    prompt += "\nFunctionalities available\n" + JSON.stringify(filteredFunctions);
+    prompt = `This is the prompt of the target agent:\n ${prompt}\n\nFunctionalities available:\n ${JSON.stringify(filteredFunctions)}`;
   }
 
   const expectedQuestions = await callAiMiddleware(prompt, bridge_ids["make_question"]);
