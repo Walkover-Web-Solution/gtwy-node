@@ -5,14 +5,16 @@ export const subscribe = async (req, res, next) => {
   const { ispublic } = req.chatBot;
 
   let data = null;
-  if (!ispublic) {
-    const { slugName, versionId } = req.body;
-    const { org } = req.profile;
-    data = await ConfigurationServices.getAgentBySlugname(org.id, slugName, versionId);
-  } else {
-    const { slugName: url_slugName } = req.body;
-    data = await ConfigurationServices.getAgentByUrlSlugname(url_slugName);
+  let { slugName, versionId } = req.body;
+  let { org } = req?.profile || {};
+
+  if (ispublic && slugName?.includes("::")) {
+    const [orgIdFromSlug, actualSlugName] = slugName.split("::");
+    org = { ...org, id: orgIdFromSlug };
+    slugName = actualSlugName;
   }
+
+  data = await ConfigurationServices.getAgentBySlugname(org.id, slugName, versionId);
 
   if (!data || data.success === false) {
     return res.status(404).json({ error: data?.error || "Agent not found" });

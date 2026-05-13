@@ -695,7 +695,7 @@ const getAgentIdBySlugname = async (orgId, slugName) => {
       slugName: slugName,
       org_id: orgId
     })
-    .select({ _id: 1, slugName: 1, starterQuestion: 1, IsstarterQuestionEnable: 1 })
+    .select({ _id: 1, slugName: 1, starterQuestion: 1, IsstarterQuestionEnable: 1, org_id: 1 })
     .lean();
 };
 const getAgentBySlugname = async (orgId, slugName, versionId) => {
@@ -870,31 +870,6 @@ const getAgentNameById = async (agent_id, org_id) => {
   }
 };
 
-const getAgentByUrlSlugname = async (url_slugName) => {
-  try {
-    const hello_id = await configurationModel
-      .findOne({
-        "page_config.url_slugname": url_slugName
-      })
-      .select({ _id: 1, name: 1, service: 1, org_id: 1 });
-
-    if (!hello_id) return false;
-
-    return {
-      _id: hello_id._id,
-      name: hello_id.name,
-      service: hello_id.service,
-      org_id: hello_id.org_id
-    };
-  } catch (error) {
-    console.log("error:", error);
-    return {
-      success: false,
-      error: "something went wrong!!"
-    };
-  }
-};
-
 const findIdsByModelAndService = async (model, service, org_id) => {
   // Query for models in configuration.model
   const primaryQuery = {
@@ -948,24 +923,28 @@ const findIdsByModelAndService = async (model, service, org_id) => {
 const getAllAgentsData = async (userEmail) => {
   const query = {
     $or: [
-      { "page_config.availability": "public" },
       {
-        "page_config.availability": "private",
-        "settings.publicUsers": userEmail
+        "settings.publicAgentConfig.availability": "public",
+        "settings.publicAgentConfig.isPublicAgent": true
+      },
+      {
+        "settings.publicAgentConfig.availability": "private",
+        "settings.publicAgentConfig.publicUsers": userEmail,
+        "settings.publicAgentConfig.isPublicAgent": false
       }
     ]
   };
-  return await configurationModel.find(query);
+  return await configurationModel.find(query).select({ name: 1, slugName: 1, org_id: 1, "settings.publicAgentConfig": 1 }).lean();
 };
 
-const getAgentsData = async (slugName, userEmail) => {
+const getAgentsData = async (slugName, userEmail, org_id) => {
   return await configurationModel.findOne({
     $or: [
       {
-        $and: [{ "page_config.availability": "public" }, { "page_config.url_slugname": slugName }]
+        $and: [{ "settings.availability": "public" }, { slugname: slugName }, { org_id: org_id }]
       },
       {
-        $and: [{ "page_config.availability": "private" }, { "page_config.url_slugname": slugName }, { "settings.publicUsers": userEmail }]
+        $and: [{ "settings.availability": "private" }, { slugname: slugName }, { "settings.publicUsers": userEmail }, { org_id: org_id }]
       }
     ]
   });
@@ -1452,7 +1431,6 @@ export default {
   removeActionInAgent,
   getAgents,
   getAgentNameById,
-  getAgentByUrlSlugname,
   findIdsByModelAndService,
   getAgentsByUserId,
   getAllAgentsData,

@@ -18,24 +18,6 @@ const actionTypeModel = new Schema(
   }
 );
 
-const pageConfigSchema = new Schema(
-  {
-    url_slugname: {
-      type: String,
-      unique: true,
-      sparse: true // this makes sure that if the url_slugname is not present in the document
-      // mongo will still create an index on the field, and will not throw an error if the field is not present in the document.
-      // This is useful when we are using the same schema for multiple collections, and not all collections have this field.
-    },
-    availability: {
-      type: String,
-      enum: ["public", "private"],
-      default: "private"
-    }
-  },
-  { _id: false }
-);
-
 const configuration = new mongoose.Schema({
   org_id: {
     type: String,
@@ -215,10 +197,6 @@ const configuration = new mongoose.Schema({
   },
   IsstarterQuestionEnable: {
     type: Boolean
-  },
-  page_config: {
-    type: pageConfigSchema,
-    default: null
   },
   apikey_object_id: {
     type: Object
