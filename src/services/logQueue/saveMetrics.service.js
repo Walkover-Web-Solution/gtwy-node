@@ -1,5 +1,8 @@
 import models from "../../../models/index.js";
 import logger from "../../logger.js";
+import rabbitMqProducer from "../queue.service.js";
+import Helper from "../utils/helper.utils.js";
+import { sendAlert } from "../utils/utility.service.js";
 
 function normalizeRow(row) {
   return {
@@ -35,4 +38,31 @@ async function saveMetrics(rows) {
   }
 }
 
-export { processMetrics, saveMetrics };
+/**
+ * Publish a failed metrics batch to the dead-letter queue for later inspection.
+ * Returns true on success, false otherwise.
+ */
+async function publishFailedMetrics(rows, error) {
+  const serializedError = Helper.serializeError(error);
+  const metricsQueue = process.env.METRICS_QUEUE_NAME;
+  if (!metricsQueue) {
+    logger.error("[MetricsQueue] METRICS_QUEUE_NAME is not configured; cannot shift failed batch.");
+    return false;
+  }
+  const failedQueue = `${metricsQueue}-failed`;
+  try {
+    await rabbitMqProducer.publishToQueue(failedQueue, {
+      failed_rows: rows,
+      error: serializedError,
+      failed_at: new Date().toISOString()
+    });
+    logger.warn(`[MetricsQueue] ${rows.length} rows shifted to ${failedQueue}`);
+    await sendAlert(`[MetricsQueue] Bulk insert failed — ${rows.length} rows shifted to ${failedQueue}.`, serializedError, null, null, null);
+    return true;
+  } catch (publishErr) {
+    logger.error(`[MetricsQueue] Failed to publish to dead-letter queue: ${publishErr.message}. Dropping ${rows.length} rows.`);
+    return false;
+  }
+}
+
+export { processMetrics, saveMetrics, publishFailedMetrics };

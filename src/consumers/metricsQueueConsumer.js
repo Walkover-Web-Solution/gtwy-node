@@ -1,5 +1,5 @@
 import logger from "../logger.js";
-import { processMetrics, saveMetrics } from "../services/logQueue/saveMetrics.service.js";
+import { processMetrics, saveMetrics, publishFailedMetrics } from "../services/logQueue/saveMetrics.service.js";
 
 const BATCH_SIZE = 100;
 const FLUSH_INTERVAL_MS = 300_000; // 5 minutes
@@ -25,7 +25,12 @@ class MetricsBatcher {
       logger.info(`[MetricsQueue] Flush complete — ${rowsToInsert.length} rows inserted`);
     } catch (err) {
       logger.error(`[MetricsQueue] Flush failed: ${err.message}`);
-      msgsToAck.forEach(({ message, channel }) => channel.nack(message, false, false));
+      const shifted = await publishFailedMetrics(rowsToInsert, err);
+      if (shifted) {
+        msgsToAck.forEach(({ message, channel }) => channel.ack(message));
+      } else {
+        msgsToAck.forEach(({ message, channel }) => channel.nack(message, false, false));
+      }
     }
   }
 
