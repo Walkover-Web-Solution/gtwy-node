@@ -1,22 +1,33 @@
-import { storeInCache } from "../../cache_service/index.js";
 import { callAiMiddleware } from "../utils/aiCall.utils.js";
-import { bridge_ids, redis_keys } from "../../configs/constant.js";
+import { bridge_ids } from "../../configs/constant.js";
 import prebuiltPromptDbService from "../../db_services/prebuiltPrompt.service.js";
 import logger from "../../logger.js";
 
-async function handleGptMemory({ id, user, assistant, purpose, gpt_memory_context, org_id }) {
-  try {
-    const variables = { threadID: id, memory: purpose, gpt_memory_context };
-    const content = assistant?.data?.content || "";
+function normalizeContent(value) {
+  if (value && typeof value === "object") return JSON.stringify(value);
+  return value ?? "";
+}
 
-    const userContent = typeof user === "object" && user !== null ? JSON.stringify(user) : user;
-    const assistantContent = typeof content === "object" && content !== null ? JSON.stringify(content) : content;
+function buildConversation(pendingTurns, user, assistant) {
+  if (Array.isArray(pendingTurns) && pendingTurns.length > 0) {
+    return pendingTurns
+      .filter((msg) => msg && msg.role && !["tool", "tools_call"].includes(msg.role))
+      .map((msg) => ({ role: msg.role, content: normalizeContent(msg.content) }));
+  }
+  const content = assistant?.data?.content ?? assistant ?? "";
+  return [
+    { role: "user", content: normalizeContent(user) },
+    { role: "assistant", content: normalizeContent(content) }
+  ];
+}
+
+async function handleGptMemory({ id, user, assistant, purpose, gpt_memory_context, org_id, pending_turns }) {
+  try {
+    const memoryVar = purpose && typeof purpose === "object" ? JSON.stringify(purpose) : purpose;
+    const variables = { threadID: id, memory: memoryVar, gpt_memory_context };
 
     const configuration = {
-      conversation: [
-        { role: "user", content: userContent },
-        { role: "assistant", content: assistantContent }
-      ]
+      conversation: buildConversation(pending_turns, user, assistant)
     };
 
     const updated_prompt = await prebuiltPromptDbService.getSpecificPrebuiltPrompt(org_id, "gpt_memory");
@@ -29,9 +40,12 @@ async function handleGptMemory({ id, user, assistant, purpose, gpt_memory_contex
 
     const response = await callAiMiddleware(message, bridge_ids.gpt_memory, variables, configuration, "text");
 
-    if (typeof response === "string" && response !== "False") {
-      const cache_key = `${redis_keys.gpt_memory_}${id}`;
-      await storeInCache(cache_key, response);
+    if (response === "True") {
+      logger.info(`handleGptMemory: memory updated via tool for ${id}`);
+    } else if (response === "False") {
+      logger.info(`handleGptMemory: no update needed for ${id}`);
+    } else {
+      logger.warn(`handleGptMemory: unexpected response for ${id}: ${response}`);
     }
 
     return response;
