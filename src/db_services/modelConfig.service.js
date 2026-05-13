@@ -4,6 +4,7 @@ import ConfigurationServices from "./configuration.service.js";
 import configurationModel from "../mongoModel/Configuration.model.js";
 import versionModel from "../mongoModel/BridgeVersion.model.js";
 import { new_agent_service } from "../configs/constant.js";
+import { normalizeBulkModelConfigChange, normalizeBulkModelConfigFilter } from "../utils/modelConfigUpdate.utils.js";
 
 async function checkModel(model_name, service) {
   //function to check if a model configuration exists
@@ -170,6 +171,52 @@ async function updateModelConfigs(model_name, service, updates) {
   return result.modifiedCount > 0;
 }
 
+async function bulkUpdateModelConfigs({ models, filter, change, org_id }) {
+  const uniqueModels = models ? [...new Map(models.map((model) => [model.model_name, model])).values()] : [];
+
+  if (!filter && uniqueModels.length === 0) {
+    return { error: "documentNotFound" };
+  }
+
+  const normalizedChange = normalizeBulkModelConfigChange(change);
+  if (normalizedChange.error) {
+    return normalizedChange;
+  }
+
+  const normalizedFilter = normalizeBulkModelConfigFilter(filter);
+  if (normalizedFilter.error) {
+    return normalizedFilter;
+  }
+
+  const query = { ...normalizedFilter.filterQuery };
+
+  if (!query.model_name && uniqueModels.length > 0) {
+    query.model_name = { $in: uniqueModels.map((model) => model.model_name) };
+  }
+
+  if (org_id) {
+    query.org_id = org_id;
+  }
+
+  const existingModels = await ModelsConfigModel.find(query, { _id: 0, service: 1, model_name: 1 }).lean();
+
+  if (existingModels.length === 0) {
+    return { error: "documentNotFound" };
+  }
+
+  const result = await ModelsConfigModel.updateMany(query, normalizedChange.updateDocument, { strict: false });
+  const foundModelNames = new Set(existingModels.map((model) => model.model_name));
+  const notFoundModels = uniqueModels.filter((model) => !foundModelNames.has(model.model_name));
+
+  return {
+    requestedCount: uniqueModels.length,
+    matchedCount: result.matchedCount,
+    modifiedCount: result.modifiedCount,
+    updatedModels: existingModels,
+    notFoundModels
+  };
+}
+
 export default {
   getAllModelConfigs,
   saveModelConfig,
@@ -180,5 +227,6 @@ export default {
   checkModelConfigExists,
   getModelConfigsByNameAndService,
   checkModel,
-  updateModelConfigs
+  updateModelConfigs,
+  bulkUpdateModelConfigs
 };
