@@ -22,9 +22,7 @@ const getThreads = async (req, res, next) => {
   let bridge = {};
 
   if (bridge_slugName) {
-    bridge = req.chatBot?.ispublic
-      ? await configurationService.getAgentByUrlSlugname(bridge_slugName)
-      : await configurationService.getAgentIdBySlugname(org_id, bridge_slugName);
+    bridge = await configurationService.getAgentIdBySlugname(org_id, bridge_slugName);
     bridge_id = bridge?._id?.toString();
     starterQuestion = !bridge?.IsstarterQuestionEnable ? [] : bridge?.starterQuestion;
     org_id = req.chatBot?.ispublic ? bridge?.org_id : org_id;

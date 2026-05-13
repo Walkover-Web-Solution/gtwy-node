@@ -416,10 +416,17 @@ async function publish(org_id, version_id, user_id) {
   delete updatedConfiguration.apiCalls; // Remove looked-up data
 
   const chatbotAutoAnswers = parentConfiguration.chatbot_auto_answers;
+  const publicAgentConfig = parentConfiguration.settings?.publicAgentConfig;
 
   // Restore the chatbot_auto_answers value from parent
   if (chatbotAutoAnswers !== undefined) {
     updatedConfiguration.chatbot_auto_answers = chatbotAutoAnswers;
+  }
+
+  // Restore the settings.publicAgentConfig value from parent
+  if (publicAgentConfig !== undefined) {
+    updatedConfiguration.settings = updatedConfiguration.settings || {};
+    updatedConfiguration.settings.publicAgentConfig = publicAgentConfig;
   }
 
   if (updatedConfiguration.function_ids) {
