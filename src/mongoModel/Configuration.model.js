@@ -258,6 +258,7 @@ const configuration = new mongoose.Schema({
       maximum_iterations: 3,
       publicUsers: [],
       editAccess: [],
+      stateless_conversation: false,
       tone: {},
       responseStyle: {},
       response_format: { type: "default", cred: {} },
