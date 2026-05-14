@@ -1218,7 +1218,7 @@ const getAgentsWithTools = async (agent_id, org_id, version_id = null) => {
 
     const result = await model.aggregate(pipeline);
 
-    if (!result || result.length === 0) {
+    if (!result) {
       throw new Error("No matching agent found");
     }
 
