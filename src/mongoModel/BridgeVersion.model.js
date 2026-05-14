@@ -89,6 +89,13 @@ const version = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  ai_updates: {
+    type: Object,
+    default: {
+      prompt_enhancer_percentage: 0,
+      criteria_check: {}
+    }
+  },
   version_description: {
     type: String,
     default: ""
