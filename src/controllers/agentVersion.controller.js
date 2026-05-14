@@ -130,6 +130,104 @@ const updateVersionController = async (req, res, next) => {
       }
     }
 
+    const current_connected_tools = {
+      function_ids: versionData.connected_tools?.function_ids || [],
+      connected_agents: versionData.connected_tools?.connected_agents || {},
+      built_in_tools: versionData.connected_tools?.built_in_tools || [],
+      doc_ids: versionData.connected_tools?.doc_ids || [],
+      variables_path: versionData.connected_tools?.variables_path || {},
+      web_search_filters: versionData.connected_tools?.web_search_filters || [],
+      gtwy_web_search_filters: versionData.connected_tools?.gtwy_web_search_filters || versionData.gtwy_web_search_filters || []
+    };
+
+    const has_connected_tools_payload = body.connected_tools && typeof body.connected_tools === "object";
+    if (has_connected_tools_payload || body.gtwy_web_search_filters !== undefined) {
+      const incoming_connected_tools = {
+        ...(has_connected_tools_payload ? body.connected_tools : {})
+      };
+
+      if (body.gtwy_web_search_filters !== undefined) {
+        incoming_connected_tools.gtwy_web_search_filters = body.gtwy_web_search_filters;
+      }
+
+      const merged_connected_tools = {
+        ...current_connected_tools,
+        ...incoming_connected_tools,
+        variables_path: {
+          ...current_connected_tools.variables_path,
+          ...(incoming_connected_tools.variables_path || {})
+        }
+      };
+
+      for (const key in merged_connected_tools.variables_path) {
+        if (Array.isArray(merged_connected_tools.variables_path[key])) {
+          merged_connected_tools.variables_path[key] = {};
+        }
+      }
+
+      const target_id = version_id;
+
+      if (incoming_connected_tools.function_ids !== undefined) {
+        const previous_ids = (current_connected_tools.function_ids || []).map((id) => id.toString());
+        const next_ids = (incoming_connected_tools.function_ids || []).map((id) => id.toString());
+        const added_ids = next_ids.filter((id) => !previous_ids.includes(id));
+        const removed_ids = previous_ids.filter((id) => !next_ids.includes(id));
+
+        for (const function_id of added_ids) {
+          await ConfigurationServices.updateAgentIdsInApiCalls(function_id, target_id, 1);
+        }
+        for (const function_id of removed_ids) {
+          await ConfigurationServices.updateAgentIdsInApiCalls(function_id, target_id, 0);
+        }
+
+        merged_connected_tools.function_ids = next_ids.map((id) => new ObjectId(id));
+      }
+
+      if (incoming_connected_tools.connected_agents) {
+        const { connected_agents, agent_status } = incoming_connected_tools;
+        const op = agent_status === "1" ? 1 : 0;
+
+        if (op === 0) {
+          for (const agent_info of Object.values(connected_agents)) {
+            const key = agent_info.bridge_id?.toString() ?? agent_info.bridge_id;
+            if (key && merged_connected_tools.variables_path[key]) {
+              delete merged_connected_tools.variables_path[key];
+            }
+          }
+        }
+
+        await ConfigurationServices.updateAgents(target_id, connected_agents, op);
+      }
+
+      if (incoming_connected_tools.functionData) {
+        const { function_id, function_operation, script_id } = incoming_connected_tools.functionData;
+        if (function_id) {
+          const op = function_operation === "1" ? 1 : 0;
+          const merged_function_ids = (merged_connected_tools.function_ids || []).map((fid) => fid.toString());
+
+          if (op === 1) {
+            if (!merged_function_ids.includes(function_id)) {
+              merged_function_ids.push(function_id);
+              await ConfigurationServices.updateAgentIdsInApiCalls(function_id, target_id, 1);
+            }
+          } else {
+            if (script_id && merged_connected_tools.variables_path[script_id]) {
+              delete merged_connected_tools.variables_path[script_id];
+            }
+            if (merged_function_ids.includes(function_id)) {
+              const idx = merged_function_ids.indexOf(function_id);
+              merged_function_ids.splice(idx, 1);
+              await ConfigurationServices.updateAgentIdsInApiCalls(function_id, target_id, 0);
+            }
+          }
+
+          merged_connected_tools.function_ids = merged_function_ids.map((fid) => new ObjectId(fid));
+        }
+      }
+
+      update_fields.connected_tools = merged_connected_tools;
+    }
+
     if (body.settings !== undefined) {
       const current_settings = version.settings || {};
       update_fields.settings = { ...current_settings, ...body.settings };

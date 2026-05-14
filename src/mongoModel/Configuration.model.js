@@ -18,6 +18,40 @@ const actionTypeModel = new Schema(
   }
 );
 
+const connectedToolsSchema = new Schema(
+  {
+    function_ids: {
+      type: Array,
+      default: []
+    },
+    connected_agents: {
+      type: Object,
+      default: {}
+    },
+    built_in_tools: {
+      type: Array,
+      default: []
+    },
+    variables_path: {
+      type: Object,
+      default: {}
+    },
+    web_search_filters: {
+      type: [String],
+      default: []
+    },
+    gtwy_web_search_filters: {
+      type: [String],
+      default: []
+    },
+    doc_ids: {
+      type: Array,
+      default: []
+    }
+  },
+  { _id: false }
+);
+
 const configuration = new mongoose.Schema({
   org_id: {
     type: String,
@@ -77,9 +111,9 @@ const configuration = new mongoose.Schema({
     type: String,
     default: null
   },
-  variables_path: {
-    type: Object,
-    default: {}
+  connected_tools: {
+    type: connectedToolsSchema,
+    default: () => ({})
   },
   variables_state: {
     type: Object,
@@ -93,17 +127,21 @@ const configuration = new mongoose.Schema({
     type: String,
     default: ""
   },
-  connected_agents: {
+  guardrails: {
     type: Object,
-    default: {}
+    default: {
+      is_enabled: false,
+      guardrails_configuration: {},
+      guardrails_custom_prompt: ""
+    }
   },
-  doc_ids: {
-    type: Array,
-    default: []
-  },
-  built_in_tools: {
-    type: Array,
-    default: []
+  fall_back: {
+    type: Object,
+    default: {
+      is_enable: false,
+      service: "",
+      model: ""
+    }
   },
   bridge_summary: {
     type: String,
@@ -120,10 +158,6 @@ const configuration = new mongoose.Schema({
   bridge_status: {
     type: Number,
     default: 1
-  },
-  function_ids: {
-    type: Array,
-    default: []
   },
   agent_variables: {
     type: Object,

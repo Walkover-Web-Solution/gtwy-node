@@ -435,7 +435,7 @@ const getAgentController = async (req, res, next) => {
       variables = Helper.findVariablesInString(prompt);
     }
 
-    const variables_path = agent.bridges.variables_path || {};
+    const variables_path = agent.bridges.connected_tools?.variables_path || {};
     const path_variables = [];
     for (const key in variables_path) {
       const val = variables_path[key];
