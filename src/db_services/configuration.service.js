@@ -153,24 +153,24 @@ const cloneAgentToOrg = async (agent_id, to_shift_org_id, cloned_agents_map = nu
     const connected_agents_info = [];
 
     if (original_config.connected_agents) {
-      for (const [agent_name, agent_info] of Object.entries(original_config.connected_agents)) {
+      for (const [, agent_info] of Object.entries(original_config.connected_agents)) {
         const connected_agent_id = agent_info.bridge_id;
         if (connected_agent_id) {
           try {
             const connected_result = await cloneAgentToOrg(connected_agent_id, to_shift_org_id, cloned_agents_map, depth + 1);
 
             if (connected_result) {
-              cloned_connected_agents[agent_name] = {
-                bridge_id: connected_result.new_bridge_id
+              cloned_connected_agents[connected_result.new_bridge_id] = {
+                bridge_id: connected_result.new_bridge_id,
+                ...(agent_info.thread_id !== undefined && { thread_id: agent_info.thread_id })
               };
               connected_agents_info.push({
-                agent_name: agent_name,
                 original_bridge_id: connected_agent_id,
                 new_bridge_id: connected_result.new_bridge_id
               });
             }
           } catch (e) {
-            console.error(`Error cloning connected agent ${agent_name} (agent_id: ${connected_agent_id}):`, e);
+            console.error(`Error cloning connected agent (agent_id: ${connected_agent_id}):`, e);
           }
         }
       }
@@ -181,9 +181,14 @@ const cloneAgentToOrg = async (agent_id, to_shift_org_id, cloned_agents_map = nu
       const original_version = await versionModel.findOne({ _id: new ObjectId(version_id) }).lean();
       if (original_version && original_version.connected_agents) {
         const version_connected_agents = {};
-        for (const [agent_name] of Object.entries(original_version.connected_agents)) {
-          if (cloned_connected_agents[agent_name]) {
-            version_connected_agents[agent_name] = cloned_connected_agents[agent_name];
+        for (const [, v_agent_info] of Object.entries(original_version.connected_agents)) {
+          const old_id = v_agent_info.bridge_id;
+          const matched = connected_agents_info.find((c) => c.original_bridge_id === old_id);
+          if (matched) {
+            version_connected_agents[matched.new_bridge_id] = {
+              bridge_id: matched.new_bridge_id,
+              ...(v_agent_info.thread_id !== undefined && { thread_id: v_agent_info.thread_id })
+            };
           }
         }
 
@@ -394,9 +399,10 @@ const deleteAgent = async (agent_id, org_id) => {
         }
       );
     }
+    const agentLabel = agent.name || agent_id;
     const statusMessage = agentAlreadyDeleted
-      ? `Agent ID: ${agent_id} was already soft deleted, updated timestamp. ${deletedVersions.modifiedCount} versions marked for deletion.`
-      : `Agent ID: ${agent_id} and ${deletedVersions.modifiedCount} versions marked for deletion. They will be permanently deleted after 30 days.`;
+      ? `Agent "${agentLabel}" was already soft deleted, updated timestamp. ${deletedVersions.modifiedCount} versions marked for deletion.`
+      : `Agent "${agentLabel}" and ${deletedVersions.modifiedCount} versions marked for deletion. They will be permanently deleted after 30 days.`;
 
     return {
       success: true,
@@ -404,6 +410,142 @@ const deleteAgent = async (agent_id, org_id) => {
     };
   } catch (error) {
     console.error("error:", error);
+    return {
+      success: false,
+      error: "something went wrong!!"
+    };
+  }
+};
+
+const permanentlyDeleteAgent = async (agent_id, org_id) => {
+  try {
+    const agent = await configurationModel.findOne({
+      _id: new ObjectId(agent_id),
+      org_id: org_id
+    });
+    if (!agent) {
+      return {
+        success: false,
+        error: "Agent not found"
+      };
+    }
+
+    // Check if any other agent/version references this agent in connected_agents
+    const [connectedFromVersions, connectedFromConfigurations] = await Promise.all([
+      versionModel.aggregate([
+        {
+          $match: {
+            org_id: org_id,
+            connected_agents: { $exists: true, $ne: null }
+          }
+        },
+        {
+          $addFields: {
+            hasConnection: {
+              $anyElementTrue: {
+                $map: {
+                  input: { $objectToArray: "$connected_agents" },
+                  as: "agent",
+                  in: { $eq: ["$$agent.v.bridge_id", agent_id] }
+                }
+              }
+            },
+            bridgeId: { $ifNull: ["$parent_id", "$_id"] }
+          }
+        },
+        { $match: { hasConnection: true } },
+        { $group: { _id: "$bridgeId" } }
+      ]),
+      configurationModel.aggregate([
+        {
+          $match: {
+            org_id: org_id,
+            connected_agents: { $exists: true, $ne: null }
+          }
+        },
+        {
+          $addFields: {
+            hasConnection: {
+              $anyElementTrue: {
+                $map: {
+                  input: { $objectToArray: "$connected_agents" },
+                  as: "agent",
+                  in: { $eq: ["$$agent.v.bridge_id", agent_id] }
+                }
+              }
+            }
+          }
+        },
+        { $match: { hasConnection: true } },
+        { $group: { _id: "$_id" } }
+      ])
+    ]);
+
+    const allConnectedAgentIds = [...connectedFromVersions.map((item) => item._id), ...connectedFromConfigurations.map((item) => item._id)];
+    const uniqueAgentIds = [...new Set(allConnectedAgentIds.map((id) => id.toString()))].filter((id) => id !== agent_id.toString());
+
+    if (uniqueAgentIds.length > 0) {
+      const connectedAgents = await configurationModel
+        .find({
+          _id: { $in: uniqueAgentIds.map((id) => new ObjectId(id)) },
+          org_id: org_id
+        })
+        .select({ _id: 1, name: 1 })
+        .lean();
+
+      const agentNames = connectedAgents.map((a) => a.name || `Agent ${a._id}`);
+
+      return {
+        success: false,
+        error: `Cannot delete agent. It is connected to the following ${agentNames.length === 1 ? "agent" : "agents"}: ${agentNames.join(", ")}`,
+        connected_agents: connectedAgents.map((a) => ({ _id: a._id, name: a.name }))
+      };
+    }
+
+    // Hard delete all versions for this agent (by parent_id and by versions array)
+    const versionIdsFromArray = Array.isArray(agent.versions)
+      ? agent.versions
+          .map((id) => {
+            try {
+              return new ObjectId(id);
+            } catch {
+              return null;
+            }
+          })
+          .filter(Boolean)
+      : [];
+
+    const versionDeleteFilter = {
+      org_id: org_id,
+      $or: [{ parent_id: agent_id.toString() }, { parent_id: agent_id }]
+    };
+    if (versionIdsFromArray.length > 0) {
+      versionDeleteFilter.$or.push({ _id: { $in: versionIdsFromArray } });
+    }
+
+    const deletedVersions = await versionModel.deleteMany(versionDeleteFilter);
+
+    // Hard delete the agent itself
+    const deletedAgent = await configurationModel.deleteOne({
+      _id: new ObjectId(agent_id),
+      org_id: org_id
+    });
+
+    if (deletedAgent.deletedCount === 0) {
+      return {
+        success: false,
+        error: "Failed to delete agent"
+      };
+    }
+
+    const agentLabel = agent.name || agent_id;
+    return {
+      success: true,
+      message: `Agent "${agentLabel}" permanently deleted along with ${deletedVersions.deletedCount} version(s).`,
+      deletedVersionsCount: deletedVersions.deletedCount
+    };
+  } catch (error) {
+    console.error("permanentlyDeleteAgent error:", error);
     return {
       success: false,
       error: "something went wrong!!"
@@ -494,36 +636,6 @@ const getApiCallById = async (apiId) => {
     };
   }
 };
-const addResponseIdinAgent = async (agentId, orgId, responseId, responseRefId) => {
-  try {
-    const agents = await configurationModel.findOneAndUpdate(
-      {
-        _id: agentId
-      },
-      {
-        $addToSet: {
-          responseIds: responseId
-        },
-        $set: {
-          responseRef: responseRefId
-        }
-      },
-      {
-        new: true
-      }
-    );
-    return {
-      success: true,
-      bridges: agents
-    };
-  } catch (error) {
-    console.log("error:", error);
-    return {
-      success: false,
-      error: "something went wrong!!"
-    };
-  }
-};
 
 // add action  or update the previous action in agent
 
@@ -583,38 +695,48 @@ const getAgentIdBySlugname = async (orgId, slugName) => {
       slugName: slugName,
       org_id: orgId
     })
-    .select({ _id: 1, slugName: 1, starterQuestion: 1, IsstarterQuestionEnable: 1 })
+    .select({ _id: 1, slugName: 1, starterQuestion: 1, IsstarterQuestionEnable: 1, org_id: 1 })
     .lean();
 };
 const getAgentBySlugname = async (orgId, slugName, versionId) => {
   try {
-    const hello_id = await configurationModel
-      .findOne({
-        slugName: slugName,
-        org_id: orgId
-      })
-      .select({ hello_id: 1, "configuration.model": 1, service: 1, apikey_object_id: 1 })
-      .lean();
+    const query = { slugName, org_id: orgId };
+    const fields = {
+      hello_id: 1,
+      "configuration.model": 1,
+      "configuration.stream": 1,
+      "configuration.type": 1,
+      "configuration.response_type": 1,
+      service: 1,
+      apikey_object_id: 1
+    };
 
-    const modelConfig = await versionModel
-      .findOne({
-        _id: new ObjectId(versionId)
-      })
-      .select({ "configuration.model": 1, service: 1, apikey_object_id: 1 })
-      .lean();
+    const agentData = await configurationModel.findOne(query).select(fields).lean();
+    if (!agentData)
+      return {
+        success: false,
+        error: "Agent not found"
+      };
 
-    const model = versionId ? modelConfig.configuration : hello_id?.configuration;
-    const service = versionId ? modelConfig.service : hello_id?.service;
-    const apikey_object_id = versionId ? modelConfig.apikey_object_id : hello_id?.apikey_object_id;
+    let versionData = null;
+    if (versionId) {
+      versionData = await versionModel
+        .findOne({ _id: new ObjectId(versionId) })
+        .select(fields)
+        .lean();
+    }
 
-    if (!hello_id) return false;
-
-    return { hello_id, modelConfig: model, apikey_object_id, service };
+    const source = versionData || agentData;
+    return {
+      hello_id: agentData.hello_id,
+      modelConfig: source.configuration,
+      service: source.service,
+      apikey_object_id: source.apikey_object_id
+    };
   } catch (error) {
-    console.log("error:", error);
     return {
       success: false,
-      error: "something went wrong!!"
+      error: `getAgentBySlugname error: ${error}`
     };
   }
 };
@@ -655,24 +777,6 @@ const getAgentsByUserId = async (orgId, userId, agent_id) => {
   } catch (error) {
     console.error("Error fetching agents:", error);
     return { success: false, error: "Agent not found!!" };
-  }
-};
-
-const removeResponseIdinAgent = async (agentId, orgId, responseId) => {
-  try {
-    const agents = await configurationModel.findOneAndUpdate(
-      { _id: agentId },
-      {
-        $pull: {
-          responseIds: responseId
-        }
-      },
-      { new: true }
-    );
-    return { success: true, bridges: agents };
-  } catch (error) {
-    console.log("error:", error);
-    return { success: false, error: "something went wrong!!" };
   }
 };
 
@@ -766,50 +870,33 @@ const getAgentNameById = async (agent_id, org_id) => {
   }
 };
 
-const getAgentByUrlSlugname = async (url_slugName) => {
-  try {
-    const hello_id = await configurationModel
-      .findOne({
-        "page_config.url_slugname": url_slugName
-      })
-      .select({ _id: 1, name: 1, service: 1, org_id: 1 });
-
-    if (!hello_id) return false;
-
-    return {
-      _id: hello_id._id,
-      name: hello_id.name,
-      service: hello_id.service,
-      org_id: hello_id.org_id
-    };
-  } catch (error) {
-    console.log("error:", error);
-    return {
-      success: false,
-      error: "something went wrong!!"
-    };
-  }
-};
-
 const findIdsByModelAndService = async (model, service, org_id) => {
-  const query = {
+  // Query for models in configuration.model
+  const primaryQuery = {
     "configuration.model": model
   };
-  if (service) query.service = service;
-  if (org_id) query.org_id = org_id;
+  if (service) primaryQuery.service = service;
+  if (org_id) primaryQuery.org_id = org_id;
 
-  // Find matching configurations in configurationModel
+  // Query for models in fallback settings
+  const fallbackQuery = {
+    "settings.fall_back.model": model
+  };
+  if (service) fallbackQuery["settings.fall_back.service"] = service;
+  if (org_id) fallbackQuery.org_id = org_id;
+
+  // Find matching configurations in configurationModel (both primary and fallback)
   const configMatches = await configurationModel
-    .find(query)
+    .find({ $or: [primaryQuery, fallbackQuery] })
     .select({
       _id: 1,
       name: 1
     })
     .lean();
 
-  // Find matching configurations in versionModel
+  // Find matching configurations in versionModel (both primary and fallback)
   const versionMatches = await versionModel
-    .find(query)
+    .find({ $or: [primaryQuery, fallbackQuery] })
     .select({
       _id: 1,
       name: 1
@@ -836,24 +923,28 @@ const findIdsByModelAndService = async (model, service, org_id) => {
 const getAllAgentsData = async (userEmail) => {
   const query = {
     $or: [
-      { "page_config.availability": "public" },
       {
-        "page_config.availability": "private",
-        "page_config.allowedUsers": userEmail
+        "settings.publicAgentConfig.availability": "public",
+        "settings.publicAgentConfig.isPublicAgent": true
+      },
+      {
+        "settings.publicAgentConfig.availability": "private",
+        "settings.publicAgentConfig.publicUsers": userEmail,
+        "settings.publicAgentConfig.isPublicAgent": false
       }
     ]
   };
-  return await configurationModel.find(query);
+  return await configurationModel.find(query).select({ name: 1, slugName: 1, org_id: 1, "settings.publicAgentConfig": 1 }).lean();
 };
 
-const getAgentsData = async (slugName, userEmail) => {
+const getAgentsData = async (slugName, userEmail, org_id) => {
   return await configurationModel.findOne({
     $or: [
       {
-        $and: [{ "page_config.availability": "public" }, { "page_config.url_slugname": slugName }]
+        $and: [{ "settings.availability": "public" }, { slugname: slugName }, { org_id: org_id }]
       },
       {
-        $and: [{ "page_config.availability": "private" }, { "page_config.url_slugname": slugName }, { "page_config.allowedUsers": userEmail }]
+        $and: [{ "settings.availability": "private" }, { slugname: slugName }, { "settings.publicUsers": userEmail }, { org_id: org_id }]
       }
     ]
   });
@@ -927,18 +1018,21 @@ const updateBuiltInTools = async (version_id, tool, add = 1) => {
 const updateAgents = async (version_id, agents, add = 1) => {
   let to_update;
   if (add === 1) {
-    // Add or update the connected agents
+    // Add or update the connected agents keyed by bridge_id, agent name stored inside
     const setFields = {};
-    for (const [agent_name, agent_info] of Object.entries(agents)) {
-      agent_info.thread_id = true;
-      setFields[`connected_agents.${agent_name}`] = agent_info;
+    for (const [, agent_info] of Object.entries(agents)) {
+      const key = agent_info.bridge_id?.toString() ?? agent_info.bridge_id;
+      if (!key) continue;
+      if (agent_info.thread_id === undefined) agent_info.thread_id = true;
+      setFields[`connected_agents.${key}`] = { ...agent_info };
     }
     to_update = { $set: setFields };
   } else {
-    // Remove the specified connected agents
+    // Remove the specified connected agents by bridge_id
     const unsetFields = {};
-    for (const agent_name of Object.keys(agents)) {
-      unsetFields[`connected_agents.${agent_name}`] = "";
+    for (const [, agent_info] of Object.entries(agents)) {
+      const key = agent_info.bridge_id?.toString() ?? agent_info.bridge_id;
+      if (key) unsetFields[`connected_agents.${key}`] = "";
     }
     to_update = { $unset: unsetFields };
   }
@@ -960,11 +1054,11 @@ const updateAgents = async (version_id, agents, add = 1) => {
 };
 
 const updateAgentIdsInApiCalls = async (function_id, agent_id, add = 1) => {
-  const to_update = { $set: { status: 1 } };
+  const to_update = {};
   if (add === 1) {
-    to_update.$addToSet = { bridge_ids: new ObjectId(agent_id) };
+    to_update.$addToSet = { bridge_ids: agent_id };
   } else {
-    to_update.$pull = { bridge_ids: new ObjectId(agent_id) };
+    to_update.$pull = { bridge_ids: agent_id };
   }
 
   const data = await apiCallModel.findOneAndUpdate({ _id: new ObjectId(function_id) }, to_update, {
@@ -1025,7 +1119,13 @@ const updateAgent = async (agent_id, update_fields, version_id = null) => {
   const id_to_use = version_id ? version_id : agent_id;
   const result = await model.findOneAndUpdate({ _id: id_to_use }, { $set: update_fields }, { new: true });
 
-  const cacheKeysToDelete = agentVersionService._buildCacheKeys(version_id, agent_id || result.parent_id, { bridges: [], versions: [] }, []);
+  const cacheKeysToDelete = agentVersionService._buildCacheKeys(
+    version_id,
+    agent_id || result.parent_id,
+    { bridges: [], versions: [] },
+    [],
+    result.org_id
+  );
 
   if (cacheKeysToDelete.length > 0) {
     await deleteInCache(cacheKeysToDelete);
@@ -1036,7 +1136,7 @@ const updateAgent = async (agent_id, update_fields, version_id = null) => {
 
 const getAgentsWithTools = async (agent_id, org_id, version_id = null) => {
   try {
-    // const cacheKey = `${redis_keys.bridge_data_with_tools_}${version_id || agent_id}`;
+    // const cacheKey = `${redis_keys.bridge_data_with_tools_}${org_id}_${version_id || agent_id}`;
     // const cachedData = await findInCache(cacheKey);
     // if (cachedData) {
     //   return JSON.parse(cachedData);
@@ -1162,6 +1262,7 @@ const getAllAgentsInOrg = async (org_id, folder_id, user_id, isEmbedUser) => {
       "configuration.model": 1,
       "configuration.prompt": 1,
       "configuration.type": 1,
+      "configuration.cache_on": 1,
       bridgeType: 1,
       slugName: 1,
       versions: 1,
@@ -1185,8 +1286,10 @@ const getAllAgentsInOrg = async (org_id, folder_id, user_id, isEmbedUser) => {
       createdAt: 1,
       updatedAt: 1,
       prompt_total_tokens: 1,
-      prompt_enhancer_percentage: 1,
-      criteria_check: 1
+      "ai_updates.prompt_enhancer_percentage": 1,
+      "ai_updates.criteria_check": 1,
+      settings: 1,
+      meta: 1
     })
     .sort({ createdAt: -1 })
     .lean();
@@ -1251,13 +1354,74 @@ const getAgentUsers = async (agent_id, org_id) => {
   }
 };
 
+const getUniqueAgentNameAndSlug = async (org_id, baseName) => {
+  try {
+    let name = baseName || "untitled_agent";
+    const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+    const nameRegex = new RegExp(`^${escapeRegExp(name)}(?:_(\\d+))?$`, "i");
+    const baseSlug = name.replace(/[^a-zA-Z0-9]/g, "_").toLowerCase();
+    const slugRegex = new RegExp(`^${escapeRegExp(baseSlug)}(?:_(\\d+))?$`, "i");
+
+    const existingAgents = await configurationModel
+      .find({
+        org_id: String(org_id),
+        $or: [{ name: { $regex: nameRegex } }, { slugName: { $regex: slugRegex } }]
+      })
+      .select({ name: 1, slugName: 1 })
+      .lean();
+
+    let max_name_count = 0;
+    let name_exists = false;
+    let max_slug_count = 0;
+    let slug_exists = false;
+
+    for (const agent of existingAgents) {
+      if (agent.name === name) name_exists = true;
+      if (agent.slugName === baseSlug) slug_exists = true;
+
+      const nameMatch = agent.name?.match(nameRegex);
+      if (nameMatch && nameMatch[1]) {
+        const num = parseInt(nameMatch[1], 10);
+        if (num > max_name_count) max_name_count = num;
+      }
+
+      const slugMatch = agent.slugName?.match(slugRegex);
+      if (slugMatch && slugMatch[1]) {
+        const num = parseInt(slugMatch[1], 10);
+        if (num > max_slug_count) max_slug_count = num;
+      }
+    }
+
+    let finalName = name;
+    if (name_exists || max_name_count > 0) {
+      const next_count = max_name_count === 0 ? 1 : max_name_count + 1;
+      finalName = `${name}_${next_count}`;
+    }
+
+    let finalSlug = baseSlug;
+    if (slug_exists || max_slug_count > 0) {
+      const next_count = max_slug_count === 0 ? 1 : max_slug_count + 1;
+      finalSlug = `${baseSlug}_${next_count}`;
+    }
+
+    return { name: finalName, slugName: finalSlug };
+  } catch (error) {
+    console.error(`Error in getUniqueAgentNameAndSlug: ${error}`);
+    const fallbackName = baseName || "untitled_agent";
+    return {
+      name: fallbackName,
+      slugName: fallbackName.replace(/[^a-zA-Z0-9]/g, "_").toLowerCase()
+    };
+  }
+};
+
 export default {
   deleteAgent,
+  permanentlyDeleteAgent,
   restoreAgent,
   getApiCallById,
   getAgentsWithSelectedData,
-  addResponseIdinAgent,
-  removeResponseIdinAgent,
   getAgentBySlugname,
   findChatbotOfAgent,
   getAgentIdBySlugname,
@@ -1267,7 +1431,6 @@ export default {
   removeActionInAgent,
   getAgents,
   getAgentNameById,
-  getAgentByUrlSlugname,
   findIdsByModelAndService,
   getAgentsByUserId,
   getAllAgentsData,
@@ -1284,5 +1447,6 @@ export default {
   getAgentsAndVersionsByModel,
   getAgentsWithoutTools,
   cloneAgentToOrg,
-  getAgentUsers
+  getAgentUsers,
+  getUniqueAgentNameAndSlug
 };

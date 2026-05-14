@@ -64,7 +64,7 @@ async function updateAgents(agent_id, data, version_id = null) {
       result = await configurationModel.findOneAndUpdate({ _id: agent_id }, updateQuery, { new: true });
     }
 
-    const cacheKeysToDelete = _buildCacheKeys(version_id, agent_id || result.parent_id, { bridges: [], versions: [] }, []);
+    const cacheKeysToDelete = _buildCacheKeys(version_id, agent_id || result.parent_id, { bridges: [], versions: [] }, [], result.org_id);
 
     if (cacheKeysToDelete.length > 0) {
       await deleteInCache(cacheKeysToDelete);
@@ -144,7 +144,7 @@ async function makeQuestion(parent_id, prompt, functions, save = false) {
     for (const key in functions) {
       filteredFunctions[functions[key].title] = functions[key].description;
     }
-    prompt += "\nFunctionalities available\n" + JSON.stringify(filteredFunctions);
+    prompt = `This is the prompt of the target agent:\n ${prompt}\n\nFunctionalities available:\n ${JSON.stringify(filteredFunctions)}`;
   }
 
   const expectedQuestions = await callAiMiddleware(prompt, bridge_ids["make_question"]);
@@ -252,22 +252,25 @@ function _mergeImpactedIds(...impacts) {
   return merged;
 }
 
-function _buildCacheKeys(version_id, parent_id, impacted_ids, extra_keys) {
-  const cacheKeys = new Set([`${redis_keys.get_bridge_data_}${version_id}`, `${redis_keys.bridge_data_with_tools_}${version_id}`]);
+function _buildCacheKeys(version_id, parent_id, impacted_ids, extra_keys, org_id) {
+  const cacheKeys = new Set([
+    `${redis_keys.get_bridge_data_}${org_id}_${version_id}`,
+    `${redis_keys.bridge_data_with_tools_}${org_id}_${version_id}`
+  ]);
 
   if (parent_id) {
-    cacheKeys.add(`${redis_keys.get_bridge_data_}${parent_id}`);
-    cacheKeys.add(`${redis_keys.bridge_data_with_tools_}${parent_id}`);
+    cacheKeys.add(`${redis_keys.get_bridge_data_}${org_id}_${parent_id}`);
+    cacheKeys.add(`${redis_keys.bridge_data_with_tools_}${org_id}_${parent_id}`);
   }
 
   impacted_ids.bridges.forEach((id) => {
-    cacheKeys.add(`${redis_keys.get_bridge_data_}${id}`);
-    cacheKeys.add(`${redis_keys.bridge_data_with_tools_}${id}`);
+    cacheKeys.add(`${redis_keys.get_bridge_data_}${org_id}_${id}`);
+    cacheKeys.add(`${redis_keys.bridge_data_with_tools_}${org_id}_${id}`);
   });
 
   impacted_ids.versions.forEach((id) => {
-    cacheKeys.add(`${redis_keys.get_bridge_data_}${id}`);
-    cacheKeys.add(`${redis_keys.bridge_data_with_tools_}${id}`);
+    cacheKeys.add(`${redis_keys.get_bridge_data_}${org_id}_${id}`);
+    cacheKeys.add(`${redis_keys.bridge_data_with_tools_}${org_id}_${id}`);
   });
 
   extra_keys.forEach((key) => cacheKeys.add(key));
@@ -285,7 +288,7 @@ function calculateTokens(text) {
   }
 }
 
-async function calculateAndSavePromptTokens(parentId, prompt, tools) {
+function calculatePromptTokens(prompt, tools) {
   try {
     let promptTokens = 0;
     let toolsTokens = 0;
@@ -310,16 +313,10 @@ async function calculateAndSavePromptTokens(parentId, prompt, tools) {
       }
     }
 
-    // Calculate total tokens
-    const promptTotalTokens = promptTokens + toolsTokens;
-
-    // Update the document in the configurationModel
-    await configurationModel.updateOne({ _id: parentId }, { $set: { prompt_total_tokens: promptTotalTokens } });
-
-    return promptTotalTokens;
+    return promptTokens + toolsTokens;
   } catch (error) {
-    console.error("Error calculating and saving prompt tokens:", error);
-    return null;
+    console.error("Error calculating prompt tokens:", error);
+    return 0;
   }
 }
 
@@ -333,7 +330,12 @@ async function getPromptEnhancerPercentage(parentId, prompt) {
     // Update the document in the configurationModel
     await configurationModel.updateOne(
       { _id: parentId },
-      { $set: { prompt_enhancer_percentage: prompt_enhancer_percentage, criteria_check: criteria_check } }
+      {
+        $set: {
+          "ai_updates.prompt_enhancer_percentage": prompt_enhancer_percentage,
+          "ai_updates.criteria_check": criteria_check
+        }
+      }
     );
 
     return { prompt_enhancer_percentage, criteria_check };
@@ -372,7 +374,7 @@ async function deleteAgentVersion(org_id, version_id) {
 
   const ragCacheKeys = _collectRagCacheKeys(versionDoc);
   const impactedIds = _mergeImpactedIds(connectedAgentsImpacted, apiCallsImpacted);
-  const cacheKeysToDelete = _buildCacheKeys(version_id, parentId, impactedIds, ragCacheKeys);
+  const cacheKeysToDelete = _buildCacheKeys(version_id, parentId, impactedIds, ragCacheKeys, org_id);
 
   if (cacheKeysToDelete.length > 0) {
     await deleteInCache(cacheKeysToDelete);
@@ -399,6 +401,16 @@ async function publish(org_id, version_id, user_id) {
   const prompt = convertPromptToString(getVersionData.configuration?.prompt || "");
   const variableState = getVersionData.variables_state || {};
   const variablePath = getVersionData.variables_path || {};
+
+  if (Array.isArray(getVersionData.pre_tools)) {
+    getVersionData.pre_tools.forEach((tool) => {
+      if (tool.type === "custom_function" && tool.config && tool.config.script_id && tool.args) {
+        variablePath[tool.config.script_id] = variablePath[tool.config.script_id] || {};
+        Object.assign(variablePath[tool.config.script_id], tool.args);
+      }
+    });
+  }
+
   const agentVariables = getReqOptVariablesInPrompt(prompt, variableState, variablePath);
   const transformedAgentVariables = transformAgentVariableToToolCallFormat(agentVariables);
 
@@ -409,10 +421,17 @@ async function publish(org_id, version_id, user_id) {
   delete updatedConfiguration.apiCalls; // Remove looked-up data
 
   const chatbotAutoAnswers = parentConfiguration.chatbot_auto_answers;
+  const publicAgentConfig = parentConfiguration.settings?.publicAgentConfig;
 
   // Restore the chatbot_auto_answers value from parent
   if (chatbotAutoAnswers !== undefined) {
     updatedConfiguration.chatbot_auto_answers = chatbotAutoAnswers;
+  }
+
+  // Restore the settings.publicAgentConfig value from parent
+  if (publicAgentConfig !== undefined) {
+    updatedConfiguration.settings = updatedConfiguration.settings || {};
+    updatedConfiguration.settings.publicAgentConfig = publicAgentConfig;
   }
 
   if (updatedConfiguration.function_ids) {
@@ -424,17 +443,14 @@ async function publish(org_id, version_id, user_id) {
     ...(updatedConfiguration.connected_agent_details || {}),
     agent_variables: {
       fields: transformedAgentVariables.fields,
-      required_params: transformedAgentVariables.required_params
+      required: transformedAgentVariables.required
     }
   };
 
-  // Background tasks
   const tools = getVersionData.apiCalls;
 
-  makeQuestion(parentId, prompt, tools, true).catch(console.error);
-  getPromptEnhancerPercentage(parentId, prompt).catch(console.error);
-  calculateAndSavePromptTokens(parentId, prompt, tools).catch(console.error);
-  // deleteCurrentTestcaseHistory(version_id).catch(console.error); // Implement if needed
+  // Calculate token count and include in transaction update (avoids a separate DB write)
+  updatedConfiguration.prompt_total_tokens = calculatePromptTokens(prompt, tools);
 
   // Transaction
   const session = await mongoose.startSession();
@@ -454,6 +470,16 @@ async function publish(org_id, version_id, user_id) {
     throw new Error(`Failed to publish version: ${error.message}`);
   } finally {
     session.endSession();
+  }
+
+  // Background tasks (after transaction to avoid write conflicts on configurationModel)
+  makeQuestion(parentId, prompt, tools, true).catch(console.error);
+  getPromptEnhancerPercentage(parentId, prompt).catch(console.error);
+  // deleteCurrentTestcaseHistory(version_id).catch(console.error); // Implement if needed
+
+  const cacheKeysToDelete = _buildCacheKeys(publishedVersionId, parentId, { bridges: [], versions: [] }, [], org_id);
+  if (cacheKeysToDelete.length > 0) {
+    await deleteInCache(cacheKeysToDelete);
   }
 
   await conversationDbService.addBulkUserEntries([

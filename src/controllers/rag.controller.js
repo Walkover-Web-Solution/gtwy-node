@@ -272,15 +272,15 @@ export const createResourceInCollection = async (req, res, next) => {
     if (collection_details == "high_accuracy") {
       const collection = existingCollections.find((col) => col.name == "high_accuracy");
       collectionId = collection?.collection_id;
-      settings = { ...settings, ...filterUndefined(collection?.settings) };
+      settings = { ...filterUndefined(collection?.settings), ...filterUndefined(settings) };
     } else if (collection_details == "moderate") {
       const collection = existingCollections.find((col) => col.name == "moderate");
       collectionId = collection?.collection_id;
-      settings = { ...settings, ...filterUndefined(collection?.settings) };
+      settings = { ...filterUndefined(collection?.settings), ...filterUndefined(settings) };
     } else {
       const collection = existingCollections.find((col) => col.name == "fastest");
       collectionId = collection?.collection_id;
-      settings = { ...settings, ...filterUndefined(collection?.settings) };
+      settings = { ...filterUndefined(collection?.settings), ...filterUndefined(settings) };
     }
 
     if (!collectionId) {
@@ -382,6 +382,32 @@ export const updateResourceInCollection = async (req, res, next) => {
 export const deleteResourceFromCollection = async (req, res, next) => {
   try {
     const { id } = req.params;
+    const org_id = req.profile?.org?.id;
+
+    // Check if resource is in use before allowing deletion
+    const usageCheck = await ragCollectionService.checkResourceUsage(id, org_id);
+    if (!usageCheck.success) {
+      res.locals = {
+        success: false,
+        message: usageCheck.error
+      };
+      req.statusCode = 400;
+      return next();
+    }
+
+    if (usageCheck.isInUse) {
+      res.locals = {
+        success: false,
+        message: "Cannot delete resource as it is currently in use",
+        isInUse: true,
+        usageDetails: {
+          agents: usageCheck.agents,
+          versions: usageCheck.versions
+        }
+      };
+      req.statusCode = 400;
+      return next();
+    }
 
     const hippocampusUrl = "http://hippocampus.gtwy.ai";
     const hippocampusApiKey = process.env.HIPPOCAMPUS_API_KEY;

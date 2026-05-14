@@ -19,9 +19,13 @@ const richUiTemplateSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.Mixed,
       required: true
     },
-    html: {
-      type: String,
-      required: true
+    ui: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null
+    },
+    variables: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {}
     },
     created_by: {
       type: String,
@@ -44,7 +48,6 @@ const richUiTemplateSchema = new mongoose.Schema(
   }
 );
 
-// Indexes for better query performance
 richUiTemplateSchema.index({ name: 1 });
 
 const RichUiTemplate = mongoose.model("RichUiTemplate", richUiTemplateSchema, "rich_ui_templates");

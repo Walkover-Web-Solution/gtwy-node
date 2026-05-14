@@ -1,7 +1,7 @@
 import { findInCache, deleteInCache } from "../../cache_service/index.js";
 import { redis_keys } from "../../configs/constant.js";
 
-const createRedisKeys = (data) => {
+const createRedisKeys = (data, org_id) => {
   const keys_to_delete = [];
   try {
     if (typeof data !== "object" || data === null) {
@@ -11,8 +11,8 @@ const createRedisKeys = (data) => {
     const versions = data.versions || [];
 
     for (const version of versions) {
-      keys_to_delete.push(`${redis_keys.bridge_data_with_tools_}${version}`);
-      keys_to_delete.push(`${redis_keys.get_bridge_data_}${version}`);
+      keys_to_delete.push(`${redis_keys.bridge_data_with_tools_}${org_id}_${version}`);
+      keys_to_delete.push(`${redis_keys.get_bridge_data_}${org_id}_${version}`);
     }
   } catch (e) {
     console.error(`Error creating redis keys from usage data: ${e}`);
@@ -21,7 +21,7 @@ const createRedisKeys = (data) => {
   return keys_to_delete;
 };
 
-export const purgeRelatedBridgeCaches = async (bridge_id, bridge_usage = -1) => {
+export const purgeRelatedBridgeCaches = async (bridge_id, bridge_usage = -1, org_id) => {
   try {
     if (!bridge_id) {
       return;
@@ -34,15 +34,15 @@ export const purgeRelatedBridgeCaches = async (bridge_id, bridge_usage = -1) => 
     if (usage_cache_value) {
       try {
         const usage_data = JSON.parse(usage_cache_value) || {};
-        keys_to_delete.push(...createRedisKeys(usage_data));
+        keys_to_delete.push(...createRedisKeys(usage_data, org_id));
       } catch {
         // ignore
       }
     }
 
     // Ensure current bridge's own keys are covered
-    keys_to_delete.push(`${redis_keys.bridge_data_with_tools_}${bridge_id}`);
-    keys_to_delete.push(`${redis_keys.get_bridge_data_}${bridge_id}`);
+    keys_to_delete.push(`${redis_keys.bridge_data_with_tools_}${org_id}_${bridge_id}`);
+    keys_to_delete.push(`${redis_keys.get_bridge_data_}${org_id}_${bridge_id}`);
 
     if (keys_to_delete.length > 0) {
       await deleteInCache(keys_to_delete);
@@ -55,7 +55,7 @@ export const purgeRelatedBridgeCaches = async (bridge_id, bridge_usage = -1) => 
   }
 };
 
-export async function cleanupCache(type, id) {
+export async function cleanupCache(type, id, org_id) {
   try {
     const cacheKey = `${redis_keys[type + "usedcost_"]}${id}`;
     const cacheobject = await findInCache(cacheKey);
@@ -67,14 +67,14 @@ export async function cleanupCache(type, id) {
 
       if (versions && versions.length > 0) {
         versions.forEach((version) => {
-          allcachekeys.push(`${redis_keys.bridge_data_with_tools_}${version}`);
-          allcachekeys.push(`${redis_keys.get_bridge_data_}${version}`);
+          allcachekeys.push(`${redis_keys.bridge_data_with_tools_}${org_id}_${version}`);
+          allcachekeys.push(`${redis_keys.get_bridge_data_}${org_id}_${version}`);
         });
       }
       if (bridges && bridges.length > 0) {
         bridges.forEach((bridge) => {
-          allcachekeys.push(`${redis_keys.bridge_data_with_tools_}${bridge}`);
-          allcachekeys.push(`${redis_keys.get_bridge_data_}${bridge}`);
+          allcachekeys.push(`${redis_keys.bridge_data_with_tools_}${org_id}_${bridge}`);
+          allcachekeys.push(`${redis_keys.get_bridge_data_}${org_id}_${bridge}`);
         });
       }
     }

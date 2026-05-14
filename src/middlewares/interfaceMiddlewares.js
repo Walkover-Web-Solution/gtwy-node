@@ -1,5 +1,5 @@
 import jwt from "jsonwebtoken";
-import responseTypeService from "../db_services/responseType.service.js";
+import { getOrganizationById } from "../services/proxy.service.js";
 import { reportLoginFailure } from "../services/utils/utility.service.js";
 
 const chatBotTokenDecode = async (req, res, next) => {
@@ -13,8 +13,8 @@ const chatBotTokenDecode = async (req, res, next) => {
     failureType = decodedToken?.ispublic || decodedToken?.org_id === "public" ? "public_embed" : "chatbot";
     let orgToken;
     if (decodedToken) {
-      const { chatBot: orgTokenFromDb } = await responseTypeService.getAll(decodedToken?.org_id);
-      orgToken = orgTokenFromDb?.orgAcessToken;
+      const orgTokenFromDb = await getOrganizationById(decodedToken?.org_id);
+      orgToken = orgTokenFromDb?.meta?.orgAccessToken;
       if (orgToken) {
         const checkToken = jwt.verify(token, orgToken);
         if (checkToken) {
@@ -98,7 +98,7 @@ const publicChatbotAuth = async (req, res, next) => {
     }
     return { success: false };
   } catch (err) {
-    console.error(err);
+    if (err.name !== "JsonWebTokenError") console.error(err);
     return { success: false };
   }
 };
@@ -106,11 +106,10 @@ const publicChatbotAuth = async (req, res, next) => {
 const combinedAuthWithChatBotAndPublicChatbot = async (req, res, next) => {
   try {
     // Try public chatbot auth first
-    // await publicChatbotAuth(req, res, () => {});
-    // if (req?.chatBot?.ispublic) {
-    //   // If public auth succeeded, proceed
-    //   return next();
-    // }
+    await publicChatbotAuth(req, res, () => {});
+    if (req?.chatBot?.ispublic) {
+      return next();
+    }
 
     // If public auth failed, try chatbot auth
     await chatBotAuth(req, res, () => {});

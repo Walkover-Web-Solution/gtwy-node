@@ -9,6 +9,7 @@ import { FineTuneSchema } from "../../validation/fineTuneValidation.js";
 import { chatbotHistoryValidationSchema } from "../../validation/joi_validation/chatBot.validation.js";
 import { send_error_to_webhook } from "../sendErrorWebhook.service.js";
 import { findThreadHistoryFormatted, updateStatus, createConversationLog } from "../../db_services/history.service.js";
+import { createThread } from "../thread.service.js";
 
 const getThreads = async (req, res, next) => {
   let page = parseInt(req.query.pageNo) || 1;
@@ -21,9 +22,7 @@ const getThreads = async (req, res, next) => {
   let bridge = {};
 
   if (bridge_slugName) {
-    bridge = req.chatBot?.ispublic
-      ? await configurationService.getAgentByUrlSlugname(bridge_slugName)
-      : await configurationService.getAgentIdBySlugname(org_id, bridge_slugName);
+    bridge = await configurationService.getAgentIdBySlugname(org_id, bridge_slugName);
     bridge_id = bridge?._id?.toString();
     starterQuestion = !bridge?.IsstarterQuestionEnable ? [] : bridge?.starterQuestion;
     org_id = req.chatBot?.ispublic ? bridge?.org_id : org_id;
@@ -218,6 +217,16 @@ export const createEntry = async (req, res, next) => {
       error: error.details
     });
   }
+  // Upsert subthread mapping in Mongo (no-op if already exists for this thread/sub_thread/org)
+
+  await createThread({
+    thread_id,
+    sub_thread_id: thread_id,
+    display_name: thread_id,
+    org_id: org_id?.toString(),
+    bridge_id
+  });
+
   // Use the new conversation_logs service instead of the old conversations table
   const threads = await createConversationLog(payload);
   res.locals = threads;
@@ -290,7 +299,26 @@ const getAllUserUpdates = async (req, res, next) => {
   const org_id = req?.profile?.org?.id || req?.profile?.org_id;
   let page = parseInt(req.query.page) || null;
   let pageSize = parseInt(req.query.limit) || null;
-  const userData = await conversationDbService.getUserUpdates(org_id, version_id, page, pageSize);
+
+  // Extract filter parameters
+  const filters = {
+    user_ids: req.query.user_ids
+      ? req.query.user_ids
+          .split(",")
+          .map((id) => id.trim())
+          .filter(Boolean)
+      : [],
+    types: req.query.types
+      ? req.query.types
+          .split(",")
+          .map((type) => type.trim())
+          .filter(Boolean)
+      : [],
+    date_from: req.query.date_from || null,
+    date_to: req.query.date_to || null
+  };
+
+  const userData = await conversationDbService.getUserUpdates(org_id, version_id, page, pageSize, [], filters);
   res.locals = { userData, success: true };
   req.statusCode = 200;
   return next();

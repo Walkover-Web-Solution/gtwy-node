@@ -1,7 +1,7 @@
 import axios from "axios";
-import { findInCache, storeInCache } from "../cache_service/index.js";
+import { findInCache, storeInCache, deleteInCache } from "../cache_service/index.js";
 import { objectToQueryParams } from "./utils/utility.service.js";
-// import { findInCache, storeInCache } from './cache.js';
+import { embed_cache } from "../configs/constant.js";
 
 export async function getUserOrgMapping(userId, orgId) {
   try {
@@ -39,6 +39,17 @@ export const switchOrganization = async (data, proxyToken) => {
 };
 
 export async function getOrganizationById(orgId) {
+  const cacheKeyOrg = embed_cache.keys.org(orgId);
+  const cachedOrg = await findInCache(cacheKeyOrg);
+
+  if (cachedOrg) {
+    try {
+      return JSON.parse(cachedOrg);
+    } catch {
+      await deleteInCache(cacheKeyOrg);
+    }
+  }
+
   try {
     const response = await axios.get(`https://routes.msg91.com/api/${process.env.PUBLIC_REFERENCEID}/getCompanies?id=${orgId}`, {
       // TODO not provided by proxy
@@ -50,6 +61,9 @@ export async function getOrganizationById(orgId) {
     });
 
     const data = response?.data?.data?.data?.[0];
+    if (data) {
+      await storeInCache(cacheKeyOrg, data);
+    }
     return data; // data.org kardena if giving undefined.
   } catch (error) {
     console.error("Error fetching data:", error.message);
@@ -87,6 +101,9 @@ export async function updateOrganizationData(orgId, orgDetails) {
       }
       // You can include credentials if required (e.g., 'withCredentials': true)
     });
+    if (orgId) {
+      await deleteInCache(embed_cache.keys.org(orgId));
+    }
 
     const data = response?.data;
     return data;
@@ -139,7 +156,7 @@ export async function getUsers(org_id, page = 1, pageSize = 10, exclude_role_ids
 export async function validateCauthKey(pauthkey) {
   try {
     const response = await axios.post(
-      "https://routes.msg91.com/api/validateCauthKey",
+      `https://routes.msg91.com/api/validateCauthKey`,
       {
         cAuthKey: pauthkey
       },
@@ -208,4 +225,15 @@ export async function removeClientUser(userId, companyId, featureId) {
     console.error("Error removing client user:", error.message);
     throw error;
   }
+}
+
+export async function generateProxyAuthToken(req) {
+  const apiUrl = `https://routes.msg91.com/api/${process.env.PUBLIC_REFERENCEID}/generateAuthToken`;
+  const response = await axios.get(apiUrl, {
+    headers: {
+      authkey: process.env.ADMIN_API_KEY,
+      proxy_auth_token: req.headers.proxy_auth_token || req.headers.authorization?.replace("Bearer ", "")
+    }
+  });
+  return response.data.data.jwt;
 }

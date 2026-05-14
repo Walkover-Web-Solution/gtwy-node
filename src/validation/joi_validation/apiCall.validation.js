@@ -1,5 +1,8 @@
 import Joi from "joi";
 
+const FUNCTION_NAME_PATTERN = /^[a-zA-Z0-9_-]+$/;
+const FUNCTION_NAME_MESSAGE = "title must contain only letters, numbers, underscores, or hyphens (no spaces or special characters)";
+
 const getAllApiCalls = {
   // No validation needed
 };
@@ -14,9 +17,17 @@ const updateApiCalls = {
     .unknown(true),
   body: Joi.object()
     .keys({
-      dataToSend: Joi.object().required().messages({
-        "any.required": "dataToSend is required"
-      })
+      dataToSend: Joi.object()
+        .keys({
+          title: Joi.string().pattern(FUNCTION_NAME_PATTERN).optional().messages({
+            "string.pattern.base": FUNCTION_NAME_MESSAGE
+          })
+        })
+        .unknown(true)
+        .required()
+        .messages({
+          "any.required": "dataToSend is required"
+        })
     })
     .unknown(true)
 };
@@ -37,7 +48,9 @@ const createApi = {
       id: Joi.string().required().messages({
         "any.required": "id (script_id) is required"
       }),
-      title: Joi.string().optional(),
+      title: Joi.string().pattern(FUNCTION_NAME_PATTERN).optional().messages({
+        "string.pattern.base": FUNCTION_NAME_MESSAGE
+      }),
       desc: Joi.string().required().messages({
         "any.required": "desc is required"
       }),
@@ -61,9 +74,16 @@ const addPreTool = {
   body: Joi.object()
     .keys({
       version_id: Joi.string().optional(),
-      pre_tools: Joi.string().required().messages({
-        "any.required": "pre_tools is required"
-      }),
+      pre_tools: Joi.object()
+        .keys({
+          type: Joi.string().valid("custom_function", "query_refiner", "rag_knowledgebase", "gtwy_web_search").required(),
+          config: Joi.object().optional(),
+          args: Joi.object().optional()
+        })
+        .required()
+        .messages({
+          "any.required": "pre_tools is required"
+        }),
       status: Joi.string().valid("0", "1").required().messages({
         "any.required": "status is required",
         "any.only": 'status must be either "0" or "1"'

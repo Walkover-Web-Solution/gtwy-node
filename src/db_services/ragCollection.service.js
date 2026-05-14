@@ -1,4 +1,6 @@
 import RagCollectionModel from "../mongoModel/RagCollection.model.js";
+import configurationModel from "../mongoModel/Configuration.model.js";
+import versionModel from "../mongoModel/BridgeVersion.model.js";
 
 /**
  * Create a new RAG collection
@@ -105,6 +107,48 @@ const getCollectionByResourceId = async (resourceId) => {
   }
 };
 
+/**
+ * Check if a resource is being used in any agent or version
+ */
+const checkResourceUsage = async (resourceId, org_id) => {
+  try {
+    const query = {
+      org_id: org_id,
+      "doc_ids.resource_id": resourceId,
+      deletedAt: null
+    };
+
+    const [agentsUsingResource, versionsUsingResource] = await Promise.all([
+      configurationModel.find(query, { _id: 1, name: 1, slugName: 1 }).limit(1).lean(),
+      versionModel.find(query, { _id: 1, parent_id: 1 }).limit(1).lean()
+    ]);
+
+    const usageDetails = {
+      isInUse: agentsUsingResource.length > 0 || versionsUsingResource.length > 0,
+      agents: agentsUsingResource.map((agent) => ({
+        id: agent._id,
+        name: agent.name,
+        slugName: agent.slugName
+      })),
+      versions: versionsUsingResource.map((version) => ({
+        id: version._id,
+        parent_id: version.parent_id
+      }))
+    };
+
+    return {
+      success: true,
+      ...usageDetails
+    };
+  } catch (error) {
+    console.error("Error checking resource usage:", error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+};
+
 export default {
   create,
   getByCollectionId,
@@ -112,5 +156,6 @@ export default {
   addResourceId,
   removeResourceId,
   deleteByCollectionId,
-  getCollectionByResourceId
+  getCollectionByResourceId,
+  checkResourceUsage
 };

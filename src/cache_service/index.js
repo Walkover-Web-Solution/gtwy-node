@@ -1,5 +1,5 @@
 import client from "../services/cache.service.js";
-const REDIS_PREFIX = "AIMIDDLEWARE_";
+const REDIS_PREFIX = `AIMIDDLEWARE_${process.env.ENVIRONMENT}_`;
 const DEFAULT_REDIS_TTL = 172800; //  2 day
 async function storeInCache(identifier, data, ttl = DEFAULT_REDIS_TTL) {
   if (client.isReady) return await client.set(REDIS_PREFIX + identifier, JSON.stringify(data), { EX: ttl });

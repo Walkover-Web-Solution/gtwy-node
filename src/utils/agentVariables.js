@@ -5,20 +5,19 @@ function getReqOptVariablesInPrompt(prompt, variableState, variablePath) {
     const result = {};
     for (const value of Object.values(d)) {
       if (typeof value === "object" && value !== null) {
-        Object.assign(result, flattenDict(value));
+        Object.assign(result, extractPrimitiveValues(value));
       }
     }
     return result;
   }
 
-  function flattenDict(d, parentKey = "") {
+  function extractPrimitiveValues(d) {
     const flat = {};
-    for (const [k, v] of Object.entries(d)) {
-      const newKey = parentKey ? `${parentKey}.${k}` : k;
+    for (const v of Object.values(d)) {
       if (typeof v === "object" && v !== null) {
-        Object.assign(flat, flattenDict(v, newKey));
-      } else {
-        flat[newKey] = "required";
+        Object.assign(flat, extractPrimitiveValues(v));
+      } else if (typeof v === "string" && v !== "") {
+        flat[v] = "required";
       }
     }
     return flat;
@@ -66,14 +65,14 @@ function transformAgentVariableToToolCallFormat(inputData) {
           type: "object",
           description: "",
           enum: [],
-          required_params: [],
-          parameter: {}
+          required: [],
+          properties: {}
         };
-      } else if (!current[part].parameter) {
-        current[part].parameter = {};
+      } else if (!current[part].properties) {
+        current[part].properties = {};
       }
 
-      current = current[part].parameter;
+      current = current[part].properties;
     }
 
     const finalKey = parts[parts.length - 1];
@@ -90,21 +89,21 @@ function transformAgentVariableToToolCallFormat(inputData) {
       type: paramType,
       description: "",
       enum: [],
-      required_params: []
+      required: []
     };
 
     if (isRequired) {
       for (let i = 0; i < parts.length - 1; i++) {
         let currentLevel = obj;
         for (let j = 0; j < i; j++) {
-          currentLevel = currentLevel[parts[j]].parameter;
+          currentLevel = currentLevel[parts[j]].properties;
         }
 
         const parentKey = parts[i];
         const childKey = parts[i + 1];
 
-        if (!currentLevel[parentKey].required_params.includes(childKey)) {
-          currentLevel[parentKey].required_params.push(childKey);
+        if (!currentLevel[parentKey].required.includes(childKey)) {
+          currentLevel[parentKey].required.push(childKey);
         }
       }
 
@@ -131,7 +130,7 @@ function transformAgentVariableToToolCallFormat(inputData) {
         type: paramType,
         description: "",
         enum: [],
-        required_params: []
+        required: []
       };
 
       if (isRequired && !requiredParams.includes(key)) {
@@ -142,7 +141,7 @@ function transformAgentVariableToToolCallFormat(inputData) {
 
   return {
     fields: fields,
-    required_params: requiredParams
+    required: requiredParams
   };
 }
 

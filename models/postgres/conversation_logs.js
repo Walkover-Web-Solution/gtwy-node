@@ -26,6 +26,10 @@ export default (sequelize, DataTypes) => {
         type: DataTypes.TEXT,
         allowNull: true
       },
+      reasoning: {
+        type: DataTypes.TEXT,
+        allowNull: true
+      },
       user: {
         type: DataTypes.TEXT,
         allowNull: true
@@ -45,6 +49,10 @@ export default (sequelize, DataTypes) => {
       error: {
         type: DataTypes.TEXT,
         allowNull: true
+      },
+      is_cached: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false
       },
       user_feedback: {
         type: DataTypes.INTEGER,
@@ -123,6 +131,14 @@ export default (sequelize, DataTypes) => {
       },
       child_id: {
         type: DataTypes.STRING,
+        allowNull: true
+      },
+      batch_data: {
+        type: DataTypes.JSONB,
+        allowNull: true
+      },
+      plans: {
+        type: DataTypes.JSONB,
         allowNull: true
       }
     },

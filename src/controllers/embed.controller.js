@@ -1,14 +1,14 @@
 import ConfigurationServices from "../db_services/configuration.service.js";
+import folderService from "../db_services/folder.service.js";
 import FolderModel from "../mongoModel/GtwyEmbed.model.js";
 import configurationModel from "../mongoModel/Configuration.model.js";
 import { createProxyToken, getOrganizationById, updateOrganizationData } from "../services/proxy.service.js";
 import { generateIdentifier } from "../services/utils/utility.service.js";
 import { cleanupCache } from "../services/utils/redis.utils.js";
 import { deleteInCache, findInCache } from "../cache_service/index.js";
-import { cost_types, redis_keys } from "../configs/constant.js";
+import { cost_types, redis_keys, embed_cache } from "../configs/constant.js";
 import { generateAuthToken } from "../services/utils/utility.service.js";
 import jwt from "jsonwebtoken";
-import responseTypeService from "../db_services/responseType.service.js";
 
 const embedLogin = async (req, res) => {
   const { name: embeduser_name, email: embeduser_email } = req.Embed;
@@ -40,8 +40,7 @@ const embedLogin = async (req, res) => {
     }
   };
 
-  // Run DB query and token creation in parallel since they don't depend on each other
-  const [folder] = await Promise.all([FolderModel.findOne({ _id: req.Embed.folder_id }).lean(), createProxyToken(embedDetails)]);
+  const [folder] = await Promise.all([folderService.getFolderData(req.Embed.folder_id), createProxyToken(embedDetails)]);
 
   const config = folder?.config || {};
   const apikey_object_id = folder?.apikey_object_id;
@@ -134,10 +133,10 @@ const updateEmbed = async (req, res, next) => {
       folder_limit,
       folder_usage,
       folder_limit_reset_period,
-      folder_limit_start_date,
       variables_path,
       tools_id,
-      pre_tool_id
+      pre_tool_id,
+      name
     } = req.body;
     const org_id = req.profile.org.id;
 
@@ -181,15 +180,17 @@ const updateEmbed = async (req, res, next) => {
     }
     if (folder_limit_reset_period) {
       folder.folder_limit_reset_period = folder_limit_reset_period;
+      folder.folder_limit_start_date = new Date();
     }
-    if (folder_limit_start_date) {
-      folder.folder_limit_start_date = folder_limit_start_date;
+    if (name) {
+      folder.name = name;
     }
     await folder.save();
-    await cleanupCache(cost_types.folder, folder_id);
+    await cleanupCache(cost_types.folder, folder_id, org_id);
     if (folder_usage == 0) {
       await deleteInCache(`${redis_keys.folderusedcost_}${folder_id}`);
     }
+    await deleteInCache(embed_cache.keys.folder(folder_id));
     res.locals = { data: { ...folder.toObject(), folder_id: folder._id } };
     req.statusCode = 200;
     return next();
@@ -203,8 +204,6 @@ const updateEmbed = async (req, res, next) => {
 const genrateToken = async (req, res, next) => {
   let gtwyAccessToken;
   const data = await getOrganizationById(req.profile.org.id);
-  const { chatBot } = await responseTypeService.getAll(req.profile.org.id);
-
   gtwyAccessToken = data?.meta?.gtwyAccessToken;
   if (!gtwyAccessToken) {
     gtwyAccessToken = generateIdentifier(32);
@@ -245,13 +244,13 @@ const genrateToken = async (req, res, next) => {
       chatbot_id: folder_id,
       user_id
     };
-    const orgAccessToken = chatBot?.orgAcessToken;
+    const orgAccessToken = data?.meta?.orgAccessToken;
     if (orgAccessToken) {
       embedToken = jwt.sign(payload, orgAccessToken, { algorithm: "HS256" });
     }
   }
 
-  res.locals = { embedToken };
+  res.locals = { embedToken, gtwyAccessToken };
   req.statusCode = 200;
   return next();
 };
@@ -278,11 +277,45 @@ const getEmbedDataByUserId = async (req, res, next) => {
     return next();
   }
 };
+const updateAgentMetadataController = async (req, res, next) => {
+  try {
+    const { agent_id } = req.params;
+    const org_id = String(req.profile.org.id);
+    const { name, meta } = req.body;
+
+    const agent = await ConfigurationServices.getAgentsWithTools(agent_id, org_id);
+    if (!agent.bridges) {
+      res.locals = { success: false, message: "Agent not found" };
+      req.statusCode = 404;
+      return next();
+    }
+
+    const update_fields = { updatedAt: new Date() };
+    if (name !== undefined) update_fields.name = name;
+    if (meta !== undefined) update_fields.meta = meta;
+
+    await ConfigurationServices.updateAgent(agent_id, update_fields);
+
+    res.locals = {
+      success: true,
+      message: "Agent metadata updated successfully",
+      agent: { ...agent.bridges, ...update_fields }
+    };
+    req.statusCode = 200;
+    return next();
+  } catch (e) {
+    res.locals = { success: false, message: e.message };
+    req.statusCode = 400;
+    return next();
+  }
+};
+
 export default {
   embedLogin,
   createEmbed,
   getAllEmbed,
   genrateToken,
   updateEmbed,
-  getEmbedDataByUserId
+  getEmbedDataByUserId,
+  updateAgentMetadataController
 };

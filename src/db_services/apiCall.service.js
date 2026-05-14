@@ -1,47 +1,15 @@
 import apiCallModel from "../mongoModel/ApiCall.model.js";
 import versionModel from "../mongoModel/BridgeVersion.model.js";
 import mongoose from "mongoose";
+import { deleteInCache } from "../cache_service/index.js";
+import agentVersionService from "../db_services/agentVersion.service.js";
 
 async function getAllApiCallsByOrgId(org_id, folder_id, user_id, isEmbedUser) {
   let query = { org_id: org_id };
   if (folder_id) query.folder_id = folder_id;
   if (user_id && isEmbedUser) query.user_id = user_id.toString();
 
-  const pipeline = [
-    { $match: query },
-    {
-      $addFields: {
-        _id: { $toString: "$_id" },
-        bridge_ids: {
-          $map: {
-            input: "$bridge_ids",
-            as: "bridge_id",
-            in: { $toString: "$$bridge_id" }
-          }
-        },
-        created_at: {
-          $cond: {
-            if: { $eq: [{ $type: "$created_at" }, "string"] },
-            then: "$created_at",
-            else: { $dateToString: { format: "%Y-%m-%d %H:%M:%S", date: "$created_at" } }
-          }
-        },
-        updated_at: {
-          $cond: {
-            if: { $eq: [{ $type: "$updated_at" }, "string"] },
-            then: "$updated_at",
-            else: { $dateToString: { format: "%Y-%m-%d %H:%M:%S", date: "$updated_at" } }
-          }
-        }
-      }
-    }
-  ];
-
-  let apiCalls = await apiCallModel.aggregate(pipeline);
-
-  // All documents should now be in v2 format after migration
-  // Fields are already in the correct object format: { paramName: { description, type, enum, required_params, parameter } }
-  // No transformation needed
+  let apiCalls = await apiCallModel.find(query).lean();
   return apiCalls || [];
 }
 
@@ -131,16 +99,15 @@ async function getApiData(org_id, script_id, folder_id, user_id, isEmbedUser) {
 }
 
 /**
- * @param {Array} required_params - List of top-level field keys required for this API call
+ * @param {Array} required - List of top-level field keys required for this API call
  */
-async function saveApi(desc, org_id, folder_id, user_id, api_data, bridge_ids = [], script_id, fields, title, required_params = []) {
+async function saveApi(desc, org_id, folder_id, user_id, api_data, bridge_ids = [], script_id, fields, title, required = []) {
   const updateData = {
     description: desc,
     org_id: org_id,
     script_id: script_id,
     title: title,
-    status: 1,
-    required_params: required_params
+    required: required
   };
 
   // Helper function to check if a value is empty
@@ -176,12 +143,17 @@ async function saveApi(desc, org_id, folder_id, user_id, api_data, bridge_ids = 
   if (api_data && api_data._id) {
     // Update existing
     const updatedApi = await apiCallModel.findOneAndUpdate({ _id: api_data._id }, { $set: updateData }, { new: true, upsert: true }).lean();
+    const ids_to_purge = updatedApi?.bridge_ids || [];
+    if (ids_to_purge.length > 0) {
+      const keys_to_delete = ids_to_purge.flatMap((id) => agentVersionService._buildCacheKeys(id, id, { bridges: [], versions: [] }, [], org_id));
+      deleteInCache(keys_to_delete);
+    }
     return { success: true, api_data: updatedApi };
   } else {
     // Create new
     updateData.bridge_ids = bridge_ids;
     const newApi = await apiCallModel.create(updateData);
-    return { success: true, api_data: newApi.toObject() };
+    return { success: true, api_data: newApi };
   }
 }
 

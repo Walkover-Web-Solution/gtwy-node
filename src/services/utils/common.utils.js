@@ -1,3 +1,5 @@
+import { validateOpenAISchema } from "./openaiSchemaValidator.utils.js";
+
 const validateJsonSchemaConfiguration = (configuration) => {
   if (!configuration || !configuration.response_type) {
     return { isValid: true, errorMessage: null };
@@ -23,14 +25,20 @@ const validateJsonSchemaConfiguration = (configuration) => {
 
   if ("json_schema" in response_type && response_type.json_schema !== null) {
     try {
+      let jsonSchema;
       if (typeof response_type.json_schema === "object") {
-        return { isValid: true, errorMessage: null };
+        jsonSchema = response_type.json_schema;
       } else if (typeof response_type.json_schema === "string") {
-        JSON.parse(response_type.json_schema);
-        return { isValid: true, errorMessage: null };
+        jsonSchema = JSON.parse(response_type.json_schema);
       } else {
         return { isValid: false, errorMessage: "json_schema should be a valid JSON object or string" };
       }
+
+      const { isValid, errors } = validateOpenAISchema(jsonSchema);
+      if (!isValid) {
+        return { isValid: false, errorMessage: errors.join("; ") };
+      }
+      return { isValid: true, errorMessage: null };
     } catch {
       return { isValid: false, errorMessage: "json_schema should be a valid JSON" };
     }

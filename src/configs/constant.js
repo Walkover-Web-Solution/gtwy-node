@@ -1,8 +1,8 @@
 import ConfigurationServices from "../db_services/configuration.service.js";
 import testcaseDbservice from "../db_services/testcase.service.js";
-import { renderCardToTailwind } from "../utils/Formatter.utility.js";
 import gptMemoryService from "../services/utils/gptMemory.service.js";
 import { convertPromptToString } from "../utils/promptWrapper.utils.js";
+import { buildSchemaFromTemplateFormat } from "../utils/templateVariables.utils.js";
 
 const collectionNames = {
   ApikeyCredentials: "ApikeyCredentials",
@@ -28,7 +28,9 @@ const bridge_ids = {
   improve_prompt_optimizer: "68e4ac02739a8b89ba27b22a",
   generate_test_cases: "68e8d1fbf8c9ba2043cf7afd",
   prompt_checker: "692ee19da04fbf2a132b252c",
-  rich_ui_template: "6967b36c17a69473fa7fdb90"
+  rich_ui_template: "6967b36c17a69473fa7fdb90",
+  canonicalizer: "6973200cf60dd5bf64eeb325",
+  template_validator: "69c134229df6d4d2d1dd2ae5"
 };
 
 const redis_keys = {
@@ -51,6 +53,14 @@ const redis_keys = {
   last_transffered_agent_: "last_transffered_agent_"
 };
 
+const embed_cache = {
+  keys: {
+    folder: (folderId) => `embed:folder_${folderId}`,
+    org: (orgId) => `embed:org_${orgId}`,
+    user: (userId, orgId) => `embed:user_${userId}:${orgId}`
+  }
+};
+
 const cost_types = {
   bridge: "bridge",
   folder: "folder",
@@ -67,29 +77,33 @@ const prebuilt_prompt_bridge_id = [
 ];
 
 const new_agent_service = {
-  openai: "gpt-5-nano",
-  anthropic: "claude-sonnet-4-20250514",
-  groq: "openai/gpt-oss-120b",
-  open_router: "openai/gpt-4o",
-  mistral: "mistral-small-latest",
-  gemini: "gemini-2.5-pro",
-  ai_ml: "gpt-oss-120b",
-  grok: "grok-4-fast"
+  openai: { model: "gpt-5-nano", default_name: "OpenAI" },
+  anthropic: { model: "claude-sonnet-4-6", default_name: "Anthropic" },
+  groq: { model: "openai/gpt-oss-120b", default_name: "Groq" },
+  open_router: { model: "openai/gpt-4o", default_name: "Open Router" },
+  mistral: { model: "mistral-small-latest", default_name: "Mistral" },
+  gemini: { model: "gemini-2.5-pro", default_name: "Gemini" },
+  grok: { model: "grok-4-fast", default_name: "Grok" },
+  deepgram: { model: "nova-3", default_name: "Deepgram" }
 };
 
-export { collectionNames, bridge_ids, redis_keys, cost_types, prebuilt_prompt_bridge_id, new_agent_service };
+export { collectionNames, bridge_ids, redis_keys, cost_types, prebuilt_prompt_bridge_id, new_agent_service, embed_cache };
 
 export const AI_OPERATION_CONFIG = {
   optimize_prompt: {
     bridgeIdConst: bridge_ids["optimze_prompt"],
     prebuiltKey: "optimze_prompt",
     getContext: async (req, org_id) => {
-      const { version_id, bridge_id } = req.body;
+      const { version_id, bridge_id, variables } = req.body;
       const bridgeResult = await ConfigurationServices.getAgents(bridge_id, org_id, version_id);
-      return { bridge: bridgeResult.bridges };
+      return { bridge: bridgeResult.bridges, variables };
     },
     getPrompt: (context) => context.bridge.configuration?.prompt || "",
-    getVariables: (req, context) => ({ query: req.body.query, fields: context.bridge.configuration?.prompt }),
+    getVariables: (req, context) => {
+      const prompt = context.bridge.configuration?.prompt;
+      const fields = prompt && typeof prompt === "object" ? { [context.variables.variable_key]: prompt[context.variables.variable_key] } : prompt;
+      return { query: req.body.query, fields };
+    },
     getMessage: () => "optimize the prompt according the data contain in the fields",
     successMessage: "Prompt optimized successfully"
   },
@@ -153,7 +167,7 @@ export const AI_OPERATION_CONFIG = {
     bridgeIdConst: bridge_ids["structured_output_optimizer"],
     prebuiltKey: "structured_output_optimizer",
     getVariables: (req) => ({ json_schema: req.body.json_schema, query: req.body.query }),
-    getMessage: () => "create the json shcmea accroding to the dummy json explained in system prompt.",
+    getMessage: () => "create the json schema according to the dummy json explained in system prompt.",
     successMessage: "Structured output optimized successfully" // Or whatever default success message is appropriate, though callAiMiddleware returns result directly usually
   },
   improve_prompt: {
@@ -168,18 +182,113 @@ export const AI_OPERATION_CONFIG = {
     getMessage: () => "generate the rich ui template",
     successMessage: "Rich UI template generated successfully",
     postProcess: async (aiResult) => {
-      let html = "";
+      let ui = null;
+      let variables = {};
+      let originalRawUi = null;
       try {
-        const cardJson = typeof aiResult === "string" ? JSON.parse(aiResult) : aiResult;
-        html = renderCardToTailwind(cardJson);
+        const parsed = typeof aiResult === "string" ? JSON.parse(aiResult) : aiResult;
+        ui = parsed.ui || (parsed.type ? parsed : null);
+        variables = parsed.variables || parsed.data || parsed.default_json || {};
+        originalRawUi = JSON.parse(JSON.stringify(ui)); // copy raw template (unreplaced)
+
+        if (ui && Object.keys(variables).length > 0) {
+          // ─── Path resolver ─────────────────────────────────────────────────
+          const getValue = (obj, path) => {
+            if (!obj || !path) return undefined;
+            const keys = path.replace(/\[(\d+)\]/g, ".$1").split(".");
+            let val = obj;
+            for (const k of keys) {
+              if (val == null || typeof val !== "object") return undefined;
+              val = val[k];
+            }
+            return val;
+          };
+
+          // ─── Recursive resolver ────────────────────────────────────────────
+          const resolve = (node, context) => {
+            if (typeof node === "string") {
+              return node.replace(/\{\{([\w.[\]]+)\}\}/g, (match, path) => {
+                const val = getValue(context, path);
+                return val !== undefined ? String(val) : match;
+              });
+            }
+            if (Array.isArray(node)) {
+              return node.map((n) => resolve(n, context));
+            }
+            if (node && typeof node === "object") {
+              // ── Generic binding mode (new: itemTemplate + binding + itemAlias) ──
+              if (node.type === "ListView" && node.binding && node.itemTemplate) {
+                // binding may be a direct key ("rows") or a placeholder ("{{trips}}")
+                const bpMatch = typeof node.binding === "string" ? node.binding.match(/^\{\{([\w.]+)\}\}$/) : null;
+                const bindingKey = bpMatch ? bpMatch[1] : node.binding;
+                const listData = getValue(context, bindingKey);
+                if (Array.isArray(listData)) {
+                  const alias = node.itemAlias || "item";
+                  const siblingScope = Object.fromEntries(Object.entries(context).filter(([k]) => k !== bindingKey));
+                  const resolvedChildren = listData.map((item) => {
+                    const itemContext = { ...context, ...siblingScope, [alias]: item };
+                    return resolve(node.itemTemplate, itemContext);
+                  });
+                  const rest = Object.fromEntries(
+                    Object.entries(node).filter(([k]) => !["itemTemplate", "binding", "itemAlias", "idField"].includes(k))
+                  );
+                  return { ...rest, children: resolvedChildren };
+                }
+              }
+
+              // ── Legacy binding mode (children[0] as template, binding may be {{placeholder}}) ──
+              if (node.type === "ListView" && node.binding && !node.itemTemplate) {
+                // Unwrap "{{trips}}" → "trips", or use direct key "rows" as-is
+                const bpMatch = typeof node.binding === "string" ? node.binding.match(/^\{\{([\w.]+)\}\}$/) : null;
+                const bindingKey = bpMatch ? bpMatch[1] : node.binding;
+                const listData = getValue(context, bindingKey);
+                if (Array.isArray(listData) && node.children?.length > 0) {
+                  const itemTemplate = node.children[0];
+                  // Alias priority: node.itemAlias > node.key > ListViewItem.key > "item"
+                  let localKey = node.itemAlias || node.key;
+                  if (!localKey) {
+                    if (itemTemplate.key && typeof itemTemplate.key === "string") {
+                      const match = itemTemplate.key.match(/^\{\{([\w]+)\./);
+                      localKey = match ? match[1] : itemTemplate.key;
+                    } else {
+                      localKey = "item";
+                    }
+                  }
+                  const resolvedChildren = listData.map((item) => {
+                    const localContext =
+                      item && typeof item === "object" && !Array.isArray(item)
+                        ? { ...context, ...item, [localKey]: item }
+                        : { ...context, [localKey]: item };
+                    return resolve(itemTemplate, localContext);
+                  });
+                  return { ...node, children: resolvedChildren };
+                }
+              }
+
+              // ── Normal object traversal ───────────────────────────────────
+              const newNode = {};
+              for (const [k, v] of Object.entries(node)) {
+                newNode[k] = resolve(v, context);
+              }
+              return newNode;
+            }
+            return node;
+          };
+
+          ui = resolve(ui, variables);
+        }
       } catch (error) {
-        console.error("Error rendering card to HTML:", error);
+        console.error("Error parsing rich UI template result:", error);
       }
+
       return {
         success: true,
         message: "Rich UI template generated successfully",
-        result: aiResult,
-        html: html
+        result: ui,
+        ui,
+        variables,
+        template_format: originalRawUi,
+        json_schema: originalRawUi ? buildSchemaFromTemplateFormat(originalRawUi, {}, variables ?? {}) : null
       };
     }
   },
@@ -202,5 +311,11 @@ export const AI_OPERATION_CONFIG = {
         memory
       };
     }
+  },
+  template_validator: {
+    bridgeIdConst: bridge_ids["template_validator"],
+    getVariables: (req) => req.body,
+    getMessage: () => "validate the template",
+    successMessage: "Template validated successfully"
   }
 };

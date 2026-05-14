@@ -1,5 +1,6 @@
 import { new_agent_service } from "../configs/constant.js";
 import { modelConfigDocument } from "../services/utils/loadModelConfigs.js";
+import { getSupportedModelSet } from "../services/utils/notDiamond.utils.js";
 
 const getAllServiceModelsController = async (req, res, next) => {
   const { service } = req.params;
@@ -30,7 +31,7 @@ const getAllServiceModelsController = async (req, res, next) => {
         },
         validationConfig: config.validationConfig,
         outputConfig: config.outputConfig,
-        org_id: null
+        org_id: config.org_id
       };
 
       // Move all other configuration fields to additional_parameters
@@ -52,19 +53,20 @@ const getAllServiceModelsController = async (req, res, next) => {
 };
 
 const getAllServiceController = async (req, res, next) => {
+  const supportedModelSet = await getSupportedModelSet();
+
+  const serviceNames = Object.keys(new_agent_service);
+  const services = {};
+  for (const service of serviceNames) {
+    const serviceModels = Object.keys(modelConfigDocument[service] || {});
+    const autoRouterSupport = serviceModels.some((model) => supportedModelSet.has(`${service}:${model}`));
+    services[service] = { model: new_agent_service[service].model, default_name: new_agent_service[service].default_name, autoRouterSupport };
+  }
+
   res.locals = {
     success: true,
     message: "Get all service successfully",
-    services: {
-      openai: { model: new_agent_service["openai"] },
-      anthropic: { model: new_agent_service["anthropic"] },
-      groq: { model: new_agent_service["groq"] },
-      open_router: { model: new_agent_service["open_router"] },
-      mistral: { model: new_agent_service["mistral"] },
-      gemini: { model: new_agent_service["gemini"] },
-      ai_ml: { model: new_agent_service["ai_ml"] },
-      grok: { model: new_agent_service["grok"] }
-    }
+    services
   };
   req.statusCode = 200;
   return next();

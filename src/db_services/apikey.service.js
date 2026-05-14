@@ -2,16 +2,16 @@ import ApikeyCredential from "../mongoModel/Api.model.js";
 import versionModel from "../mongoModel/BridgeVersion.model.js";
 import configurationModel from "../mongoModel/Configuration.model.js";
 import FolderModel from "../mongoModel/GtwyEmbed.model.js";
+import { new_agent_service } from "../configs/constant.js";
 
 const saveApikeyRecord = async (data) => {
-  const { org_id, apikey, service, name, comment, folder_id, user_id, apikey_limit = 0, apikey_limit_reset_period, apikey_limit_start_date } = data;
+  const { org_id, apikey, service, name, folder_id, user_id, apikey_limit = 0, apikey_limit_reset_period, apikey_limit_start_date } = data;
   const version_ids = [];
   const result = await new ApikeyCredential({
     org_id,
     apikey,
     service,
     name,
-    comment,
     folder_id,
     user_id,
     version_ids,
@@ -75,11 +75,9 @@ async function updateApikeyRecord(
   apikey = null,
   name = null,
   service = null,
-  comment = null,
   apikey_limit = 0,
   apikey_usage = -1,
-  apikey_limit_reset_period = null,
-  apikey_limit_start_date = null
+  apikey_limit_reset_period = null
 ) {
   try {
     const updateFields = {};
@@ -93,9 +91,6 @@ async function updateApikeyRecord(
     if (service) {
       updateFields.service = service;
     }
-    if (comment) {
-      updateFields.comment = comment;
-    }
     if (apikey_limit >= 0) {
       updateFields.apikey_limit = apikey_limit;
     }
@@ -104,9 +99,7 @@ async function updateApikeyRecord(
     }
     if (apikey_limit_reset_period) {
       updateFields.apikey_limit_reset_period = apikey_limit_reset_period;
-    }
-    if (apikey_limit_start_date) {
-      updateFields.apikey_limit_start_date = apikey_limit_start_date;
+      updateFields.apikey_limit_start_date = new Date();
     }
 
     let apikeyCredentialResult;
@@ -275,6 +268,39 @@ async function processBulkUpdates(model, ids, service) {
   }
 }
 
+async function checkApikeyUsage(apikey_object_id, org_id, service) {
+  if (!service || !Object.keys(new_agent_service).includes(service)) {
+    return { success: false, error: "Invalid or missing service" };
+  }
+  const query = {
+    org_id: org_id,
+    [`apikey_object_id.${service}`]: apikey_object_id,
+    deletedAt: null
+  };
+  const [configsUsingKey, versionsUsingKey] = await Promise.all([
+    configurationModel.find(query, { _id: 1, name: 1, slugName: 1 }).limit(1).lean(),
+    versionModel.find(query, { _id: 1, parent_id: 1 }).limit(1).lean()
+  ]);
+
+  const usageDetails = {
+    isInUse: configsUsingKey.length > 0 || versionsUsingKey.length > 0,
+    agents: configsUsingKey.map((config) => ({
+      id: config._id,
+      name: config.name,
+      slugName: config.slugName
+    })),
+    versions: versionsUsingKey.map((version) => ({
+      id: version._id,
+      parent_id: version.parent_id
+    }))
+  };
+
+  return {
+    success: true,
+    ...usageDetails
+  };
+}
+
 export default {
   saveApikeyRecord,
   findApikeyByName,
@@ -283,5 +309,6 @@ export default {
   removeApikeyById,
   findApikeyById,
   findVersionsByIds,
-  removeApikeyFromEmbeds
+  removeApikeyFromEmbeds,
+  checkApikeyUsage
 };

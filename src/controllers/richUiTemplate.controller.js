@@ -1,16 +1,22 @@
 import { createTemplate, getTemplates, updateTemplate, deleteTemplate } from "../db_services/richUiTemplate.service.js";
-import { generateSchemaFromCard } from "../utils/Formatter.utility.js";
 import { allowedUpdateFields } from "../validation/joi_validation/richUiTemplate.validation.js";
+import { buildSchemaFromTemplateFormat, buildDefaultValues } from "../utils/templateVariables.utils.js";
 
 // Create a new rich UI template
 export const createRichUiTemplate = async (req, res, next) => {
-  const { name, description, json_schema, template_format, html, is_public } = req.body;
+  let { name, description, json_schema, template_format, is_public, default_json, default_values, ui, variables } = req.body;
   const {
     user: { id: user_id }
   } = req.profile;
   const org_id = req.profile.org.id;
-
-  const schema = json_schema || generateSchemaFromCard(template_format).schema;
+  if (ui && !template_format) {
+    template_format = ui;
+  }
+  const initialVariables = variables ?? default_json ?? default_values;
+  let schema = json_schema;
+  if (!schema && template_format) {
+    schema = buildSchemaFromTemplateFormat(template_format, {}, initialVariables ?? {}, { name, description });
+  }
 
   const result = await createTemplate(
     {
@@ -18,7 +24,8 @@ export const createRichUiTemplate = async (req, res, next) => {
       description,
       json_schema: schema,
       template_format,
-      html,
+      variables: initialVariables,
+      ui: ui || null,
       org_id,
       is_public: is_public ? is_public : false
     },
@@ -39,7 +46,6 @@ export const getRichUiTemplates = async (req, res, next) => {
   return next();
 };
 
-// Update a template
 export const updateRichUiTemplate = async (req, res, next) => {
   const { template_id } = req.params;
   const {
@@ -49,12 +55,25 @@ export const updateRichUiTemplate = async (req, res, next) => {
 
   const updateData = Object.fromEntries(Object.entries(req.body).filter(([key, value]) => allowedUpdateFields.includes(key) && value != null));
 
+  if (updateData.template_format) {
+    if (!updateData.json_schema) {
+      updateData.json_schema = buildSchemaFromTemplateFormat(updateData.template_format, {}, updateData.variables ?? updateData.default_json ?? {}, {
+        name: updateData.name,
+        description: updateData.description
+      });
+    }
+    if (!updateData.default_json && !updateData.default_values) {
+      const regeneratedDefaults = buildDefaultValues(updateData.template_format);
+      updateData.default_json = regeneratedDefaults;
+      updateData.default_values = regeneratedDefaults;
+    }
+  }
+
   res.locals = await updateTemplate(template_id, updateData, user_id, is_public);
   req.statusCode = 200;
   return next();
 };
 
-// Delete a template
 export const deleteRichUiTemplate = async (req, res, next) => {
   const { template_id } = req.params;
   const {

@@ -95,12 +95,74 @@ const generateLocalToken = async (req, res) => {
 
   const configs = {
     dev: {
-      user: { id: "20503", email: "aadityarajsinghmandloi104@gmail.com", permissions: ["get_agent", "create_agent", "clone_agent"] },
-      org: { id: "51548" }
+      user: {
+        id: "62514",
+        email: "human@gtwy.ai",
+        permissions: [
+          "create_c_company",
+          "update_c_company",
+          "add_user",
+          "get_authkeys",
+          "create_authkey",
+          "update_authkey",
+          "delete_authkey",
+          "get_authkey_ips",
+          "create_authkey_ip",
+          "update_authkey_ip",
+          "delete_authkey_ip",
+          "get_c_roles",
+          "create_c_roles",
+          "update_c_roles",
+          "delete_c_roles",
+          "update_c_user_role",
+          "update_c_user",
+          "view_c_user",
+          "assign_permissions",
+          "remove_c_user_from_c_company",
+          "view_agent",
+          "get_agent",
+          "publish_version",
+          "discard_version",
+          "clone_agent",
+          "create_agent"
+        ]
+      },
+      org: { id: "59402" }
     },
     prod: {
-      user: { id: "15629", email: "aadityarajsinghmandloi104@gmail.com", permissions: ["get_agent", "create_agent", "clone_agent"] },
-      org: { id: "51351" }
+      user: {
+        id: "61704",
+        email: "human@gtwy.ai",
+        permissions: [
+          "create_c_company",
+          "update_c_company",
+          "add_user",
+          "get_authkeys",
+          "create_authkey",
+          "update_authkey",
+          "delete_authkey",
+          "get_authkey_ips",
+          "create_authkey_ip",
+          "update_authkey_ip",
+          "delete_authkey_ip",
+          "get_c_roles",
+          "create_c_roles",
+          "update_c_roles",
+          "delete_c_roles",
+          "update_c_user_role",
+          "update_c_user",
+          "view_c_user",
+          "assign_permissions",
+          "remove_c_user_from_c_company",
+          "view_agent",
+          "get_agent",
+          "publish_version",
+          "discard_version",
+          "clone_agent",
+          "create_agent"
+        ]
+      },
+      org: { id: "60053" }
     }
   };
 
@@ -109,9 +171,12 @@ const generateLocalToken = async (req, res) => {
     return res.status(400).json({ success: false, message: "env must be 'dev' or 'prod'" });
   }
 
-  const token = generateAuthToken(config.user, config.org);
+  const [token, proxy_auth_token] = await Promise.all([
+    generateAuthToken(config.user, config.org),
+    createProxyToken({ user_id: config.user.id, company_id: config.org.id })
+  ]);
 
-  return res.status(200).json({ success: true, token });
+  return res.status(200).json({ success: true, token, proxy_auth_token });
 };
 
 export {
