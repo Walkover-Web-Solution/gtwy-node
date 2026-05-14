@@ -205,6 +205,10 @@ const version = new mongoose.Schema({
   cache_on: {
     type: Boolean,
     default: false
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now
   }
 });
 
