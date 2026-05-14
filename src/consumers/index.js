@@ -3,6 +3,7 @@ import logger from "../logger.js";
 import rabbitmqService from "../services/rabbitmq.service.js";
 import { logQueueProcessor } from "./logQueueConsumer.js";
 import { metricsQueueProcessor } from "./metricsQueueConsumer.js";
+import { usageEventsQueueProcessor } from "./usageEventsConsumer.js";
 
 dotenv.config();
 const CONSUMERS = [
@@ -15,6 +16,11 @@ const CONSUMERS = [
     queueName: process.env.METRICS_QUEUE_NAME,
     process: metricsQueueProcessor,
     batchSize: 100
+  },
+  {
+    queueName: process.env.USAGE_EVENTS_QUEUE_NAME || "usage_events",
+    process: usageEventsQueueProcessor,
+    batchSize: 1000
   }
 ];
 
