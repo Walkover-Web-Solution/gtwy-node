@@ -3,7 +3,7 @@ import ConfigurationServices from "../db_services/configuration.service.js";
 import agentVersionDbService from "../db_services/agentVersion.service.js";
 import apiCallModel from "../mongoModel/ApiCall.model.js";
 import { ObjectId } from "mongodb";
-import { getUniqueNameAndSlug, normalizeFunctionIds, cloneFunctionsForAgent } from "../utils/agentConfig.utils.js";
+import { normalizeFunctionIds, cloneFunctionsForAgent } from "../utils/agentConfig.utils.js";
 import { copyResourceToOrgUtil } from "../utils/rag.utils.js";
 import { callAiMiddleware } from "../services/utils/aiCall.utils.js";
 import { bridge_ids } from "../configs/constant.js";
@@ -24,7 +24,6 @@ const allTemplates = async (req, res, next) => {
 const FILTER_BRIDGE_EXCLUDE_KEYS = new Set([
   "api_key_object",
   "apikey",
-  "org_id",
   "user_id",
   "total_tokens",
   "prompt_total_tokens",
@@ -158,7 +157,13 @@ const createTemplate = async (req, res, next) => {
     bridge.child_agents = await buildConnectedAgents(bridge.connected_agents, new Set([agent_id]));
   }
   const user = "Validate the template";
-  const isValid = await callAiMiddleware(user, bridge_ids["template_validator"], { template: bridge, templateName, email: req.profile?.user?.email });
+  const email = req.profile?.user?.email;
+
+  // Only validate via AI middleware for non-embed users with email
+  let isValid = { status: true };
+  if (!req.IsEmbedUser && email) {
+    isValid = await callAiMiddleware(user, bridge_ids["template_validator"], { template: bridge, templateName, email });
+  }
 
   // Save the template
   if (isValid?.status) {
@@ -184,6 +189,8 @@ const createAgentFromTemplateController = async (req, res, next) => {
     const { template_id } = req.params;
     const org_id = req.profile.org.id;
     const user_id = req.profile.user.id;
+    const folder_id = req.folder_id || null;
+
     const agentType = req.body.bridgeType || "api";
     const meta = req.body.meta || null;
 
@@ -195,16 +202,14 @@ const createAgentFromTemplateController = async (req, res, next) => {
     }
 
     const template_content = JSON.parse(template_data.template);
-    const all_agent = await ConfigurationServices.getAgentsByUserId(org_id);
 
     let name = template_data.templateName;
     let service = template_content?.service;
     let type = template_content?.configuration?.type;
     let prompt = template_content?.configuration?.prompt;
 
-    const nameSlugData = getUniqueNameAndSlug(name, all_agent);
-    const slugName = nameSlugData.slugName;
-    name = nameSlugData.name;
+    const { name: uniqueName, slugName } = await ConfigurationServices.getUniqueAgentNameAndSlug(org_id, name);
+    name = uniqueName;
 
     let model_data = { ...(template_content?.configuration || {}) };
     model_data.type = model_data.type || type;
@@ -213,35 +218,8 @@ const createAgentFromTemplateController = async (req, res, next) => {
     model_data.tool_choice = "default";
 
     const fall_back = template_content?.settings?.fall_back || { is_enable: true, service: "openai", model: "gpt-5.1" };
-    const template_fields = [
-      "variables_state",
-      "built_in_tools",
-      "gpt_memory_context",
-      "user_reference",
-      "bridge_summary",
-      "agent_variables",
-      "actions",
-      "variables_path",
-      "bridge_status",
-      "starterQuestion",
-      "IsstarterQuestionEnable",
-      "defaultQuestions",
-      "page_config",
-      "settings",
-      "ai_updates",
-      "auto_model_select",
-      "connected_agent_details",
-      "meta",
-      "cache_on",
-      "chatbot_auto_answers",
-      "version_description"
-    ];
-    const template_values = {};
-    for (const field of template_fields) {
-      if (template_content[field] !== undefined) template_values[field] = template_content[field];
-    }
-
     const result = await ConfigurationServices.createAgent({
+      ...template_content,
       configuration: model_data,
       name,
       slugName,
@@ -250,12 +228,12 @@ const createAgentFromTemplateController = async (req, res, next) => {
       org_id,
       gpt_memory: true,
       user_id,
+      folder_id,
       fall_back,
       bridge_status: 1,
       createdAt: new Date(),
       updatedAt: new Date(),
-      meta,
-      ...template_values
+      meta
     });
 
     const create_version = await agentVersionDbService.createAgentVersion(result.bridge);
@@ -263,8 +241,6 @@ const createAgentFromTemplateController = async (req, res, next) => {
       versions: [create_version._id.toString()],
       published_version_id: create_version._id.toString()
     });
-
-    all_agent.push({ name, slugName });
 
     // --- Collect all unique function IDs and doc resource pairs across root + all children ---
     const collectAllResources = (content, allFunctionIds, allDocPairs) => {
@@ -413,7 +389,7 @@ const createAgentFromTemplateController = async (req, res, next) => {
         const child_details = child_agent?.bridge_details;
         if (!child_details || Object.keys(child_details).length === 0) continue;
 
-        const childNameSlug = getUniqueNameAndSlug(agent_name, all_agent);
+        const childNameSlug = await ConfigurationServices.getUniqueAgentNameAndSlug(org_id, agent_name);
         const child_model_data = { ...(child_details.configuration || {}) };
         child_model_data.type = child_model_data.type || type;
         if (child_model_data.is_rich_text === undefined) child_model_data.is_rich_text = false;
@@ -421,12 +397,8 @@ const createAgentFromTemplateController = async (req, res, next) => {
         child_model_data.tool_choice = "default";
 
         let child_service = child_details.service || service;
-        const child_template_values = {};
-        for (const field of template_fields) {
-          if (child_details[field] !== undefined) child_template_values[field] = child_details[field];
-        }
-
         const child_result = await ConfigurationServices.createAgent({
+          ...child_details,
           configuration: child_model_data,
           name: childNameSlug.name,
           slugName: childNameSlug.slugName,
@@ -435,11 +407,11 @@ const createAgentFromTemplateController = async (req, res, next) => {
           org_id,
           gpt_memory: true,
           user_id,
+          folder_id,
           fall_back,
           bridge_status: 1,
           createdAt: new Date(),
-          updatedAt: new Date(),
-          ...child_template_values
+          updatedAt: new Date()
         });
 
         const child_version = await agentVersionDbService.createAgentVersion(child_result.bridge);
@@ -447,7 +419,6 @@ const createAgentFromTemplateController = async (req, res, next) => {
           versions: [child_version._id.toString()],
           published_version_id: child_version._id.toString()
         });
-        all_agent.push({ name: childNameSlug.name, slugName: childNameSlug.slugName });
         createdAgentsMap.set(cycleKey, child_result.bridge._id.toString());
 
         // Batch all child agent updates into single DB calls
