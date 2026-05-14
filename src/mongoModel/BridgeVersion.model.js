@@ -17,6 +17,41 @@ const actionTypeModel = new Schema(
     _id: false
   }
 );
+
+const connectedToolsSchema = new Schema(
+  {
+    function_ids: {
+      type: [mongoose.Schema.Types.ObjectId],
+      default: []
+    },
+    connected_agents: {
+      type: Object,
+      default: {}
+    },
+    built_in_tools: {
+      type: Array,
+      default: []
+    },
+    variables_path: {
+      type: Object,
+      default: {}
+    },
+    web_search_filters: {
+      type: [String],
+      default: []
+    },
+    gtwy_web_search_filters: {
+      type: [String],
+      default: []
+    },
+    doc_ids: {
+      type: Array,
+      default: []
+    }
+  },
+  { _id: false }
+);
+
 const version = new mongoose.Schema({
   org_id: {
     type: String,
@@ -61,15 +96,11 @@ const version = new mongoose.Schema({
     type: String,
     default: null
   },
+  connected_tools: {
+    type: connectedToolsSchema,
+    default: () => ({})
+  },
   variables_state: {
-    type: Object,
-    default: {}
-  },
-  function_ids: {
-    type: [mongoose.Schema.Types.ObjectId],
-    default: []
-  },
-  variables_path: {
     type: Object,
     default: {}
   },
@@ -92,10 +123,6 @@ const version = new mongoose.Schema({
   version_description: {
     type: String,
     default: ""
-  },
-  doc_ids: {
-    type: Array,
-    default: []
   },
   pre_tools: {
     type: Array,
@@ -154,10 +181,6 @@ const version = new mongoose.Schema({
   },
   hello_id: {
     type: String
-  },
-  connected_agents: {
-    type: Object,
-    default: {}
   },
   deletedAt: {
     type: Date,
