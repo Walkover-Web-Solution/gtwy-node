@@ -741,32 +741,39 @@ const getAgentBySlugname = async (orgId, slugName, versionId) => {
   }
 };
 
-const getAgentsByUserId = async (orgId, userId, agent_id) => {
+const getAgentsByUserId = async (orgId, userId, agent_id, folder_id) => {
   try {
-    const query = { org_id: orgId };
+    const query = { org_id: String(orgId) };
     if (userId) {
       query.user_id = String(userId);
     }
     if (agent_id) {
-      query._id = agent_id;
+      query._id = new ObjectId(agent_id);
     }
-    const agents = await configurationModel.find(query, {
-      _id: 1,
-      name: 1,
-      service: 1,
-      "configuration.model": 1,
-      "configuration.prompt": 1,
-      "configuration.type": 1,
-      bridgeType: 1,
-      slugName: 1,
-      variables_state: 1,
-      meta: 1,
-      deletedAt: 1
-    });
+    if (folder_id) {
+      query.folder_id = folder_id;
+    }
+    const agents = await configurationModel
+      .find(query, {
+        _id: 1,
+        name: 1,
+        service: 1,
+        "configuration.model": 1,
+        "configuration.prompt": 1,
+        "configuration.type": 1,
+        bridgeType: 1,
+        slugName: 1,
+        variables_state: 1,
+        meta: 1,
+        deletedAt: 1,
+        createdAt: 1,
+        updatedAt: 1
+      })
+      .lean();
+
     return agents.map((agent) => {
-      const agentData = agent._doc;
       const filtered = {};
-      for (const [key, value] of Object.entries(agentData)) {
+      for (const [key, value] of Object.entries(agent)) {
         if (value === null || value === undefined) {
           continue;
         }
