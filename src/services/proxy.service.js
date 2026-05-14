@@ -9,7 +9,7 @@ export async function getUserOrgMapping(userId, orgId) {
     const cache_key = `userOrgMapping-${userId}-${orgId}`;
     const data = await findInCache(cache_key);
     if (data) return JSON.parse(data);
-    const response = await axios.get(`${process.env.PROXY_BASE_URL}/${process.env.PUBLIC_REFERENCEID}/getDetails`, {
+    const response = await axios.get(`https://routes.msg91.com/api/${process.env.PUBLIC_REFERENCEID}/getDetails`, {
       params: {
         company_id: orgId,
         user_id: userId
@@ -30,7 +30,7 @@ export async function getUserOrgMapping(userId, orgId) {
 }
 
 export const switchOrganization = async (data, proxyToken) => {
-  const organization = await axios.post(`${process.env.PROXY_BASE_URL}/c/switchCompany`, data, {
+  const organization = await axios.post(`https://routes.msg91.com/api/c/switchCompany`, data, {
     headers: {
       Proxy_auth_token: proxyToken
     }
@@ -51,7 +51,7 @@ export async function getOrganizationById(orgId) {
   }
 
   try {
-    const response = await axios.get(`${process.env.PROXY_BASE_URL}/${process.env.PUBLIC_REFERENCEID}/getCompanies?id=${orgId}`, {
+    const response = await axios.get(`https://routes.msg91.com/api/${process.env.PUBLIC_REFERENCEID}/getCompanies?id=${orgId}`, {
       // TODO not provided by proxy
       headers: {
         "Content-Type": "application/json",
@@ -73,7 +73,7 @@ export async function getOrganizationById(orgId) {
 
 export async function createOrFindUserAndCompany(userOrgObject) {
   try {
-    const response = await axios.post(`${process.env.PROXY_BASE_URL}/createCUsers`, userOrgObject, {
+    const response = await axios.post(`https://routes.msg91.com/api/createCUsers`, userOrgObject, {
       headers: {
         "Content-Type": "application/json",
         Authkey: process.env.ADMIN_API_KEY
@@ -94,7 +94,7 @@ export async function updateOrganizationData(orgId, orgDetails) {
     company: orgDetails
   };
   try {
-    const response = await axios.put(`${process.env.PROXY_BASE_URL}/${process.env.PUBLIC_REFERENCEID}/updateDetails`, updateObject, {
+    const response = await axios.put(`https://routes.msg91.com/api/${process.env.PUBLIC_REFERENCEID}/updateDetails`, updateObject, {
       headers: {
         "Content-Type": "application/json",
         Authkey: process.env.ADMIN_API_KEY
@@ -116,7 +116,7 @@ export async function updateOrganizationData(orgId, orgDetails) {
 export async function createProxyToken(token_data) {
   try {
     const queryData = objectToQueryParams(token_data);
-    const response = await axios.get(`${process.env.PROXY_BASE_URL}/${process.env.PUBLIC_REFERENCEID}/getAuthToken?${queryData}`, {
+    const response = await axios.get(`https://routes.msg91.com/api/${process.env.PUBLIC_REFERENCEID}/getAuthToken?${queryData}`, {
       headers: {
         "Content-Type": "application/json",
         Authkey: process.env.ADMIN_API_KEY
@@ -135,7 +135,7 @@ export async function createProxyToken(token_data) {
 
 export async function getUsers(org_id, page = 1, pageSize = 10, exclude_role_ids = process.env.PROXY_USER_ROLE_ID) {
   try {
-    const response = await axios.get(`${process.env.PROXY_BASE_URL}/${process.env.PUBLIC_REFERENCEID}/getDetails`, {
+    const response = await axios.get(`https://routes.msg91.com/api/${process.env.PUBLIC_REFERENCEID}/getDetails`, {
       params: {
         company_id: org_id,
         pageNo: page,
@@ -156,7 +156,7 @@ export async function getUsers(org_id, page = 1, pageSize = 10, exclude_role_ids
 export async function validateCauthKey(pauthkey) {
   try {
     const response = await axios.post(
-      `${process.env.PROXY_BASE_URL}/validateCauthKey`,
+      `https://routes.msg91.com/api/validateCauthKey`,
       {
         cAuthKey: pauthkey
       },
@@ -178,7 +178,7 @@ export async function validateCauthKey(pauthkey) {
 
 export async function updateProxyDetails(updateObject) {
   const PUBLIC_REFERENCEID = process.env.PUBLIC_REFERENCEID;
-  const apiUrl = `${process.env.PROXY_BASE_URL}/${PUBLIC_REFERENCEID}/updateDetails`;
+  const apiUrl = `https://routes.msg91.com/api/${PUBLIC_REFERENCEID}/updateDetails`;
   try {
     const response = await axios.put(apiUrl, updateObject, {
       headers: {
@@ -195,7 +195,7 @@ export async function updateProxyDetails(updateObject) {
 
 export async function getProxyDetails(params) {
   try {
-    const response = await axios.get(`${process.env.PROXY_BASE_URL}/${process.env.PUBLIC_REFERENCEID}/getDetails`, {
+    const response = await axios.get(`https://routes.msg91.com/api/${process.env.PUBLIC_REFERENCEID}/getDetails`, {
       params,
       headers: {
         authkey: process.env.ADMIN_API_KEY
@@ -211,7 +211,7 @@ export async function getProxyDetails(params) {
 export async function removeClientUser(userId, companyId, featureId) {
   try {
     const response = await axios.post(
-      `${process.env.PROXY_BASE_URL}/clientUsers/${userId}/remove?feature_id=${featureId}&company_id=${companyId}`,
+      `https://routes.msg91.com/api/clientUsers/${userId}/remove?feature_id=${featureId}&company_id=${companyId}`,
       null,
       {
         headers: {
@@ -228,7 +228,7 @@ export async function removeClientUser(userId, companyId, featureId) {
 }
 
 export async function generateProxyAuthToken(req) {
-  const apiUrl = `${process.env.PROXY_BASE_URL}/${process.env.PUBLIC_REFERENCEID}/generateAuthToken`;
+  const apiUrl = `https://routes.msg91.com/api/${process.env.PUBLIC_REFERENCEID}/generateAuthToken`;
   const response = await axios.get(apiUrl, {
     headers: {
       authkey: process.env.ADMIN_API_KEY,
