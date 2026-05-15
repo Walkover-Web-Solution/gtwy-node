@@ -28,7 +28,8 @@ const createEntry = {
   params: Joi.object()
     .keys({
       thread_id: Joi.string().required(),
-      bridge_id: Joi.string().required()
+      bridge_id: Joi.string().required(),
+      sub_thread_id: Joi.string().optional()
     })
     .unknown(true),
   body: Joi.object()
