@@ -438,7 +438,7 @@ async function publish(org_id, version_id, user_id) {
     updatedConfiguration.function_ids = updatedConfiguration.function_ids.map((fid) => new ObjectId(fid));
   }
 
-  // Update agent_info by spreading connected_agent_details
+  // Update agent_info with agent_variables (flattened structure)
   updatedConfiguration.agent_info = updatedConfiguration.agent_info || {};
   updatedConfiguration.agent_info = {
     ...updatedConfiguration.agent_info,
@@ -541,9 +541,9 @@ async function getAllConnectedAgents(id, org_id, type) {
     }
 
     const agentName = doc.name || `Agent_${agentId}`;
-    const connectedAgentDetails = doc.agent_info?.connected_agent_details || {};
-    const threadId = connectedAgentDetails.thread_id || false;
-    const description = connectedAgentDetails.description;
+    const agent_info = doc.agent_info || {};
+    const threadId = agent_info.thread_id || false;
+    const description = agent_info.description;
 
     agentsMap[agentId] = {
       agent_name: agentName,

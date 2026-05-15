@@ -24,9 +24,17 @@ const agentInfoSchema = new Schema(
       type: Number,
       default: 0
     },
-    connected_agent_details: {
+    agent_variables: {
       type: Object,
       default: {}
+    },
+    description: {
+      type: String,
+      default: ""
+    },
+    thread_id: {
+      type: Boolean,
+      default: false
     },
     variables_state: {
       type: Object,

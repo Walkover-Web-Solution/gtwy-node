@@ -109,13 +109,12 @@ const updateVersionSchema = Joi.object({
   }).optional(),
   agent_info: Joi.object({
     prompt_total_tokens: Joi.number().min(0).optional(),
-    connected_agent_details: Joi.object({
-      description: Joi.string().allow("").optional(),
-      agent_variables: Joi.object({
-        fields: Joi.object().optional(),
-        required: Joi.array().optional()
-      }).optional()
+    description: Joi.string().allow("").optional(),
+    agent_variables: Joi.object({
+      fields: Joi.object().optional(),
+      required: Joi.array().optional()
     }).optional(),
+    thread_id: Joi.boolean().optional(),
     variables_state: Joi.object().optional()
   }).optional(),
   function_ids: Joi.array()

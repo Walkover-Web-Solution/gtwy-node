@@ -29,9 +29,17 @@ const agentInfoSchema = new Schema(
       enum: ["public", "private"],
       default: "private"
     },
-    connected_agent_details: {
+    agent_variables: {
       type: Object,
       default: {}
+    },
+    description: {
+      type: String,
+      default: ""
+    },
+    thread_id: {
+      type: Boolean,
+      default: false
     },
     variables_state: {
       type: Object,

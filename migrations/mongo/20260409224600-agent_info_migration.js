@@ -55,11 +55,14 @@ async function migrateCollection(db, collectionName) {
     const bulkOps = [];
 
     for (const doc of batch) {
-      // Build the agent_info object with defaults and existing values
-      const agent_info = {};
-
-      // Add prompt_total_tokens with default if missing
-      agent_info.prompt_total_tokens = doc.prompt_total_tokens || 0;
+      // Build the agent_info object with schema defaults and existing values
+      const agent_info = {
+        prompt_total_tokens: doc.prompt_total_tokens || 0,
+        agent_variables: {},
+        description: "",
+        thread_id: false,
+        variables_state: doc.variables_state || {}
+      };
 
       // Spread connected_agent_details properties directly into agent_info
       // This flattens the structure so agent_variables and description are at top level
@@ -67,9 +70,6 @@ async function migrateCollection(db, collectionName) {
       if (connected_agent_details && typeof connected_agent_details === "object") {
         Object.assign(agent_info, connected_agent_details);
       }
-
-      // Add variables_state with default if missing
-      agent_info.variables_state = doc.variables_state || {};
 
       // Create update operation
       const updateOp = {
