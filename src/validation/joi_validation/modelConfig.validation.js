@@ -18,8 +18,7 @@ const saveUserModelConfigurationBodySchema = Joi.object({
     .pattern(/^[^\s]+$/)
     .message("model_name must not contain spaces")
     .required(),
-  display_name: Joi.string().required(),
-  status: Joi.number().default(1),
+  status: Joi.number().valid(0, 1).required(),
   configuration: Joi.object().unknown(true).required(),
   outputConfig: Joi.object().unknown(true).required(),
   validationConfig: Joi.object().unknown(true).required()

@@ -3,8 +3,7 @@ import { validateModel } from "../services/utils/modelValidation.utils.js";
 import ConfigurationServices from "../db_services/configuration.service.js";
 
 async function saveUserModelConfiguration(req, res, next) {
-  const org_id = req.profile.org.id;
-  const { model_name, service, display_name, status, configuration, outputConfig, validationConfig } = req.body;
+  const { model_name, service, status, configuration, outputConfig, validationConfig } = req.body;
 
   // check models validity and support
   const isModelSupported = await validateModel(service, model_name);
@@ -20,10 +19,8 @@ async function saveUserModelConfiguration(req, res, next) {
   }
 
   const result = await modelConfigDbService.saveModelConfig({
-    org_id,
     service,
     model_name,
-    display_name,
     status,
     configuration,
     outputConfig,
