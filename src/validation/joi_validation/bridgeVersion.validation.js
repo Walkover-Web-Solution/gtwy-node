@@ -17,6 +17,7 @@ const updateVersionSchema = Joi.object({
     stream: Joi.alternatives().try(Joi.boolean(), Joi.string()).optional(),
     tools: Joi.alternatives().try(Joi.array(), Joi.string()).optional(),
     tool_choice: Joi.string().optional(),
+    reasoning: Joi.alternatives().try(Joi.string(), Joi.object()).optional(),
     n: Joi.alternatives().try(Joi.number(), Joi.string()).optional(),
     logprobs: Joi.alternatives().try(Joi.number(), Joi.string()).optional(),
     input: Joi.string().allow("").optional(),
@@ -31,7 +32,7 @@ const updateVersionSchema = Joi.object({
     probability_cutoff: Joi.alternatives().try(Joi.number(), Joi.string()).optional(),
     echo_input: Joi.alternatives().try(Joi.boolean(), Joi.string()).optional(),
     parallel_tool_calls: Joi.alternatives().try(Joi.boolean(), Joi.string()).optional(),
-    response_type: Joi.string().allow("").optional(),
+    response_type: Joi.alternatives().try(Joi.object(), Joi.string()).optional(),
     log_probability: Joi.alternatives().try(Joi.boolean(), Joi.string()).optional(),
     image_size: Joi.string().allow("").optional(),
     number_of_images: Joi.alternatives().try(Joi.number(), Joi.string()).optional(),
@@ -57,10 +58,10 @@ const updateVersionSchema = Joi.object({
     .optional(),
   user_reference: Joi.string().optional(),
   gpt_memory: Joi.boolean().optional(),
-  gpt_memory_context: Joi.number().optional(),
+  gpt_memory_context: Joi.string().allow("").optional(),
   doc_ids: Joi.array().items(Joi.object()).optional(),
   IsstarterQuestionEnable: Joi.boolean().optional(),
-  auto_model_select: Joi.object().optional(),
+  auto_model_select: Joi.object().allow(null).optional(),
   cache_on: Joi.boolean().optional(),
   pre_tools: Joi.array().optional(),
   web_search_filters: Joi.alternatives().try(Joi.array().items(Joi.string()), Joi.object()).optional(),
@@ -95,6 +96,10 @@ const updateVersionSchema = Joi.object({
         Joi.string(),
         Joi.object({
           bridge_id: Joi.string()
+            .pattern(/^[0-9a-fA-F]{24}$/)
+            .optional(),
+          thread_id: Joi.boolean().optional(),
+          version_id: Joi.string()
             .pattern(/^[0-9a-fA-F]{24}$/)
             .optional()
         })
