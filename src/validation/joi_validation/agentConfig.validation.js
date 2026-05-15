@@ -24,7 +24,7 @@ const updateBridgeSchema = Joi.object({
   bridge_usage: Joi.number().min(0).optional(),
   bridge_limit: Joi.number().min(0).optional(),
   bridge_limit_reset_period: Joi.string().valid("monthly", "weekly", "daily").optional(),
-  bridgeType: Joi.string().valid("api", "chatbot").optional(),
+  bridgeType: Joi.string().valid("api", "chatbot", "trigger").optional(),
   page_config: Joi.object().optional(),
   connected_agent_details: Joi.object().optional(),
   settings: Joi.object({
