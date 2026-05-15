@@ -37,7 +37,6 @@ const ragCollectionSchema = new mongoose.Schema({
 });
 
 ragCollectionSchema.index({ org_id: 1 });
-ragCollectionSchema.index({ collection_id: 1 });
 
 const RagCollectionModel = mongoose.model("rag_collections", ragCollectionSchema);
 
