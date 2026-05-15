@@ -8,7 +8,7 @@ import conversationValidation from "../validation/joi_validation/conversation.va
 let router = express.Router();
 
 router.get("/threads/:thread_id/:bridge_id", middleware, validate(conversationValidation.getThreads), common.getThreads); // used by someone else
-router.post("/threads/:thread_id/:bridge_id", middleware, validate(conversationValidation.createEntry), common.createEntry); //used by some else
+router.post("/threads/:thread_id/:sub_thread_id?/:bridge_id", middleware, validate(conversationValidation.createEntry), common.createEntry); //used by some else
 router.get(
   "/history/sub-thread/:thread_id",
   middleware,
