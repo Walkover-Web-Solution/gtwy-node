@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "nodemon src/index.js",
+    "preinstall": "npx only-allow pnpm",
     "migrate:up": "sequelize-cli db:migrate --config config/config.js --migrations-path migrations/pg && sequelize-cli db:migrate --config config/timescale_config.js --migrations-path migrations/timescale",
     "migrate:undo": "sequelize-cli db:migrate:undo --config config/config.js --migrations-path migrations/pg && sequelize-cli db:migrate:undo --config config/timescale_config.js --migrations-path migrations/timescale",
     "migratePg:up": "sequelize-cli db:migrate --config config/config.js --migrations-path migrations/pg",
@@ -24,7 +25,7 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "validate": "npm run lint && npm run format:check",
+    "validate": "pnpm run lint && pnpm run format:check",
     "prepare": "husky install"
   },
   "keywords": [],
@@ -117,5 +118,9 @@
     "*.{json,md,yml,yaml,cjs}": [
       "prettier --write"
     ]
+  },
+  "packageManager": "pnpm@10.32.1",
+  "engines": {
+    "pnpm": ">=10"
   }
 }
