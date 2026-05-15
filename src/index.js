@@ -38,6 +38,7 @@ import converstaionRoutes from "./routes/conversation.routes.js";
 import internalRoutes from "./routes/internal.routes.js";
 import promptWrapperRoutes from "./routes/promptWrapper.routes.js";
 import richUiTemplateRoutes from "./routes/richUiTemplate.routes.js";
+import lagoRoutes from "./routes/lago.routes.js";
 import batchHistoryRoutes from "./routes/batchHistory.routes.js";
 const app = express();
 configDotenv();
@@ -90,6 +91,7 @@ app.use("/api/template", templateRoute);
 app.use("/api/prompt_wrappers", promptWrapperRoutes);
 app.use("/api/internal", internalRoutes);
 app.use("/api/rich_ui_templates", richUiTemplateRoutes);
+app.use("/api/lago", lagoRoutes);
 
 //Metrics
 // app.use('/api/v1/metrics', metrisRoutes);
