@@ -24,11 +24,6 @@ const agentInfoSchema = new Schema(
       type: Number,
       default: 0
     },
-    availability: {
-      type: String,
-      enum: ["public", "private"],
-      default: "private"
-    },
     agent_variables: {
       type: Object,
       default: {}
