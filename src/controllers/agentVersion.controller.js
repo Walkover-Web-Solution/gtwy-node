@@ -90,6 +90,15 @@ const updateVersionController = async (req, res, next) => {
       }
     }
 
+    if (body.agent_info) {
+      const filteredAgentInfo = Object.fromEntries(Object.entries(body.agent_info).filter(([, value]) => value !== undefined));
+      update_fields.agent_info = {
+        ...(versionData?.agent_info || {}),
+        ...update_fields.agent_info,
+        ...filteredAgentInfo
+      };
+    }
+
     if (body.apikey_object_id) {
       const apikey_object_id = body.apikey_object_id;
       await ConfigurationServices.getApikeyCreds(org_id, apikey_object_id);

@@ -18,6 +18,29 @@ const actionTypeModel = new Schema(
   }
 );
 
+const agentInfoSchema = new Schema(
+  {
+    prompt_total_tokens: {
+      type: Number,
+      default: 0
+    },
+    availability: {
+      type: String,
+      enum: ["public", "private"],
+      default: "private"
+    },
+    connected_agent_details: {
+      type: Object,
+      default: {}
+    },
+    variables_state: {
+      type: Object,
+      default: {}
+    }
+  },
+  { _id: false }
+);
+
 const configuration = new mongoose.Schema({
   org_id: {
     type: String,
@@ -81,9 +104,9 @@ const configuration = new mongoose.Schema({
     type: Object,
     default: {}
   },
-  variables_state: {
-    type: Object,
-    default: {}
+  agent_info: {
+    type: agentInfoSchema,
+    default: () => ({})
   },
   starterQuestion: {
     type: Array,
@@ -109,10 +132,6 @@ const configuration = new mongoose.Schema({
     type: String,
     default: ""
   },
-  connected_agent_details: {
-    type: Object,
-    default: {}
-  },
   user_reference: {
     type: String,
     default: ""
@@ -130,10 +149,6 @@ const configuration = new mongoose.Schema({
     default: {}
   },
   total_tokens: {
-    type: Number,
-    default: 0
-  },
-  prompt_total_tokens: {
     type: Number,
     default: 0
   },

@@ -427,8 +427,11 @@ const createAgentFromTemplateController = async (req, res, next) => {
         if (child_function_ids_resolved) child_updates.function_ids = child_function_ids_resolved;
         const child_pre_tools = resolvePreTools(child_details.pre_tools);
         if (child_pre_tools) child_updates.pre_tools = child_pre_tools;
-        if (child_details.connected_agent_details && Object.keys(child_details.connected_agent_details).length > 0) {
-          child_updates.connected_agent_details = child_details.connected_agent_details;
+        if (child_details.agent_info && Object.keys(child_details.agent_info).length > 0) {
+          child_updates.agent_info = {
+            ...child_updates.agent_info,
+            ...child_details.agent_info
+          };
         }
         const child_doc_ids = resolveDocIds(child_details.doc_ids);
         if (child_doc_ids) child_updates.doc_ids = child_doc_ids;

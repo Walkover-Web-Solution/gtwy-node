@@ -399,7 +399,7 @@ async function publish(org_id, version_id, user_id) {
 
   // Extract agent variables logic
   const prompt = convertPromptToString(getVersionData.configuration?.prompt || "");
-  const variableState = getVersionData.variables_state || {};
+  const variableState = getVersionData.agent_info?.variables_state || {};
   const variablePath = getVersionData.variables_path || {};
 
   if (Array.isArray(getVersionData.pre_tools)) {
@@ -438,9 +438,10 @@ async function publish(org_id, version_id, user_id) {
     updatedConfiguration.function_ids = updatedConfiguration.function_ids.map((fid) => new ObjectId(fid));
   }
 
-  // Update connected_agent_details with agent variables
-  updatedConfiguration.connected_agent_details = {
-    ...(updatedConfiguration.connected_agent_details || {}),
+  // Update agent_info by spreading connected_agent_details
+  updatedConfiguration.agent_info = updatedConfiguration.agent_info || {};
+  updatedConfiguration.agent_info = {
+    ...updatedConfiguration.agent_info,
     agent_variables: {
       fields: transformedAgentVariables.fields,
       required: transformedAgentVariables.required
@@ -450,7 +451,7 @@ async function publish(org_id, version_id, user_id) {
   const tools = getVersionData.apiCalls;
 
   // Calculate token count and include in transaction update (avoids a separate DB write)
-  updatedConfiguration.prompt_total_tokens = calculatePromptTokens(prompt, tools);
+  updatedConfiguration.agent_info.prompt_total_tokens = calculatePromptTokens(prompt, tools);
 
   // Transaction
   const session = await mongoose.startSession();
@@ -540,7 +541,7 @@ async function getAllConnectedAgents(id, org_id, type) {
     }
 
     const agentName = doc.name || `Agent_${agentId}`;
-    const connectedAgentDetails = doc.connected_agent_details || {};
+    const connectedAgentDetails = doc.agent_info?.connected_agent_details || {};
     const threadId = connectedAgentDetails.thread_id || false;
     const description = connectedAgentDetails.description;
 

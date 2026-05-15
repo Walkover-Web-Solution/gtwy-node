@@ -754,21 +754,31 @@ const getAgentsByUserId = async (orgId, userId, agent_id, folder_id) => {
       query.folder_id = folder_id;
     }
     const agents = await configurationModel
-      .find(query, {
-        _id: 1,
-        name: 1,
-        service: 1,
-        "configuration.model": 1,
-        "configuration.prompt": 1,
-        "configuration.type": 1,
-        bridgeType: 1,
-        slugName: 1,
-        variables_state: 1,
-        meta: 1,
-        deletedAt: 1,
-        createdAt: 1,
-        updatedAt: 1
-      })
+      .aggregate([
+        { $match: query },
+        {
+          $addFields: {
+            variables_state: { $ifNull: ["$agent_info.variables_state"] }
+          }
+        },
+        {
+          $project: {
+            _id: 1,
+            name: 1,
+            service: 1,
+            "configuration.model": 1,
+            "configuration.prompt": 1,
+            "configuration.type": 1,
+            bridgeType: 1,
+            slugName: 1,
+            variables_state: 1,
+            meta: 1,
+            deletedAt: 1,
+            createdAt: 1,
+            updatedAt: 1
+          }
+        }
+      ])
       .lean();
 
     return agents.map((agent) => {
@@ -1275,12 +1285,10 @@ const getAllAgentsInOrg = async (org_id, folder_id, user_id, isEmbedUser) => {
       versions: 1,
       published_version_id: 1,
       total_tokens: 1,
-      variables_state: 1,
       agent_variables: 1,
       bridge_status: 1,
       connected_agents: 1,
       function_ids: 1,
-      connected_agent_details: 1,
       bridge_summary: 1,
       deletedAt: 1,
       bridge_limit: 1,
@@ -1292,9 +1300,9 @@ const getAllAgentsInOrg = async (org_id, folder_id, user_id, isEmbedUser) => {
       users: 1,
       createdAt: 1,
       updatedAt: 1,
-      prompt_total_tokens: 1,
-      "ai_updates.prompt_enhancer_percentage": 1,
-      "ai_updates.criteria_check": 1,
+      "agent_info.prompt_total_tokens": 1,
+      "ai_updates.ai_updates.prompt_enhancer_percentage": 1,
+      "ai_updates.ai_updates.criteria_check": 1,
       settings: 1,
       meta: 1
     })
