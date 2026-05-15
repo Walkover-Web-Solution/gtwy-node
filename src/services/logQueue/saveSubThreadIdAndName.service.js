@@ -6,44 +6,52 @@ import Thread from "../../mongoModel/Thread.model.js";
 import logger from "../../logger.js";
 
 async function saveSubThreadIdAndName({ thread_id, sub_thread_id, org_id, thread_flag, response_format, bridge_id, user }) {
+  const cache_key = `sub_thread_${org_id}_${bridge_id}_${thread_id}_${sub_thread_id}`;
+
   try {
-    const cache_key = `sub_thread_${org_id}_${bridge_id}_${thread_id}_${sub_thread_id}`;
+    if (await findInCache(cache_key)) return;
+  } catch (err) {
+    logger.error(`Cache lookup failed for ${cache_key}: ${err.message}`);
+  }
 
-    const cached_result = await findInCache(cache_key);
-    if (cached_result) {
-      logger.info(`Found cached sub_thread_id for key: ${cache_key}`);
-      return;
-    }
+  const current_time = new Date();
 
-    const variables = { user };
-    let display_name = sub_thread_id;
-    const current_time = new Date();
-
-    if (thread_flag) {
-      display_name = await callAiMiddleware("generate description", bridge_ids.generate_description, variables, null, "text");
-    }
-
+  try {
     await Thread.findOneAndUpdate(
       { org_id, thread_id, sub_thread_id, bridge_id },
       {
-        $set: { bridge_id, display_name: display_name || sub_thread_id },
-        $setOnInsert: { org_id, thread_id, sub_thread_id, created_at: current_time }
+        $set: { bridge_id },
+        $setOnInsert: { org_id, thread_id, sub_thread_id, display_name: sub_thread_id, created_at: current_time }
       },
       { upsert: true }
     );
+  } catch (err) {
+    logger.error(`Mongo upsert failed for sub_thread ${sub_thread_id}: ${err.message}`);
+    return;
+  }
 
-    const cache_data = {
-      org_id,
-      bridge_id,
-      thread_id,
-      sub_thread_id,
-      display_name,
-      created_at: current_time.toISOString()
-    };
-    await storeInCache(cache_key, cache_data, 172800); // 48 hours
+  let display_name = sub_thread_id;
+  if (thread_flag) {
+    try {
+      const generated = await callAiMiddleware("generate description", bridge_ids.generate_description, { user }, null, "text");
+      if (generated && generated !== sub_thread_id) {
+        display_name = generated;
+        await Thread.updateOne({ org_id, thread_id, sub_thread_id, bridge_id }, { $set: { display_name } });
+      }
+    } catch (err) {
+      logger.error(`Display-name generation failed for ${sub_thread_id}: ${err.message}`);
+    }
+  }
 
-    if (display_name && display_name !== sub_thread_id) {
-      const response = {
+  try {
+    await storeInCache(cache_key, { org_id, bridge_id, thread_id, sub_thread_id, display_name, created_at: current_time.toISOString() }, 172800);
+  } catch (err) {
+    logger.error(`Cache store failed for ${cache_key}: ${err.message}`);
+  }
+
+  if (thread_flag && display_name !== sub_thread_id) {
+    try {
+      await sendResponse(response_format, {
         data: {
           display_name,
           sub_thread_id,
@@ -51,11 +59,10 @@ async function saveSubThreadIdAndName({ thread_id, sub_thread_id, org_id, thread
           bridge_id,
           created_at: current_time.toISOString()
         }
-      };
-      await sendResponse(response_format, response);
+      });
+    } catch (err) {
+      logger.error(`sendResponse failed for ${sub_thread_id}: ${err.message}`);
     }
-  } catch (err) {
-    logger.error(`Error in saving sub thread id and name: ${err.message}`);
   }
 }
 

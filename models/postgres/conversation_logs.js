@@ -50,6 +50,10 @@ export default (sequelize, DataTypes) => {
         type: DataTypes.TEXT,
         allowNull: true
       },
+      is_cached: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false
+      },
       user_feedback: {
         type: DataTypes.INTEGER,
         defaultValue: 0

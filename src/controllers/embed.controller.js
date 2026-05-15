@@ -126,8 +126,18 @@ const getAllEmbed = async (req, res, next) => {
 
 const updateEmbed = async (req, res, next) => {
   try {
-    const { folder_id, config, apikey_object_id, folder_limit, folder_usage, folder_limit_reset_period, variables_path, tools_id, pre_tool_id } =
-      req.body;
+    const {
+      folder_id,
+      config,
+      apikey_object_id,
+      folder_limit,
+      folder_usage,
+      folder_limit_reset_period,
+      variables_path,
+      tools_id,
+      pre_tool_id,
+      name
+    } = req.body;
     const org_id = req.profile.org.id;
 
     const folder = await FolderModel.findOne({ _id: folder_id, org_id });
@@ -171,6 +181,9 @@ const updateEmbed = async (req, res, next) => {
     if (folder_limit_reset_period) {
       folder.folder_limit_reset_period = folder_limit_reset_period;
       folder.folder_limit_start_date = new Date();
+    }
+    if (name) {
+      folder.name = name;
     }
     await folder.save();
     await cleanupCache(cost_types.folder, folder_id, org_id);
@@ -264,11 +277,45 @@ const getEmbedDataByUserId = async (req, res, next) => {
     return next();
   }
 };
+const updateAgentMetadataController = async (req, res, next) => {
+  try {
+    const { agent_id } = req.params;
+    const org_id = String(req.profile.org.id);
+    const { name, meta } = req.body;
+
+    const agent = await ConfigurationServices.getAgentsWithTools(agent_id, org_id);
+    if (!agent.bridges) {
+      res.locals = { success: false, message: "Agent not found" };
+      req.statusCode = 404;
+      return next();
+    }
+
+    const update_fields = { updatedAt: new Date() };
+    if (name !== undefined) update_fields.name = name;
+    if (meta !== undefined) update_fields.meta = meta;
+
+    await ConfigurationServices.updateAgent(agent_id, update_fields);
+
+    res.locals = {
+      success: true,
+      message: "Agent metadata updated successfully",
+      agent: { ...agent.bridges, ...update_fields }
+    };
+    req.statusCode = 200;
+    return next();
+  } catch (e) {
+    res.locals = { success: false, message: e.message };
+    req.statusCode = 400;
+    return next();
+  }
+};
+
 export default {
   embedLogin,
   createEmbed,
   getAllEmbed,
   genrateToken,
   updateEmbed,
-  getEmbedDataByUserId
+  getEmbedDataByUserId,
+  updateAgentMetadataController
 };

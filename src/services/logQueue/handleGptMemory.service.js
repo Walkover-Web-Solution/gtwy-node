@@ -9,10 +9,13 @@ async function handleGptMemory({ id, user, assistant, purpose, gpt_memory_contex
     const variables = { threadID: id, memory: purpose, gpt_memory_context };
     const content = assistant?.data?.content || "";
 
+    const userContent = typeof user === "object" && user !== null ? JSON.stringify(user) : user;
+    const assistantContent = typeof content === "object" && content !== null ? JSON.stringify(content) : content;
+
     const configuration = {
       conversation: [
-        { role: "user", content: user },
-        { role: "assistant", content }
+        { role: "user", content: userContent },
+        { role: "assistant", content: assistantContent }
       ]
     };
 
