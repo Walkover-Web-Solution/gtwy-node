@@ -5,6 +5,7 @@ import { getKnowledgeBaseToken } from "./rag.controller.js";
 import { createOrgToken } from "./chatBot.controller.js";
 import embedController from "./embed.controller.js";
 import { getUsers } from "../services/proxy.service.js";
+import modelConfigDbService from "../db_services/modelConfig.service.js";
 
 const clearRedisCache = async (req, res, next) => {
   const { id, ids } = req.body;
@@ -14,9 +15,10 @@ const clearRedisCache = async (req, res, next) => {
     const identifiers = ids ? ids : id;
     await deleteInCache(identifiers);
 
-    const message = Array.isArray(identifiers) ? `Redis Keys cleared successfully (${identifiers.length} keys)` : "Redis Key cleared successfully";
+    const clearedKeys = Array.isArray(identifiers) ? identifiers : [identifiers];
+    const message = clearedKeys.length > 1 ? `Redis Keys cleared successfully (${clearedKeys.length} keys)` : "Redis Key cleared successfully";
 
-    res.locals = { message };
+    res.locals = { message, cleared_keys: clearedKeys, count: clearedKeys.length };
     req.statusCode = 200;
     return next();
   } else {
@@ -27,12 +29,20 @@ const clearRedisCache = async (req, res, next) => {
     const keysToDelete = keys.filter((key) => {
       return !protectedPatterns.some((pattern) => key.includes(pattern));
     });
+    const skippedKeys = keys.filter((key) => {
+      return protectedPatterns.some((pattern) => key.includes(pattern));
+    });
 
     if (keysToDelete && keysToDelete.length > 0) {
       await deleteInCache(keysToDelete);
     }
 
-    res.locals = { message: "Redis cleared successfully" };
+    res.locals = {
+      message: "Redis cleared successfully",
+      cleared_keys: keysToDelete,
+      skipped_keys: skippedKeys,
+      count: keysToDelete.length
+    };
     req.statusCode = 200;
     return next();
   }
@@ -48,6 +58,7 @@ const getRedisCache = async (req, res, next) => {
 
 const callGtwy = async (req, res, next) => {
   const { type } = req.body;
+
   const org_id = req.profile?.org?.id;
 
   const config = AI_OPERATION_CONFIG[type];
@@ -159,11 +170,54 @@ const getAffiliateEmbedToken = async (req, res, next) => {
   return next();
 };
 
+const setModelStatus = async (req, res, next) => {
+  const { model_name, service, status: parsedStatus } = req.body;
+
+  const existing = await modelConfigDbService.getModelConfigsByNameAndService(model_name, service);
+
+  if (!existing || existing.length === 0) {
+    res.locals = { success: false, message: "Model configuration not found." };
+    req.statusCode = 404;
+    return next();
+  }
+
+  if (existing[0].status === parsedStatus) {
+    const state = parsedStatus === 0 ? "already disabled" : "already enabled";
+    res.locals = { success: false, message: `Model '${model_name}' for service '${service}' is ${state}.` };
+    req.statusCode = 409;
+    return next();
+  }
+
+  const result = await modelConfigDbService.setModelStatusAdmin(model_name, service, parsedStatus);
+
+  const action = parsedStatus === 0 ? "disabled" : "enabled";
+  const response = {
+    success: true,
+    message: `Model '${model_name}' for service '${service}' has been ${action}.`,
+    modelConfig: result.modelConfig
+  };
+
+  if (parsedStatus === 0) {
+    if (result.usageInfo) {
+      response.usageInfo = result.usageInfo;
+    }
+    response.updatedVersions = result.updatedVersions;
+    if (result.updatedVersions && result.updatedVersions.length > 0) {
+      response.message += ` Updated ${result.updatedVersions.length} agent version(s) to use default model.`;
+    }
+  }
+
+  res.locals = response;
+  req.statusCode = 200;
+  return next();
+};
+
 export default {
   clearRedisCache,
   getRedisCache,
   callGtwy,
   generateToken,
   getCurrentOrgUsers,
-  getAffiliateEmbedToken
+  getAffiliateEmbedToken,
+  setModelStatus
 };

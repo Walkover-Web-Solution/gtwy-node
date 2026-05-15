@@ -12,7 +12,7 @@ async function validateResponse({ alert_flag, configration, bridgeId, message_id
       bridge_id: bridgeId,
       org_id,
       message: "\n issue occurs",
-      ENVIROMENT: process.env.ENVIROMENT
+      ENVIROMENT: process.env.ENVIRONMENT
     };
 
     await axios.post("https://flow.sokt.io/func/scriYP8m551q", data);

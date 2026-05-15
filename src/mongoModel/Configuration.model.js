@@ -18,28 +18,6 @@ const actionTypeModel = new Schema(
   }
 );
 
-const pageConfigSchema = new Schema(
-  {
-    url_slugname: {
-      type: String,
-      unique: true,
-      sparse: true // this makes sure that if the url_slugname is not present in the document
-      // mongo will still create an index on the field, and will not throw an error if the field is not present in the document.
-      // This is useful when we are using the same schema for multiple collections, and not all collections have this field.
-    },
-    availability: {
-      type: String,
-      enum: ["public", "private"],
-      default: "private"
-    },
-    allowedUsers: {
-      type: [String],
-      default: []
-    }
-  },
-  { _id: false }
-);
-
 const configuration = new mongoose.Schema({
   org_id: {
     type: String,
@@ -111,10 +89,6 @@ const configuration = new mongoose.Schema({
     type: Array,
     default: []
   },
-  tool_call_count: {
-    type: Number,
-    default: 0
-  },
   version_description: {
     type: String,
     default: ""
@@ -127,25 +101,9 @@ const configuration = new mongoose.Schema({
     type: Array,
     default: []
   },
-  guardrails: {
-    type: Object,
-    default: {
-      is_enabled: false,
-      guardrails_configuration: {},
-      guardrails_custom_prompt: ""
-    }
-  },
   built_in_tools: {
     type: Array,
     default: []
-  },
-  fall_back: {
-    type: Object,
-    default: {
-      is_enable: false,
-      service: "",
-      model: ""
-    }
   },
   bridge_summary: {
     type: String,
@@ -179,13 +137,12 @@ const configuration = new mongoose.Schema({
     type: Number,
     default: 0
   },
-  prompt_enhancer_percentage: {
-    type: Number,
-    default: 0
-  },
-  criteria_check: {
+  ai_updates: {
     type: Object,
-    default: {}
+    default: {
+      prompt_enhancer_percentage: 0,
+      criteria_check: {}
+    }
   },
   created_at: {
     type: Date,
@@ -240,10 +197,6 @@ const configuration = new mongoose.Schema({
   IsstarterQuestionEnable: {
     type: Boolean
   },
-  page_config: {
-    type: pageConfigSchema,
-    default: null
-  },
   apikey_object_id: {
     type: Object
   },
@@ -276,15 +229,37 @@ const configuration = new mongoose.Schema({
     type: Date,
     default: null
   },
-  users: {
-    type: [mongoose.Schema.Types.Mixed],
-    default: undefined
+  settings: {
+    type: Object,
+    default: {
+      maximum_iterations: 3,
+      publicUsers: [],
+      editAccess: [],
+      stateless_conversation: false,
+      tone: {},
+      responseStyle: {},
+      response_format: { type: "default", cred: {} },
+      guardrails: {
+        is_enabled: false,
+        guardrails_configuration: {},
+        guardrails_custom_prompt: ""
+      },
+      fall_back: {
+        is_enable: false,
+        service: "",
+        model: ""
+      }
+    }
   },
   chatbot_auto_answers: {
     type: Boolean,
     default: false
   },
   auto_model_select: {
+    type: Object,
+    default: null
+  },
+  cache_on: {
     type: Boolean,
     default: false
   }
@@ -292,5 +267,6 @@ const configuration = new mongoose.Schema({
 
 configuration.index({ org_id: 1, slugName: 1 }, { unique: true });
 configuration.index({ deletedAt: 1 }, { expireAfterSeconds: 2592000 }); // TTL index for 30 days (1 month)
+configuration.index({ org_id: 1, deletedAt: 1 });
 const configurationModel = mongoose.model("configuration", configuration);
 export default configurationModel;

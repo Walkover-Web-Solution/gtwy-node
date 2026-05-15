@@ -73,10 +73,6 @@ const version = new mongoose.Schema({
     type: Object,
     default: {}
   },
-  tool_call_count: {
-    type: Number,
-    default: 3
-  },
   agent_variables: {
     type: Object,
     default: {}
@@ -93,6 +89,13 @@ const version = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  ai_updates: {
+    type: Object,
+    default: {
+      prompt_enhancer_percentage: 0,
+      criteria_check: {}
+    }
+  },
   version_description: {
     type: String,
     default: ""
@@ -105,14 +108,6 @@ const version = new mongoose.Schema({
     type: Array,
     default: []
   },
-  guardrails: {
-    type: Object,
-    default: {
-      is_enabled: false,
-      guardrails_configuration: {},
-      guardrails_custom_prompt: ""
-    }
-  },
   web_search_filters: {
     type: [String],
     default: []
@@ -124,14 +119,6 @@ const version = new mongoose.Schema({
   user_reference: {
     type: String,
     default: ""
-  },
-  fall_back: {
-    type: Object,
-    default: {
-      is_enable: false,
-      service: "",
-      model: ""
-    }
   },
   built_in_tools: {
     type: Array,
@@ -187,16 +174,45 @@ const version = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  settings: {
+    type: Object,
+    default: {
+      maximum_iterations: 3,
+      responseStyle: {},
+      tone: {},
+      response_format: { type: "default", cred: {} },
+      responseStylePrompt: "",
+      guardrails: {
+        is_enabled: false,
+        guardrails_configuration: {},
+        guardrails_custom_prompt: ""
+      },
+      fall_back: {
+        is_enable: false,
+        service: "",
+        model: ""
+      }
+    }
+  },
   chatbot_auto_answers: {
     type: Boolean,
     default: false
   },
   auto_model_select: {
+    type: Object,
+    default: null
+  },
+  cache_on: {
     type: Boolean,
     default: false
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now
   }
 });
 
 version.index({ deletedAt: 1 }, { expireAfterSeconds: 2592000 }); // TTL index for 30 days (1 month)
+version.index({ org_id: 1, deletedAt: 1 });
 const versionModel = mongoose.model("configuration_versions", version);
 export default versionModel;

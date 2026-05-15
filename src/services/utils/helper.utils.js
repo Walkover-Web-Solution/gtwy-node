@@ -45,6 +45,16 @@ class Helper {
     }
   };
 
+  static serializeError = (error) => {
+    try {
+      if (error instanceof Error) return error.message;
+      if (typeof error === "string") return error;
+      return JSON.stringify(error);
+    } catch {
+      return String(error);
+    }
+  };
+
   static findVariablesInString(text) {
     const regex = /{{(.*?)}}/g;
     const matches = [];
@@ -60,9 +70,9 @@ class Helper {
     return response;
   }
 
-  static traverseBody(body, path = [], paths = [], fields = {}, required_params = []) {
+  static traverseBody(body, path = [], paths = [], fields = {}, required = []) {
     if (!body) {
-      return { paths, fields, required_params };
+      return { paths, fields, required };
     }
 
     for (const key in body) {
@@ -75,8 +85,8 @@ class Helper {
             description: "",
             type: "object",
             enum: [],
-            required_params: [],
-            parameter: {}
+            required: [],
+            properties: {}
           };
         }
       }
@@ -85,100 +95,89 @@ class Helper {
         if (path.length > 0) {
           let parentObj = fields[path[0]];
           for (let i = 1; i < path.length; i++) {
-            parentObj = parentObj.parameter[path[i]];
+            parentObj = parentObj.properties[path[i]];
           }
 
-          if (!parentObj.required_params.includes(key)) {
-            parentObj.required_params.push(key);
+          if (!parentObj.required.includes(key)) {
+            parentObj.required.push(key);
           }
 
-          if (!parentObj.parameter[key]) {
-            parentObj.parameter[key] = {
+          if (!parentObj.properties[key]) {
+            parentObj.properties[key] = {
               description: "",
               type: "object",
               enum: [],
-              required_params: [],
-              parameter: {}
+              required: [],
+              properties: {}
             };
           }
         }
-        Helper.traverseBody(value, currentPath, paths, fields, required_params);
+        Helper.traverseBody(value, currentPath, paths, fields, required);
       } else if (value === "your_value_here") {
         paths.push(currentPath.join("."));
-        if (!required_params.includes(key)) {
-          required_params.push(key);
+        if (!required.includes(key)) {
+          required.push(key);
         }
 
         if (path.length > 0) {
           let parentObj = fields[path[0]];
           for (let i = 1; i < path.length; i++) {
-            parentObj = parentObj.parameter[path[i]];
+            parentObj = parentObj.properties[path[i]];
           }
 
-          if (!parentObj.required_params.includes(key)) {
-            parentObj.required_params.push(key);
+          if (!parentObj.required.includes(key)) {
+            parentObj.required.push(key);
           }
 
-          parentObj.parameter[key] = {
+          parentObj.properties[key] = {
             description: "",
             type: "string",
             enum: [],
-            required_params: [],
-            parameter: {}
+            required: [],
+            properties: {}
           };
         } else {
           fields[key] = {
             description: "",
             type: "string",
             enum: [],
-            required_params: [],
-            parameter: {}
+            required: [],
+            properties: {}
           };
         }
       }
     }
 
-    return { paths, fields, required_params };
+    return { paths, fields, required };
   }
 
   /**
    * Transforms fields structure by normalizing each field's properties
-   * and replacing 'required' with 'required_params'.
+   * and keeping the 'required' array for each field.
    * @param {Object} fields - The fields object to transform
    * @returns {Object} Transformed fields object with normalized structure, or {} if input is invalid
    */
 
-  static transformFieldsStructure(fields) {
-    if (!fields || typeof fields !== "object") return {};
-
+  static transformFieldsStructure(props) {
+    if (!props || typeof props !== "object") return {};
     const transformed = {};
-
-    for (const [key, value] of Object.entries(fields)) {
-      if (value === null) {
-        transformed[key] = {
-          description: "",
-          type: "string",
-          enum: [],
-          required_params: [],
-          parameter: {}
-        };
+    for (const [key, val] of Object.entries(props)) {
+      if (val === null) {
+        transformed[key] = { description: "", type: "string", enum: [], required: [], properties: {} };
         continue;
       }
-
       transformed[key] = {
-        description: value.description || "",
-        type: value.type || "string",
-        enum: value.enum || [],
-        required_params: Array.isArray(value.required_params) ? value.required_params : Array.isArray(value.required) ? value.required : [],
-        parameter: value.parameter || {}
+        description: val.description || "",
+        type: val.type || "string",
+        enum: val.enum || [],
+        // Filters required array to only include keys that exist in transformed fields
+        required: Array.isArray(val.required) ? val.required : [],
+        properties:
+          val.properties && typeof val.properties === "object" && Object.keys(val.properties).length > 0
+            ? Helper.transformFieldsStructure(val.properties)
+            : {}
       };
-
-      // Recursively transform nested parameters
-      if (value.parameter && Object.keys(value.parameter).length > 0) {
-        transformed[key].parameter = Helper.transformFieldsStructure(value.parameter);
-      }
     }
-
     return transformed;
   }
 

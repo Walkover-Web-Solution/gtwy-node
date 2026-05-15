@@ -25,7 +25,11 @@ async function broadcastResponseWebhook({ bridge_id, org_id, response, user_ques
       if (!bridges.includes(bridge_id) && !bridges.includes("all")) continue;
 
       const webhook_config = entry.webhookConfiguration;
-      const webhook_url = entry.user_url || webhook_config?.url;
+      const webhook_url = webhook_config?.url;
+      if (!webhook_url) {
+        logger.warn(`Missing webhook URL for entry: ${entry.name || "unnamed"}`);
+        continue;
+      }
       const headers = webhook_config?.headers || {};
 
       const response_format = { type: "webhook", cred: { url: webhook_url, headers } };

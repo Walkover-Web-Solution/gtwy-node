@@ -8,8 +8,8 @@ const service_name = {
   open_router: "open_router",
   mistral: "mistral",
   gemini: "gemini",
-  ai_ml: "ai_ml",
-  openai_completion: "openai_completion"
+  openai_completion: "openai_completion",
+  deepgram: "deepgram"
 };
 
 const validateFallBack = (fall_back_data) => {
@@ -112,6 +112,7 @@ const getDefaultValuesController = async (service, model, current_configuration,
           }
         }
       }
+      if (default_values.stream === undefined) default_values.stream = "default";
       return default_values;
     };
 

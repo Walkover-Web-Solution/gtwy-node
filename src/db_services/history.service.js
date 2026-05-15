@@ -11,6 +11,86 @@ import Sequelize from "sequelize";
  * @param {number} limit - Items per page (default: 30)
  * @returns {Object} - Success status and data
  */
+async function findBatchConversationLogsByAgentId(org_id, bridge_id, filter, page = 1, limit = 30, version_id = null) {
+  try {
+    const offset = (page - 1) * limit;
+
+    // Build where conditions - all parameters are required
+    const whereConditions = {
+      org_id: org_id,
+      bridge_id: bridge_id,
+      batch_data: { [Sequelize.Op.ne]: null },
+      "batch_data.status": filter ? filter : "completed"
+    };
+
+    if (version_id) {
+      whereConditions.version_id = version_id;
+    }
+
+    // Get paginated data
+    const logs = await models.pg.conversation_logs.findAll({
+      where: whereConditions,
+      order: [["created_at", "DESC"]],
+      limit: limit,
+      offset: offset
+    });
+
+    // Reverse the conversation logs array
+    const reversedLogs = logs.reverse();
+
+    return {
+      success: true,
+      data: reversedLogs
+    };
+  } catch (error) {
+    console.error("Error fetching conversation logs:", error);
+    return {
+      success: false,
+      message: "Failed to fetch conversation logs",
+      error: error.message
+    };
+  }
+}
+async function findBatchConversationLogsCountByAgentId(org_id, bridge_id) {
+  try {
+    // Build where conditions - all parameters are required
+    const whereConditions = {
+      org_id: org_id,
+      bridge_id: bridge_id,
+      batch_data: { [Sequelize.Op.ne]: null },
+      "batch_data.status": { [Sequelize.Op.in]: ["completed", "queued", "processing"] }
+    };
+
+    // Get count
+    const batchStatusCounts = await models.pg.conversation_logs.findAll({
+      attributes: [
+        [Sequelize.fn("COUNT", Sequelize.literal("CASE WHEN batch_data->>'status' = 'queued' THEN 1 END")), "queued"],
+        [Sequelize.fn("COUNT", Sequelize.literal("CASE WHEN batch_data->>'status' = 'processing' THEN 1 END")), "processing"],
+        [Sequelize.fn("COUNT", Sequelize.literal("CASE WHEN batch_data->>'status' = 'completed' THEN 1 END")), "completed"]
+      ],
+      where: whereConditions
+    });
+
+    const statusCounts = batchStatusCounts[0]?.dataValues || {};
+
+    return {
+      success: true,
+      data: {
+        completed: parseInt(statusCounts.completed) || 0,
+        queued: parseInt(statusCounts.queued) || 0,
+        processing: parseInt(statusCounts.processing) || 0
+      }
+    };
+  } catch (error) {
+    console.error("Error fetching conversation logs count:", error);
+    return {
+      success: false,
+      message: "Failed to fetch conversation logs count",
+      error: error.message
+    };
+  }
+}
+
 async function findConversationLogsByIds(org_id, bridge_id, thread_id, sub_thread_id, page = 1, limit = 30, version_id = null) {
   try {
     const offset = (page - 1) * limit;
@@ -79,8 +159,8 @@ async function findRecentThreadsByBridgeId(org_id, bridge_id, filters, user_feed
       whereConditions.user_feedback = user_feedback === "all" ? 0 : user_feedback;
     }
 
-    if (error !== "false") {
-      whereConditions.error = error;
+    if (error === "true" || error === true) {
+      whereConditions.error = { [Sequelize.Op.ne]: null };
     }
 
     if (version_id) {
@@ -102,19 +182,65 @@ async function findRecentThreadsByBridgeId(org_id, bridge_id, filters, user_feed
     }
 
     // Add keyword search across recommended columns
-    if (filters?.keyword?.length > 0 && filters?.keyword !== "") {
-      const keywordConditions = {
-        [Sequelize.Op.or]: [
-          { message_id: { [Sequelize.Op.iLike]: `%${filters.keyword}%` } },
-          { thread_id: { [Sequelize.Op.iLike]: `%${filters.keyword}%` } },
-          { sub_thread_id: { [Sequelize.Op.iLike]: `%${filters.keyword}%` } },
-          { llm_message: { [Sequelize.Op.iLike]: `%${filters.keyword}%` } },
-          { user: { [Sequelize.Op.iLike]: `%${filters.keyword}%` } },
-          { chatbot_message: { [Sequelize.Op.iLike]: `%${filters.keyword}%` } },
-          { updated_llm_message: { [Sequelize.Op.iLike]: `%${filters.keyword}%` } }
-        ]
-      };
-      whereConditions[Sequelize.Op.and] = [keywordConditions];
+    const searchableColumns = ["message_id", "thread_id", "sub_thread_id", "llm_message", "user", "chatbot_message", "updated_llm_message"];
+    const filterBy = filters?.filter_by;
+
+    if (filterBy && typeof filterBy === "object" && Object.keys(filterBy).length > 0) {
+      const orConditions = [];
+      for (const [col, keyword] of Object.entries(filterBy)) {
+        if (col === "variables") {
+          if (!keyword) continue;
+          if (typeof keyword === "string" && keyword.trim() !== "") {
+            const escapedValue = keyword.trim().replace(/'/g, "''");
+            orConditions.push(
+              Sequelize.literal(
+                `EXISTS (SELECT 1 FROM jsonb_each_text(COALESCE("conversation_logs"."variables", '{}'::jsonb)) AS kv WHERE jsonb_typeof(COALESCE("conversation_logs"."variables", 'null'::jsonb)) = 'object' AND kv.value ILIKE '%${escapedValue}%')`
+              )
+            );
+            continue;
+          }
+          if (typeof keyword !== "object" || Object.keys(keyword).length === 0) continue;
+          for (const [varName, varVal] of Object.entries(keyword)) {
+            const escapedKey = varName.trim().replace(/'/g, "''");
+            const trimmedVal = typeof varVal === "string" ? varVal.trim() : null;
+            const hasValue = trimmedVal && trimmedVal !== "";
+            if (!escapedKey) continue;
+            const escapedValue = hasValue ? trimmedVal.replace(/'/g, "''") : null;
+            let varCondition;
+            if (hasValue) {
+              varCondition = `EXISTS (SELECT 1 FROM jsonb_each_text(COALESCE("conversation_logs"."variables", '{}'::jsonb)) AS kv WHERE jsonb_typeof(COALESCE("conversation_logs"."variables", 'null'::jsonb)) = 'object' AND kv.key = '${escapedKey}' AND kv.value = '${escapedValue}')`;
+            } else {
+              varCondition = `EXISTS (SELECT 1 FROM jsonb_each_text(COALESCE("conversation_logs"."variables", '{}'::jsonb)) AS kv WHERE jsonb_typeof(COALESCE("conversation_logs"."variables", 'null'::jsonb)) = 'object' AND kv.key = '${escapedKey}')`;
+            }
+            orConditions.push(Sequelize.literal(varCondition));
+          }
+        } else if (col === "batch_id") {
+          if (!keyword || keyword === "") continue;
+          const escapedBatch = keyword.replace(/'/g, "''");
+          orConditions.push(Sequelize.literal(`"conversation_logs"."batch_data"->>'batch_id' ILIKE '%${escapedBatch}%'`));
+        } else {
+          if (!keyword || keyword === "") continue;
+          if (searchableColumns.includes(col)) {
+            orConditions.push({ [col]: { [Sequelize.Op.iLike]: `%${keyword}%` } });
+          }
+        }
+      }
+      if (orConditions.length > 0) {
+        whereConditions[Sequelize.Op.and] = [{ [Sequelize.Op.or]: orConditions }];
+      }
+    } else if (filters?.keyword?.length > 0 && filters?.keyword !== "") {
+      const escapedKeyword = filters.keyword.replace(/'/g, "''");
+      whereConditions[Sequelize.Op.and] = [
+        {
+          [Sequelize.Op.or]: [
+            ...searchableColumns.map((col) => ({ [col]: { [Sequelize.Op.iLike]: `%${filters.keyword}%` } })),
+            Sequelize.literal(
+              `EXISTS (SELECT 1 FROM jsonb_each_text(COALESCE("conversation_logs"."variables", '{}'::jsonb)) AS kv WHERE jsonb_typeof(COALESCE("conversation_logs"."variables", 'null'::jsonb)) = 'object' AND kv.value ILIKE '%${escapedKeyword}%')`
+            ),
+            Sequelize.literal(`"conversation_logs"."batch_data"->>'batch_id' ILIKE '%${escapedKeyword}%'`)
+          ]
+        }
+      ];
     }
 
     // Get recent threads with distinct thread_id, ordered by updated_at
@@ -134,8 +260,11 @@ async function findRecentThreadsByBridgeId(org_id, bridge_id, filters, user_feed
       updated_at: thread.dataValues.updated_at
     }));
 
-    // If keyword search is active, fetch matching messages for the found threads
-    if (filters?.keyword && formattedThreads?.length > 0) {
+    const isKeywordSearch = filters?.keyword?.length > 0 && filters?.keyword !== "";
+    const isFilterBySearch = filterBy && typeof filterBy === "object" && Object.keys(filterBy).length > 0;
+
+    // If keyword or filter_by search is active, fetch matching messages for the found threads
+    if ((isKeywordSearch || isFilterBySearch) && formattedThreads?.length > 0) {
       const threadIds = formattedThreads.map((t) => t.thread_id);
 
       const messagesWhere = {
@@ -153,19 +282,23 @@ async function findRecentThreadsByBridgeId(org_id, bridge_id, filters, user_feed
         const threadMessages = matchedMessages.filter((m) => m.thread_id === thread.thread_id);
 
         thread.message = threadMessages.map((msg) => {
-          // Determine the content to display
           let content = "";
-          if (msg.user && msg.user.toLowerCase().includes(filters.keyword.toLowerCase())) {
-            content = msg.user;
-          } else if ((msg.llm_message || "").toLowerCase().includes(filters.keyword.toLowerCase())) {
-            content = msg.llm_message;
-          } else if ((msg.chatbot_message || "").toLowerCase().includes(filters.keyword.toLowerCase())) {
-            content = msg.chatbot_message;
-          } else if ((msg.updated_llm_message || "").toLowerCase().includes(filters.keyword.toLowerCase())) {
-            content = msg.updated_llm_message;
+          if (isKeywordSearch) {
+            const kw = filters.keyword.toLowerCase();
+            if (msg.user && msg.user.toLowerCase().includes(kw)) {
+              content = msg.user;
+            } else if ((msg.llm_message || "").toLowerCase().includes(kw)) {
+              content = msg.llm_message;
+            } else if ((msg.chatbot_message || "").toLowerCase().includes(kw)) {
+              content = msg.chatbot_message;
+            } else if ((msg.updated_llm_message || "").toLowerCase().includes(kw)) {
+              content = msg.updated_llm_message;
+            } else {
+              content = msg.user || msg.llm_message || msg.chatbot_message || "Match found in ID or metadata";
+            }
           } else {
-            // Fallback if match query matched ID or something else
-            content = msg.user || msg.llm_message || msg.chatbot_message || "Match found in ID or metadata";
+            // filter_by: pick first non-empty message field as content
+            content = msg.user || msg.llm_message || msg.chatbot_message || msg.updated_llm_message || "Match found";
           }
 
           return {
@@ -184,7 +317,7 @@ async function findRecentThreadsByBridgeId(org_id, bridge_id, filters, user_feed
               .filter((m) => m.sub_thread_id === stId)
               .map((msg) => ({
                 message_id: msg.message_id,
-                message: msg.user || msg.llm_message || "Match found" // Simplify for subthread view
+                message: msg.user || msg.llm_message || "Match found"
               }))
           }));
         }
@@ -436,6 +569,7 @@ async function findThreadHistoryFormatted(org_id, thread_id, bridge_id, sub_thre
           urls: null,
           message_id: log.message_id + "_llm",
           fallback_model: typeof log.fallback_model === "object" ? JSON.stringify(log.fallback_model) : log.fallback_model || "",
+          plans: log.plans || null,
           error: ""
         });
       }
@@ -521,6 +655,7 @@ async function createConversationLog(payload) {
 
     transformedPayload.prompt = payload.prompt || null;
     transformedPayload.service = payload.service || null;
+    transformedPayload.plans = payload.plans || null;
 
     const result = await models.pg.conversation_logs.create(transformedPayload);
     return result;
@@ -564,6 +699,7 @@ async function findChatbotThreadHistory(org_id, thread_id, bridge_id, sub_thread
       "bridge_id",
       "user_urls",
       "llm_urls",
+      "plans",
       "created_at",
       "updated_at"
     ],
@@ -589,5 +725,7 @@ export {
   findHistoryByMessageId,
   findHistoryByMessageId as getHistoryByMessageId,
   createConversationLog,
-  findChatbotThreadHistory
+  findChatbotThreadHistory,
+  findBatchConversationLogsByAgentId,
+  findBatchConversationLogsCountByAgentId
 };

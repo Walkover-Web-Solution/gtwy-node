@@ -76,17 +76,12 @@ async function callCanonicalizerAgent({ system_prompt, user_message, llm_respons
 
 async function createMemoryInHippocampusAndMongodb({ canonical_question, original_answer, agent_id, bridge_name }) {
   try {
-    const content = JSON.stringify({ question: canonical_question, answer: original_answer || "" });
+    const content = canonical_question || "";
     const payload = {
       collectionId: process.env.HIPPOCAMPUS_COLLECTION_ID,
       title: bridge_name || agent_id,
       ownerId: agent_id,
-      content,
-      settings: {
-        strategy: "custom",
-        chunkingUrl: "https://flow.sokt.io/func/scriQywSNndU",
-        chunkSize: 4000
-      }
+      content
     };
 
     const headers = { "x-api-key": process.env.HIPPOCAMPUS_API_KEY, "Content-Type": "application/json" };
@@ -116,10 +111,19 @@ async function createMemoryInHippocampusAndMongodb({ canonical_question, origina
   }
 }
 
-async function saveToAgentMemory({ user_question, assistant_answer, agent_id, system_prompt, bridge_name = "" }) {
+async function saveToAgentMemory({ user_question, assistant_answer, agent_id, system_prompt, bridge_name = "", is_cache_hit, cached_resource_id }) {
   try {
     if (!process.env.HIPPOCAMPUS_API_KEY || !process.env.HIPPOCAMPUS_COLLECTION_ID) {
       logger.warn("Agent Memory: Hippocampus not configured");
+      return false;
+    }
+
+    if (is_cache_hit) {
+      if (cached_resource_id) {
+        logger.info(`Agent Memory: Cache hit. Skipping lookup and incrementing frequency for resource_id=${cached_resource_id}`);
+        return await updateFrequencyInMongodb(cached_resource_id);
+      }
+      logger.warn("Agent Memory: Cache hit flagged but resource_id is missing");
       return false;
     }
 

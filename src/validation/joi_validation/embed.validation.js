@@ -73,11 +73,14 @@ const getEmbedDataByUserId = {
 const updateAgentMetadata = {
   body: Joi.object()
     .keys({
-      meta: Joi.object().required().messages({
-        "any.required": "meta is required"
-      })
+      name: Joi.string().optional(),
+      meta: Joi.object().optional()
     })
+    .or("name", "meta")
     .unknown(false)
+    .messages({
+      "object.missing": "At least one of name or meta is required"
+    })
 };
 
 export default {
