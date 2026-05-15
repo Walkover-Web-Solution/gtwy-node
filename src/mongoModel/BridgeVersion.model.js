@@ -90,7 +90,13 @@ const version = new mongoose.Schema({
   },
   agent_info: {
     type: agentInfoSchema,
-    default: () => ({})
+    default: () => ({
+      prompt_total_tokens: 0,
+      agent_variables: {},
+      description: "",
+      thread_id: false,
+      variables_state: {}
+    })
   },
   function_ids: {
     type: [mongoose.Schema.Types.ObjectId],
