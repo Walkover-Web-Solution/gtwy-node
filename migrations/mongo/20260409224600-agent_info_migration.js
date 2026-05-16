@@ -37,8 +37,12 @@ async function migrateCollection(db, collectionName) {
 
   const collection = db.collection(collectionName);
 
-  // Find ALL documents in the collection
-  const documents = await collection.find({}).toArray();
+  // Find documents that don't have agent_info yet
+  const documents = await collection
+    .find({
+      agent_info: { $exists: false }
+    })
+    .toArray();
   console.log(`Found ${documents.length} total documents in ${collectionName}`);
 
   if (documents.length === 0) {

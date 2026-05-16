@@ -1300,7 +1300,7 @@ const getAllAgentsInOrg = async (org_id, folder_id, user_id, isEmbedUser) => {
       users: 1,
       createdAt: 1,
       updatedAt: 1,
-      "agent_info.prompt_total_tokens": 1,
+      agent_info: 1,
       "ai_updates.prompt_enhancer_percentage": 1,
       "ai_updates.criteria_check": 1,
       settings: 1,
