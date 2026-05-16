@@ -1,7 +1,7 @@
 import templateModel from "../mongoModel/Template.model.js";
 
 async function getAll() {
-  return templateModel.find();
+  return templateModel.find({ visible: true });
 }
 
 /**
