@@ -76,8 +76,10 @@ const callAi = {
         otherwise: Joi.forbidden()
       }),
       variables: Joi.alternatives().conditional("type", {
-        is: "optimize_prompt",
-        then: Joi.object().required(),
+        switch: [
+          { is: "optimize_prompt", then: Joi.object().required() },
+          { is: "improve_prompt", then: Joi.object().required() }
+        ],
         otherwise: Joi.forbidden()
       }),
       example_json: Joi.alternatives().conditional("type", {
