@@ -1,4 +1,6 @@
 import mongoose from "mongoose";
+import { cacheInvalidationPlugin } from "../cache_service/mongoosePlugin.js";
+import { tag_keys } from "../configs/tagKeys.js";
 
 const fieldValueSchema = new mongoose.Schema(
   {
@@ -66,6 +68,7 @@ const apiCall = new mongoose.Schema(
   }
 );
 apiCall.index({ org_id: 1, script_id: 1 });
+apiCall.plugin(cacheInvalidationPlugin, { tags: [tag_keys.tool] });
 
 const apiCallModel = mongoose.model("apicall", apiCall);
 export default apiCallModel;

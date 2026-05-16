@@ -64,11 +64,6 @@ async function updateAgents(agent_id, data, version_id = null) {
       result = await configurationModel.findOneAndUpdate({ _id: agent_id }, updateQuery, { new: true });
     }
 
-    const cacheKeysToDelete = _buildCacheKeys(version_id, agent_id || result.parent_id, { bridges: [], versions: [] }, [], result.org_id);
-
-    if (cacheKeysToDelete.length > 0) {
-      await deleteInCache(cacheKeysToDelete);
-    }
     return result;
   } catch (error) {
     console.error("Error updating agents:", error);

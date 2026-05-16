@@ -1,4 +1,6 @@
 import mongoose from "mongoose";
+import { cacheInvalidationPlugin } from "../cache_service/mongoosePlugin.js";
+import { tag_keys } from "../configs/tagKeys.js";
 
 const ConfigSchema = new mongoose.Schema(
   {
@@ -80,6 +82,8 @@ const FolderSchema = new mongoose.Schema({
     default: Date.now
   }
 });
+
+FolderSchema.plugin(cacheInvalidationPlugin, { tags: [tag_keys.folder] });
 
 const FolderModel = mongoose.model("Folder", FolderSchema);
 

@@ -1,7 +1,6 @@
 import logger from "../logger.js";
 import { saveSubThreadIdAndName } from "../services/logQueue/saveSubThreadIdAndName.service.js";
 import { validateResponse } from "../services/logQueue/validateResponse.service.js";
-import { totalTokenCalculation } from "../services/logQueue/totalTokenCalculation.service.js";
 import { chatbotSuggestions } from "../services/logQueue/chatbotSuggestions.service.js";
 import { handleGptMemory } from "../services/logQueue/handleGptMemory.service.js";
 import { saveToAgentMemory } from "../services/logQueue/saveToAgentMemory.service.js";
@@ -92,9 +91,6 @@ async function processLogQueueMessage(messages) {
     await validateResponse(messages["validateResponse"]);
   }
 
-  if (messages["total_token_calculation"]) {
-    await totalTokenCalculation(messages["total_token_calculation"]);
-  }
   if (messages["check_handle_gpt_memory"]?.gpt_memory) {
     await handleGptMemory(messages["handle_gpt_memory"]);
   }
