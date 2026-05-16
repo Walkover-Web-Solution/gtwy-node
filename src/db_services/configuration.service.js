@@ -753,33 +753,31 @@ const getAgentsByUserId = async (orgId, userId, agent_id, folder_id) => {
     if (folder_id) {
       query.folder_id = folder_id;
     }
-    const agents = await configurationModel
-      .aggregate([
-        { $match: query },
-        {
-          $addFields: {
-            variables_state: { $ifNull: ["$agent_info.variables_state"] }
-          }
-        },
-        {
-          $project: {
-            _id: 1,
-            name: 1,
-            service: 1,
-            "configuration.model": 1,
-            "configuration.prompt": 1,
-            "configuration.type": 1,
-            bridgeType: 1,
-            slugName: 1,
-            variables_state: 1,
-            meta: 1,
-            deletedAt: 1,
-            createdAt: 1,
-            updatedAt: 1
-          }
+    const agents = await configurationModel.aggregate([
+      { $match: query },
+      {
+        $addFields: {
+          variables_state: { $ifNull: ["$agent_info.variables_state", {}] }
         }
-      ])
-      .lean();
+      },
+      {
+        $project: {
+          _id: 1,
+          name: 1,
+          service: 1,
+          "configuration.model": 1,
+          "configuration.prompt": 1,
+          "configuration.type": 1,
+          bridgeType: 1,
+          slugName: 1,
+          variables_state: 1,
+          meta: 1,
+          deletedAt: 1,
+          createdAt: 1,
+          updatedAt: 1
+        }
+      }
+    ]);
 
     return agents.map((agent) => {
       const filtered = {};
