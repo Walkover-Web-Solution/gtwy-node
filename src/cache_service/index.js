@@ -1,4 +1,5 @@
 import client from "../services/cache.service.js";
+import { tag_keys } from "../configs/tagKeys.js";
 const REDIS_PREFIX = `AIMIDDLEWARE_${process.env.ENVIRONMENT}_`;
 const DEFAULT_REDIS_TTL = 172800; //  2 day
 async function storeInCache(identifier, data, ttl = DEFAULT_REDIS_TTL) {
@@ -84,4 +85,31 @@ async function verifyTTL(identifier) {
   }
 }
 
-export { deleteInCache, storeInCache, findInCache, scanCacheKeys, verifyTTL };
+// Delete every blob registered under `{PREFIX}tag:{entityType}:{entityId}` (tag sets written by Python).
+async function invalidateByTag(entityType, entityId) {
+  if (!client.isReady) return 0;
+  if (!entityType || !entityId) return 0;
+  if (!Object.prototype.hasOwnProperty.call(tag_keys, entityType)) {
+    console.error(`invalidateByTag: unknown entityType "${entityType}"`);
+    return 0;
+  }
+
+  const tagKey = `${REDIS_PREFIX}tag:${tag_keys[entityType]}:${String(entityId)}`;
+
+  try {
+    const members = await client.sMembers(tagKey);
+    let deleted = 0;
+    if (members && members.length > 0) {
+      // members are fully prefixed bridge blob keys; DEL directly
+      deleted = await client.del(members);
+    }
+    // remove the tag set itself; harmless if already gone
+    await client.del(tagKey);
+    return deleted;
+  } catch (error) {
+    console.error(`invalidateByTag error for ${tagKey}:`, error);
+    return 0;
+  }
+}
+
+export { deleteInCache, storeInCache, findInCache, scanCacheKeys, verifyTTL, invalidateByTag };

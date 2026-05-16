@@ -1,4 +1,6 @@
 import mongoose from "mongoose";
+import { cacheInvalidationPlugin } from "../cache_service/mongoosePlugin.js";
+import { tag_keys } from "../configs/tagKeys.js";
 
 const ApikeyCredentials = new mongoose.Schema({
   org_id: {
@@ -61,6 +63,8 @@ const ApikeyCredentials = new mongoose.Schema({
 });
 
 ApikeyCredentials.index({ name: 1, org_id: 1, folder_id: 1 }, { unique: true });
+// NOTE: bulkWrite in apikey.service.js#processBulkUpdates skips this hook.
+ApikeyCredentials.plugin(cacheInvalidationPlugin, { tags: [tag_keys.apikey] });
 
 const ApikeyCredential = mongoose.model("ApikeyCredentials", ApikeyCredentials);
 export default ApikeyCredential;
