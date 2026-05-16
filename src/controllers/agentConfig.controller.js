@@ -282,23 +282,16 @@ const updateAgentController = async (req, res, next) => {
     const update_fields = {};
     const user_history = [];
 
-    const simpleAgentFields = [
-      "name",
-      "slugName",
-      "meta",
-      "bridge_summary",
-      "bridge_status",
-      "bridge_usage",
-      "bridge_limit",
-      "bridgeType",
-      "page_config",
-      "connected_agent_details"
-    ];
+    const simpleAgentFields = ["name", "slugName", "meta", "bridge_summary", "bridge_status", "bridge_usage", "bridge_limit", "bridgeType"];
 
     for (const field of simpleAgentFields) {
       if (body[field] !== undefined) {
         update_fields[field] = body[field];
       }
+    }
+
+    if (body.agent_info) {
+      update_fields.agent_info = { ...agent.agent_info, ...body.agent_info };
     }
 
     if (body.bridge_limit_reset_period !== undefined) {
