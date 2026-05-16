@@ -1,4 +1,6 @@
 import mongoose from "mongoose";
+import { cacheInvalidationPlugin } from "../cache_service/mongoosePlugin.js";
+import { tag_keys } from "../configs/tagKeys.js";
 const Schema = mongoose.Schema;
 
 const actionTypeModel = new Schema(
@@ -214,5 +216,6 @@ const version = new mongoose.Schema({
 
 version.index({ deletedAt: 1 }, { expireAfterSeconds: 2592000 }); // TTL index for 30 days (1 month)
 version.index({ org_id: 1, deletedAt: 1 });
+version.plugin(cacheInvalidationPlugin, { tags: [tag_keys.version] });
 const versionModel = mongoose.model("configuration_versions", version);
 export default versionModel;

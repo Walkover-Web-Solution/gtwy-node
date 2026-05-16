@@ -1,4 +1,6 @@
 import mongoose from "mongoose";
+import { cacheInvalidationPlugin } from "../cache_service/mongoosePlugin.js";
+import { tag_keys } from "../configs/tagKeys.js";
 const Schema = mongoose.Schema;
 
 const actionTypeModel = new Schema(
@@ -268,5 +270,6 @@ const configuration = new mongoose.Schema({
 configuration.index({ org_id: 1, slugName: 1 }, { unique: true });
 configuration.index({ deletedAt: 1 }, { expireAfterSeconds: 2592000 }); // TTL index for 30 days (1 month)
 configuration.index({ org_id: 1, deletedAt: 1 });
+configuration.plugin(cacheInvalidationPlugin, { tags: [tag_keys.agent, tag_keys.connected_agent] });
 const configurationModel = mongoose.model("configuration", configuration);
 export default configurationModel;

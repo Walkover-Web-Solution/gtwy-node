@@ -4,13 +4,11 @@ import apiCallModel from "../mongoModel/ApiCall.model.js";
 import templateModel from "../mongoModel/Template.model.js";
 import ChatBotModel from "../mongoModel/ChatBot.model.js";
 import apikeyCredentialsModel from "../mongoModel/Api.model.js";
-import { deleteInCache } from "../cache_service/index.js";
 import models from "../../models/index.js";
 import jwt from "jsonwebtoken";
 import axios from "axios";
 import { ObjectId } from "mongodb";
 // import { getAgentData } from "../services/utils/getConfiguration.js";
-import agentVersionService from "./agentVersion.service.js";
 
 const cloneAgentToOrg = async (agent_id, to_shift_org_id, cloned_agents_map = null, depth = 0) => {
   try {
@@ -1125,19 +1123,6 @@ const updateAgent = async (agent_id, update_fields, version_id = null) => {
   const model = version_id ? versionModel : configurationModel;
   const id_to_use = version_id ? version_id : agent_id;
   const result = await model.findOneAndUpdate({ _id: id_to_use }, { $set: update_fields }, { new: true });
-
-  const cacheKeysToDelete = agentVersionService._buildCacheKeys(
-    version_id,
-    agent_id || result.parent_id,
-    { bridges: [], versions: [] },
-    [],
-    result.org_id
-  );
-
-  if (cacheKeysToDelete.length > 0) {
-    await deleteInCache(cacheKeysToDelete);
-  }
-
   return { result };
 };
 
