@@ -55,6 +55,11 @@ async function migrateCollection(db, collectionName) {
     const bulkOps = [];
 
     for (const doc of batch) {
+      // Skip if agent_info already exists
+      if (doc.agent_info !== undefined) {
+        continue;
+      }
+
       // Build the agent_info object with schema defaults and existing values
       const agent_info = {
         prompt_total_tokens: doc.prompt_total_tokens || 0,
