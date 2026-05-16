@@ -47,7 +47,7 @@ async function migrateCollection(db, collectionName) {
   }
 
   // Process in batches
-  const batchSize = 100;
+  const batchSize = 200;
   let processedCount = 0;
 
   for (let i = 0; i < documents.length; i += batchSize) {
