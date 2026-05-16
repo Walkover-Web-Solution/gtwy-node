@@ -37,8 +37,12 @@ async function migrateCollection(db, collectionName) {
 
   const collection = db.collection(collectionName);
 
-  // Find ALL documents in the collection
-  const documents = await collection.find({}).toArray();
+  // Find documents that don't have agent_info yet
+  const documents = await collection
+    .find({
+      agent_info: { $exists: false }
+    })
+    .toArray();
   console.log(`Found ${documents.length} total documents in ${collectionName}`);
 
   if (documents.length === 0) {
@@ -55,11 +59,6 @@ async function migrateCollection(db, collectionName) {
     const bulkOps = [];
 
     for (const doc of batch) {
-      // Skip if agent_info already exists
-      if (doc.agent_info !== undefined) {
-        continue;
-      }
-
       // Build the agent_info object with schema defaults and existing values
       const agent_info = {
         prompt_total_tokens: doc.prompt_total_tokens || 0,
