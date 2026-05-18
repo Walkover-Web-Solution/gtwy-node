@@ -93,7 +93,9 @@ export const transformAgentAdvanceParametersMiddleware = (req, res, next) => {
         req.body.configuration = transformedConfig;
       }
     }
-    delete req.body.service;
+    if (!req.body.configuration?.model) {
+      delete req.body.service;
+    }
     delete req.body.model;
     next();
   } catch (error) {

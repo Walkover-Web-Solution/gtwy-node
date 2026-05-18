@@ -246,7 +246,7 @@ const createAgentController = async (req, res, next) => {
     res.locals = {
       success: true,
       message: "Agent created successfully",
-      agent: updated_agent_result.result
+      agent: updated_agent_result.result.toObject()
     };
     req.statusCode = 200;
 
