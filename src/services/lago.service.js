@@ -1,40 +1,40 @@
 import axios from "axios";
 
-const LAGO_API_URL = process.env.LAGO_API_URL;
-const LAGO_API_KEY = process.env.LAGO_API_KEY;
-const LAGO_FREE_PLAN_CODE = process.env.LAGO_FREE_PLAN_CODE;
+const BILLING_API_URL = process.env.BILLING_API_URL;
+const BILLING_API_KEY = process.env.BILLING_API_KEY;
+const BILLING_EVENT_CODE = process.env.BILLING_EVENT_CODE;
 
-const lagoHeaders = () => ({
-  Authorization: `Bearer ${LAGO_API_KEY}`,
+const billingHeaders = () => ({
+  Authorization: `Bearer ${BILLING_API_KEY}`,
   "Content-Type": "application/json"
 });
 
 export const createCustomer = async (org_id) => {
   const response = await axios.post(
-    `${LAGO_API_URL}/customers`,
+    `${BILLING_API_URL}/customers`,
     {
       customer: {
         external_id: org_id,
         name: org_id
       }
     },
-    { headers: lagoHeaders() }
+    { headers: billingHeaders() }
   );
   return response.data;
 };
 
 export const createSubscription = async (org_id) => {
   const response = await axios.post(
-    `${LAGO_API_URL}/subscriptions`,
+    `${BILLING_API_URL}/subscriptions`,
     {
       subscription: {
         external_customer_id: org_id,
-        plan_code: LAGO_FREE_PLAN_CODE,
+        plan_code: BILLING_EVENT_CODE,
         external_id: org_id,
         billing_time: "calendar"
       }
     },
-    { headers: lagoHeaders() }
+    { headers: billingHeaders() }
   );
   return response.data;
 };
