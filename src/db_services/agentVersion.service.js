@@ -8,9 +8,10 @@ import testcasesHistoryModel from "../mongoModel/TestcaseHistory.model.js";
 import conversationDbService from "./conversation.service.js";
 import { deleteInCache } from "../cache_service/index.js";
 import { callAiMiddleware } from "../services/utils/aiCall.utils.js";
-import { redis_keys, bridge_ids } from "../configs/constant.js";
+import { redis_keys, bridge_ids, AI_OPERATION_CONFIG } from "../configs/constant.js";
 import { getReqOptVariablesInPrompt, transformAgentVariableToToolCallFormat } from "../utils/agentVariables.js";
 import { convertPromptToString } from "../utils/promptWrapper.utils.js";
+import { executeAiOperation } from "../services/utils/utility.service.js";
 const ObjectId = mongoose.Types.ObjectId;
 
 async function getVersion(version_id) {
@@ -315,6 +316,12 @@ function calculatePromptTokens(prompt, tools) {
   }
 }
 
+async function generateAgentSummary(org_id, version_id) {
+  const summaryResult = await executeAiOperation({ body: { version_id } }, org_id, AI_OPERATION_CONFIG.generate_summary);
+  const summary = summaryResult?.result;
+  return typeof summary === "string" ? summary : summary ? JSON.stringify(summary) : "";
+}
+
 async function getPromptEnhancerPercentage(parentId, prompt) {
   try {
     if (!prompt) return null;
@@ -391,6 +398,7 @@ async function publish(org_id, version_id, user_id) {
 
   const publishedVersionId = getVersionData._id.toString();
   const previousPublishedVersionId = parentConfiguration.published_version_id;
+  const bridgeSummary = await generateAgentSummary(org_id, version_id);
 
   // Extract agent variables logic
   const prompt = convertPromptToString(getVersionData.configuration?.prompt || "");
@@ -413,6 +421,7 @@ async function publish(org_id, version_id, user_id) {
   const updatedConfiguration = { ...parentConfiguration, ...getVersionData };
   delete updatedConfiguration._id;
   updatedConfiguration.published_version_id = publishedVersionId;
+  updatedConfiguration.bridge_summary = bridgeSummary;
   delete updatedConfiguration.apiCalls; // Remove looked-up data
 
   const chatbotAutoAnswers = parentConfiguration.chatbot_auto_answers;
