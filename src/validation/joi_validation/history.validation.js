@@ -162,8 +162,14 @@ const getBatchConversationLogs = {
         "number.min": "Limit must be at least 1",
         "number.max": "Limit must be at most 100"
       }),
-      filter: Joi.string().valid("completed", "queued", "processing").optional().messages({
-        "any.only": "filter must be one of: completed, queued, processing"
+      filter: Joi.string().valid("queued", "completed", "error").optional().messages({
+        "any.only": "filter must be one of: queued, completed, error"
+      }),
+      thread_id: Joi.string().optional().messages({
+        "string.base": "thread_id must be a string"
+      }),
+      sub_thread_id: Joi.string().optional().messages({
+        "string.base": "sub_thread_id must be a string"
       })
     })
     .unknown(true)
