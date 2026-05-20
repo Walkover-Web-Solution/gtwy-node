@@ -30,6 +30,20 @@ const bridgeIdSchema = Joi.object({
   })
 }).unknown(true);
 
+const getAllTestcasesQuerySchema = Joi.object({
+  page: Joi.number().integer().min(1).optional().default(1).messages({
+    "number.base": "page must be a number",
+    "number.integer": "page must be an integer",
+    "number.min": "page must be at least 1"
+  }),
+  limit: Joi.number().integer().min(1).max(100).optional().default(30).messages({
+    "number.base": "limit must be a number",
+    "number.integer": "limit must be an integer",
+    "number.min": "limit must be at least 1",
+    "number.max": "limit must be at most 100"
+  })
+}).unknown(true);
+
 const testcaseUpdateSchema = Joi.object({
   conversation: Joi.array().required().messages({
     "any.required": "conversation is required"
@@ -45,4 +59,4 @@ const testcaseUpdateSchema = Joi.object({
   })
 }).unknown(true);
 
-export { createTestcaseSchema, testcaseIdSchema, bridgeIdSchema, testcaseUpdateSchema };
+export { createTestcaseSchema, testcaseIdSchema, bridgeIdSchema, testcaseUpdateSchema, getAllTestcasesQuerySchema };

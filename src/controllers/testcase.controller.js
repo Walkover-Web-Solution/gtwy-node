@@ -38,8 +38,10 @@ async function deleteTestcase(req, res, next) {
 
 async function getAllTestcases(req, res, next) {
   const bridge_id = req.params.bridge_id;
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 30;
 
-  const mergedTestcases = await testcaseSevice.getMergedTestcasesAndHistoryByBridgeId(bridge_id);
+  const { data: mergedTestcases } = await testcaseSevice.getMergedTestcasesAndHistoryByBridgeId(bridge_id, page, limit);
 
   for (const testcase of mergedTestcases) {
     testcase.version_history = {};
@@ -57,7 +59,11 @@ async function getAllTestcases(req, res, next) {
 
   res.locals = {
     success: true,
-    data: mergedTestcases
+    data: mergedTestcases,
+    pagination: {
+      page,
+      limit
+    }
   };
   req.statusCode = 200;
   return next();

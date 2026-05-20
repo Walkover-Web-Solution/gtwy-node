@@ -25,9 +25,12 @@ async function getTestcaseById(id) {
   return result ? { ...result, _id: result._id.toString() } : null;
 }
 
-async function getMergedTestcasesAndHistoryByBridgeId(bridge_id) {
-  const testcases = await testcaseModel.aggregate([
+async function getMergedTestcasesAndHistoryByBridgeId(bridge_id, page = 1, limit = 30) {
+  const skip = (page - 1) * limit;
+  const data = await testcaseModel.aggregate([
     { $match: { bridge_id: bridge_id } },
+    { $skip: skip },
+    { $limit: limit },
     {
       $lookup: {
         from: "testcases_history",
@@ -45,7 +48,8 @@ async function getMergedTestcasesAndHistoryByBridgeId(bridge_id) {
       }
     }
   ]);
-  return testcases;
+
+  return { data };
 }
 
 async function parseAndSaveTestcases(testcasesData, bridge_id) {
