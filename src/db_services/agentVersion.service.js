@@ -446,6 +446,7 @@ async function publish(org_id, version_id, user_id) {
   updatedConfiguration.agent_info = updatedConfiguration.agent_info || {};
   updatedConfiguration.agent_info = {
     ...updatedConfiguration.agent_info,
+    description: parentConfiguration.agent_info.description,
     agent_variables: {
       fields: transformedAgentVariables.fields,
       required: transformedAgentVariables.required
@@ -539,7 +540,7 @@ async function getAllConnectedAgents(id, org_id, type) {
     const parentBridges = await configurationModel
       .find({
         org_id,
-        $or: [{ "connected_agents": { $exists: true } }]
+        $or: [{ connected_agents: { $exists: true } }]
       })
       .lean();
 
@@ -559,7 +560,7 @@ async function getAllConnectedAgents(id, org_id, type) {
     const parentVersions = await bridgeVersionModel
       .find({
         org_id,
-        $or: [{ "connected_agents": { $exists: true } }]
+        $or: [{ connected_agents: { $exists: true } }]
       })
       .lean();
 

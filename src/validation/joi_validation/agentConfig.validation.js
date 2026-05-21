@@ -28,7 +28,6 @@ const updateBridgeSchema = Joi.object({
   page_config: Joi.object().optional(),
   connected_agent_details: Joi.object().optional(),
   settings: Joi.object({
-    publicUsers: Joi.array().items(Joi.string()).optional(),
     responseStyle: Joi.object().optional(),
     tone: Joi.object().optional(),
     maximum_iterations: Joi.number().min(3).optional(),
@@ -40,7 +39,8 @@ const updateBridgeSchema = Joi.object({
       model: Joi.string().optional()
     }).optional(),
     guardrails: Joi.object().optional(),
-    reviewer_agent: Joi.objectId().optional()
+    reviewer_agent: Joi.objectId().optional(),
+    publicAgentConfig: Joi.object().optional()
   }).optional(),
   web_search_filters: Joi.alternatives().try(Joi.array().items(Joi.string()), Joi.object()).optional(),
   gtwy_web_search_filters: Joi.alternatives().try(Joi.array().items(Joi.string()), Joi.object()).optional(),
