@@ -218,8 +218,13 @@ const createAgentFromTemplateController = async (req, res, next) => {
     model_data.tool_choice = "default";
 
     const fall_back = template_content?.settings?.fall_back || { is_enable: true, service: "openai", model: "gpt-5.1" };
+
+    // Exclude _id and other fields that should not be copied from template
+    // eslint-disable-next-line no-unused-vars
+    const { _id, ...templateDataWithoutId } = template_content;
+
     const result = await ConfigurationServices.createAgent({
-      ...template_content,
+      ...templateDataWithoutId,
       configuration: model_data,
       name,
       slugName,
@@ -367,9 +372,9 @@ const createAgentFromTemplateController = async (req, res, next) => {
       if (!child_agents_map || Object.keys(child_agents_map).length === 0) return;
       const connected_agents = {};
 
-      for (const [agent_name, child_agent] of Object.entries(child_agents_map)) {
+      for (const [agent_id, child_agent] of Object.entries(child_agents_map)) {
         const templateBridgeId = child_agent?.bridge_id?.toString() ?? child_agent?.bridge_id;
-        const cycleKey = templateBridgeId || agent_name;
+        const cycleKey = templateBridgeId || agent_id;
 
         if (ancestorIds.has(cycleKey)) {
           const existingBridgeId = createdAgentsMap.get(cycleKey);
@@ -389,7 +394,8 @@ const createAgentFromTemplateController = async (req, res, next) => {
         const child_details = child_agent?.bridge_details;
         if (!child_details || Object.keys(child_details).length === 0) continue;
 
-        const childNameSlug = await ConfigurationServices.getUniqueAgentNameAndSlug(org_id, agent_name);
+        const actualAgentName = child_details.name || agent_id;
+        const childNameSlug = await ConfigurationServices.getUniqueAgentNameAndSlug(org_id, actualAgentName);
         const child_model_data = { ...(child_details.configuration || {}) };
         child_model_data.type = child_model_data.type || type;
         if (child_model_data.is_rich_text === undefined) child_model_data.is_rich_text = false;
@@ -397,8 +403,13 @@ const createAgentFromTemplateController = async (req, res, next) => {
         child_model_data.tool_choice = "default";
 
         let child_service = child_details.service || service;
+
+        // Exclude _id and other fields that should not be copied from template
+        // eslint-disable-next-line no-unused-vars
+        const { _id, ...childDataWithoutId } = child_details;
+
         const child_result = await ConfigurationServices.createAgent({
-          ...child_details,
+          ...childDataWithoutId,
           configuration: child_model_data,
           name: childNameSlug.name,
           slugName: childNameSlug.slugName,
