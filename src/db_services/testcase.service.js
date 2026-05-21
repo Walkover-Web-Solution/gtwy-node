@@ -29,6 +29,7 @@ async function getMergedTestcasesAndHistoryByBridgeId(bridge_id, page = 1, limit
   const skip = (page - 1) * limit;
   const data = await testcaseModel.aggregate([
     { $match: { bridge_id: bridge_id } },
+    { $sort: { _id: -1 } },
     { $skip: skip },
     { $limit: limit },
     {
