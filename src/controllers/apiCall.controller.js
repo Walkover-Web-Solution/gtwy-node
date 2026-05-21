@@ -182,7 +182,12 @@ const addPreTool = async (req, res, next) => {
 
     // Only update ApiCall bridge_ids for custom_function type (others are not tracked as functions)
     if (pre_tool_entry.type === "custom_function" && pre_tool_entry?.config?.function_id) {
-      await ConfigurationServices.updateAgentIdsInApiCalls(pre_tool_entry?.config?.function_id, version_id || bridgeId, parseInt(status));
+      await ConfigurationServices.updateAgentIdsInApiCalls(
+        pre_tool_entry?.config?.function_id,
+        version_id || bridgeId,
+        parseInt(status),
+        !!version_id
+      );
     }
 
     try {
