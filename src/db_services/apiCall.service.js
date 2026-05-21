@@ -6,7 +6,11 @@ import agentVersionService from "../db_services/agentVersion.service.js";
 
 async function getAllApiCallsByOrgId(org_id, folder_id, user_id, isEmbedUser) {
   let query = { org_id: org_id };
-  folder_id ? (query.folder_id = folder_id) : (query.folder_id = null);
+  if (folder_id) {
+    query.folder_id = folder_id;
+  } else {
+    query.folder_id = { $in: [null, ""] };
+  }
   if (user_id && isEmbedUser) query.user_id = user_id.toString();
 
   let apiCalls = await apiCallModel.find(query).lean();
