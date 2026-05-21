@@ -60,7 +60,12 @@ const getAllServiceController = async (req, res, next) => {
   for (const service of serviceNames) {
     const serviceModels = Object.keys(modelConfigDocument[service] || {});
     const autoRouterSupport = serviceModels.some((model) => supportedModelSet.has(`${service}:${model}`));
-    services[service] = { model: new_agent_service[service].model, default_name: new_agent_service[service].default_name, autoRouterSupport };
+    services[service] = {
+      model: new_agent_service[service].model,
+      default_fallback_model: new_agent_service[service].default_fallback_model,
+      default_name: new_agent_service[service].default_name,
+      autoRouterSupport
+    };
   }
 
   res.locals = {
