@@ -299,28 +299,8 @@ const updateAgentController = async (req, res, next) => {
       update_fields.bridge_limit_start_date = new Date();
     }
 
-    if (body.settings !== undefined || body.stateless_conversation !== undefined) {
-      const current_settings = agent.settings || {};
-      const merged_settings = { ...current_settings };
-
-      if (body.settings?.editAccess !== undefined) {
-        merged_settings.editAccess = body.settings.editAccess;
-        update_fields.editAccess = body.settings.editAccess;
-      }
-
-      if (body.settings?.publicUsers !== undefined) {
-        merged_settings.publicUsers = body.settings.publicUsers;
-        const currentPageConfig = agent.page_config || {};
-        update_fields.page_config = { ...currentPageConfig, allowedUsers: body.settings.publicUsers };
-      }
-
-      if (body.settings?.stateless_conversation !== undefined) {
-        merged_settings.stateless_conversation = body.settings.stateless_conversation;
-      } else if (body.stateless_conversation !== undefined) {
-        merged_settings.stateless_conversation = body.stateless_conversation;
-      }
-
-      update_fields.settings = merged_settings;
+    if (body.settings !== undefined) {
+      update_fields.settings = { ...body.settings, ...agent.settings };
     }
 
     update_fields.updatedAt = new Date();
