@@ -300,7 +300,7 @@ const updateAgentController = async (req, res, next) => {
     }
 
     if (body.settings !== undefined) {
-      update_fields.settings = { ...body.settings, ...agent.settings };
+      update_fields.settings = { ...agent.settings, ...body.settings };
     }
 
     update_fields.updatedAt = new Date();
