@@ -5,7 +5,8 @@ import { middleware, InternalAuth } from "../middlewares/middleware.js";
 import validate from "../middlewares/validate.middleware.js";
 import utilsValidation from "../validation/joi_validation/utils.validation.js";
 import agentConfigValidation from "../validation/joi_validation/agentConfig.validation.js";
-import { setModelStatusAdminBodySchema } from "../validation/joi_validation/modelConfig.validation.js";
+import { setModelStatusAdminBodySchema, bulkUpdateUserModelConfigurationBodySchema } from "../validation/joi_validation/modelConfig.validation.js";
+import { bulkUpdateUserModelConfigurations } from "../controllers/modelConfig.controller.js";
 
 const router = express.Router();
 
@@ -22,5 +23,6 @@ router.post("/affiliate/embed-token", middleware, validate(utilsValidation.getAf
 router.get("/users-details", middleware, utilsController.getCurrentOrgUsers);
 router.delete("/agent/:agent_id", middleware, validate(agentConfigValidation.getAgent), agentConfigController.permanentlyDeleteAgentController);
 router.patch("/models/status", middleware, InternalAuth, validate({ body: setModelStatusAdminBodySchema }), utilsController.setModelStatus);
+router.post("/models/bulk-update", middleware, validate({ body: bulkUpdateUserModelConfigurationBodySchema }), bulkUpdateUserModelConfigurations);
 
 export default router;

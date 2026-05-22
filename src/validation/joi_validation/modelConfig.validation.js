@@ -50,6 +50,10 @@ const deleteUserModelConfigurationQuerySchema = Joi.object({
 
 const bulkUpdateModelFilterSchema = Joi.object().min(1).unknown(true);
 
+const bulkUpdateModelChangeSchema = Joi.object({
+  status: Joi.forbidden().messages({ "any.unknown": "status cannot be updated via bulk-update API" })
+}).unknown(true);
+
 const bulkUpdateUserModelConfigurationBodySchema = Joi.object({
   models: Joi.array()
     .items(
@@ -63,7 +67,7 @@ const bulkUpdateUserModelConfigurationBodySchema = Joi.object({
     .min(1)
     .optional(),
   filter: bulkUpdateModelFilterSchema.optional(),
-  change: Joi.object().min(1).required()
+  change: bulkUpdateModelChangeSchema.required()
 })
   .or("models", "filter")
   .unknown(true);

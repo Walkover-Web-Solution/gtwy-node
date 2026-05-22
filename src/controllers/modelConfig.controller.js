@@ -66,9 +66,7 @@ async function deleteUserModelConfiguration(req, res, next) {
 
 async function bulkUpdateUserModelConfigurations(req, res, next) {
   const { models, filter, change } = req.body;
-  const org_id = req.profile.org.id;
-
-  const result = await modelConfigDbService.bulkUpdateModelConfigs({ models, filter, change, org_id });
+  const result = await modelConfigDbService.bulkUpdateModelConfigs({ models, filter, change });
 
   if (result?.error === "invalidChange") {
     return res.status(400).json({
