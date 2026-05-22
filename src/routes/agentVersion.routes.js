@@ -42,9 +42,7 @@ router.post(
   middleware,
   requireAdminRole,
   validate(bridgeVersionValidation.publishVersion),
-  transformAgentAdvanceParametersMiddleware,
-  agentVersionController.publishVersion,
-  transformToFrontendFormatMiddleware
+  agentVersionController.publishVersion
 );
 
 //delete Version

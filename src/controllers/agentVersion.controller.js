@@ -317,8 +317,9 @@ const publishVersion = async (req, res, next) => {
   const { version_id } = req.params;
   const org_id = req.profile.org.id;
   const user_id = req.profile.user.id;
+  const generate_summary = req.body.generate_summary || false;
 
-  await agentVersionDbService.publish(org_id, version_id, user_id);
+  await agentVersionDbService.publish(org_id, version_id, user_id, generate_summary);
 
   res.locals = {
     success: true,
