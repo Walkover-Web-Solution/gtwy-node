@@ -77,14 +77,22 @@ const prebuilt_prompt_bridge_id = [
 ];
 
 const new_agent_service = {
-  openai: { model: "gpt-5-nano", default_name: "OpenAI" },
-  anthropic: { model: "claude-sonnet-4-6", default_name: "Anthropic" },
-  groq: { model: "openai/gpt-oss-120b", default_name: "Groq" },
-  open_router: { model: "openai/gpt-4o", default_name: "Open Router" },
-  mistral: { model: "mistral-small-latest", default_name: "Mistral" },
-  gemini: { model: "gemini-2.5-pro", default_name: "Gemini" },
-  grok: { model: "grok-4-fast", default_name: "Grok" },
-  deepgram: { model: "nova-3", default_name: "Deepgram" }
+  openai: { model: "gpt-5-nano", default_fallback_model: "gpt-4.1-mini", default_name: "OpenAI" },
+  anthropic: {
+    model: "claude-sonnet-4-6",
+    default_fallback_model: "claude-haiku-4-5-20251001",
+    default_name: "Anthropic"
+  },
+  groq: { model: "openai/gpt-oss-120b", default_fallback_model: "llama-3.3-70b-versatile", default_name: "Groq" },
+  open_router: { model: "openai/gpt-4o", default_fallback_model: "deepseek/deepseek-chat-v3-0324:free", default_name: "Open Router" },
+  mistral: {
+    model: "mistral-small-latest",
+    default_fallback_model: "codestral-latest",
+    default_name: "Mistral"
+  },
+  gemini: { model: "gemini-2.5-pro", default_fallback_model: "gemini-2.5-flash", default_name: "Gemini" },
+  grok: { model: "grok-4-fast", default_fallback_model: "grok-4-fast-reasoning", default_name: "Grok" },
+  deepgram: { model: "nova-3", default_fallback_model: "nova-2", default_name: "Deepgram" }
 };
 
 export { collectionNames, bridge_ids, redis_keys, cost_types, prebuilt_prompt_bridge_id, new_agent_service, embed_cache };
