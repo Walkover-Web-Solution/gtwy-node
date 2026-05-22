@@ -19,10 +19,25 @@ const saveUserModelConfigurationBodySchema = Joi.object({
     .message("model_name must not contain spaces")
     .required(),
   status: Joi.number().valid(0, 1).required(),
-  configuration: Joi.object().unknown(true).required(),
+  configuration: Joi.object({
+    model: Joi.object({
+      default: Joi.string().required()
+    })
+      .unknown(true)
+      .required()
+  })
+    .unknown(true)
+    .required(),
   outputConfig: Joi.object().unknown(true).required(),
   validationConfig: Joi.object().unknown(true).required()
-}).unknown(true);
+})
+  .unknown(true)
+  .custom((value, helpers) => {
+    if (value.configuration?.model?.default !== value.model_name) {
+      return helpers.message("configuration.model.default must be the same as model_name");
+    }
+    return value;
+  }, "model_name and configuration.model.default match");
 
 const deleteUserModelConfigurationQuerySchema = Joi.object({
   model_name: Joi.string().required().messages({
