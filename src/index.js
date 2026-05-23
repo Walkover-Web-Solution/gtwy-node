@@ -1,7 +1,9 @@
+import { configDotenv } from "dotenv";
+configDotenv();
+
 import "express-async-errors";
 import express from "express";
 import cors from "cors";
-import { configDotenv } from "dotenv";
 import "./grafana.js";
 import "./consumers/index.js";
 import "./services/cache.service.js";
@@ -42,7 +44,6 @@ import richUiTemplateRoutes from "./routes/richUiTemplate.routes.js";
 import lagoRoutes from "./routes/lago.routes.js";
 import batchHistoryRoutes from "./routes/batchHistory.routes.js";
 const app = express();
-configDotenv();
 const PORT = process.env.PORT || 7072;
 
 app.use(

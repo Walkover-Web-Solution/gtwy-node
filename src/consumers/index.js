@@ -20,14 +20,20 @@ const CONSUMERS = [
 
 class Consumer {
   constructor(obj, connectionString) {
-    console.log("in contructor ");
     this.queueName = obj.queueName;
     this.processor = obj.process;
     this.bufferSize = obj.batchSize || 1; // Default value if prefetch is not provided
     this.logInInterval = obj.logInInterval || null;
     this.rabbitService = rabbitmqService(connectionString)
       .on("connect", (connection) => this.setup(connection))
-      .on("error", (error) => console.log("[CONSUMER] Error in consumer connection:", error));
+      .on("retry", () => logger.warn(`[CONSUMER] ${this.queueName} - RabbitMQ connection retry in progress...`))
+      .on("error", (error) => logger.error("[CONSUMER] Error in consumer connection:", error));
+
+    // If the connection is already established (event fired before we registered),
+    // call setup immediately so we don't miss it.
+    if (this.rabbitService.status()) {
+      this.setup(this.rabbitService.connection);
+    }
   }
 
   async setup(connection) {
@@ -48,8 +54,7 @@ class Consumer {
         try {
           await this.processor(message, this.channel);
         } catch (error) {
-          console.log(`${this.queueName} Error in consuming`, error);
-          throw error;
+          logger.error(`${this.queueName} Error in consuming`, error);
         }
       },
       { noAck: false }
