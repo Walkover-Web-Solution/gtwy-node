@@ -1,7 +1,7 @@
 import { ObjectId } from "mongodb";
 import apiCallModel from "../mongoModel/ApiCall.model.js";
-import jwt from "jsonwebtoken";
 import axios from "axios";
+import { getViasocketEmbedToken } from "../services/utils/viasocketSync.utils.js";
 
 const getUniqueNameAndSlug = (baseName, allAgents) => {
   const name = baseName || "untitled_agent";
@@ -38,7 +38,7 @@ const normalizeFunctionIds = (function_ids) => {
   return [];
 };
 
-const cloneFunctionsForAgent = async (function_ids, org_id, agent_id) => {
+const cloneFunctionsForAgent = async (function_ids, org_id, agent_id, folder_id = null, user_id = null, isEmbedUser = false) => {
   const cloned_function_ids = [];
   const ids = normalizeFunctionIds(function_ids);
 
@@ -76,12 +76,7 @@ const cloneFunctionsForAgent = async (function_ids, org_id, agent_id) => {
     }
 
     try {
-      const payload = {
-        org_id: process.env.ORG_ID,
-        project_id: process.env.PROJECT_ID,
-        user_id: org_id
-      };
-      const auth_token = jwt.sign(payload, process.env.ACCESS_KEY, { algorithm: "HS256" });
+      const auth_token = getViasocketEmbedToken({ org_id, folder_id, user_id, isEmbedUser });
 
       const duplicate_url = `https://flow-api.viasocket.com/embed/duplicateflow/${original_api_call.script_id}`;
       const headers = {
@@ -102,6 +97,9 @@ const cloneFunctionsForAgent = async (function_ids, org_id, agent_id) => {
         new_api_call.org_id = org_id;
         new_api_call.script_id = duplicate_data.data.id;
         new_api_call.bridge_ids = [agent_id.toString()];
+        new_api_call.folder_id = folder_id || "";
+        new_api_call.user_id = user_id || "";
+        new_api_call.version_ids = [];
 
         const new_api_call_result = await new apiCallModel(new_api_call).save();
         cloned_function_ids.push(new_api_call_result._id.toString());
@@ -114,6 +112,9 @@ const cloneFunctionsForAgent = async (function_ids, org_id, agent_id) => {
       delete new_api_call._id;
       new_api_call.org_id = org_id;
       new_api_call.bridge_ids = [agent_id.toString()];
+      new_api_call.folder_id = folder_id || "";
+      new_api_call.user_id = user_id || "";
+      new_api_call.version_ids = [];
 
       const new_api_call_result = await new apiCallModel(new_api_call).save();
       cloned_function_ids.push(new_api_call_result._id.toString());
