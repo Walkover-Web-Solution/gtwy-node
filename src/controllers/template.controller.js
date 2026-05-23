@@ -215,7 +215,6 @@ const createAgentFromTemplateController = async (req, res, next) => {
     model_data.type = model_data.type || type;
     if (model_data.is_rich_text === undefined) model_data.is_rich_text = false;
     model_data.prompt = model_data.prompt || prompt;
-    model_data.tool_choice = "default";
 
     const fall_back = template_content?.settings?.fall_back || { is_enable: true, service: "openai", model: "gpt-5.1" };
 
@@ -280,7 +279,8 @@ const createAgentFromTemplateController = async (req, res, next) => {
     const functionIdMap = new Map();
     if (allFunctionIds.size > 0) {
       const uniqueIds = [...allFunctionIds];
-      const clonedIds = await cloneFunctionsForAgent(uniqueIds, org_id, result.bridge._id.toString());
+      const isEmbedUser = req.IsEmbedUser || false;
+      const clonedIds = await cloneFunctionsForAgent(uniqueIds, org_id, result.bridge._id.toString(), folder_id, user_id, isEmbedUser);
       uniqueIds.forEach((oldId, i) => {
         if (clonedIds[i]) functionIdMap.set(oldId, clonedIds[i]);
       });
@@ -290,12 +290,16 @@ const createAgentFromTemplateController = async (req, res, next) => {
     const docIdMap = new Map();
     const docEntries = [...allDocPairs.entries()];
     if (docEntries.length > 0) {
+      const isEmbedUser = req.IsEmbedUser || false;
       const docResults = await Promise.allSettled(
         docEntries.map(([key, doc]) =>
           copyResourceToOrgUtil({
             collection_id: doc.collection_id,
             resource_id: doc.resource_id,
             org_id,
+            folder_id,
+            user_id,
+            isEmbedUser,
             extra: { ...(doc.name && { name: doc.name }), ...(doc.description && { description: doc.description }) }
           }).then((copied) => ({ key, copied }))
         )
@@ -342,9 +346,47 @@ const createAgentFromTemplateController = async (req, res, next) => {
       const remapped = {};
       for (const [oldKey, fn] of Object.entries(apiCalls)) {
         const newKey = functionIdMap.get(oldKey) || oldKey;
-        remapped[newKey] = { ...fn, _id: newKey };
+        remapped[newKey] = { ...fn, _id: newKey, version_ids: [] };
       }
       return remapped;
+    };
+
+    const resolveToolChoice = (toolChoice) => {
+      // Handle custom format {"mode":"custom","value":"tool_id"}
+      if (toolChoice && typeof toolChoice === "object" && toolChoice.mode === "custom" && toolChoice.value) {
+        const newToolId = functionIdMap.get(toolChoice.value);
+        if (newToolId) {
+          return newToolId;
+        }
+        return "default";
+      }
+
+      if (!toolChoice || toolChoice === "default" || toolChoice === "auto" || toolChoice === "none") {
+        return toolChoice;
+      }
+      if (typeof toolChoice === "object") {
+        // Extract tool_id from various formats and return as simple string
+        if (toolChoice.tool_id) {
+          const newToolId = functionIdMap.get(toolChoice.tool_id);
+          if (newToolId) return newToolId;
+          return toolChoice.tool_id;
+        }
+        if (toolChoice.function?.tool_id) {
+          const newToolId = functionIdMap.get(toolChoice.function.tool_id);
+          if (newToolId) return newToolId;
+          return toolChoice.function.tool_id;
+        }
+        if (Array.isArray(toolChoice.functions) && toolChoice.functions.length > 0) {
+          // For array format, return the first mapped tool_id
+          const firstFn = toolChoice.functions[0];
+          if (firstFn.tool_id) {
+            const newToolId = functionIdMap.get(firstFn.tool_id);
+            if (newToolId) return newToolId;
+            return firstFn.tool_id;
+          }
+        }
+      }
+      return toolChoice;
     };
 
     // Apply to root agent — batch all updates into single DB calls
@@ -357,6 +399,8 @@ const createAgentFromTemplateController = async (req, res, next) => {
     if (parent_doc_ids) parent_updates.doc_ids = parent_doc_ids;
     const parent_api_calls = resolveApiCalls(template_content?.apiCalls);
     if (parent_api_calls) parent_updates.apiCalls = parent_api_calls;
+    const parent_tool_choice = resolveToolChoice(model_data.tool_choice);
+    if (parent_tool_choice !== undefined) parent_updates.configuration = { ...model_data, tool_choice: parent_tool_choice };
     if (Object.keys(parent_updates).length > 0) {
       await ConfigurationServices.updateAgent(result.bridge._id.toString(), parent_updates);
       await ConfigurationServices.updateAgent(null, parent_updates, create_version._id.toString());
@@ -368,7 +412,13 @@ const createAgentFromTemplateController = async (req, res, next) => {
       createdAgentsMap.set(rootBridgeId, result.bridge._id.toString());
     }
 
-    const createChildAgentsRecursively = async (child_agents_map, parent_bridge_id, parent_version_id, ancestorIds = new Set()) => {
+    const createChildAgentsRecursively = async (
+      child_agents_map,
+      parent_bridge_id,
+      parent_version_id,
+      ancestorIds = new Set(),
+      isEmbedUser = false
+    ) => {
       if (!child_agents_map || Object.keys(child_agents_map).length === 0) return;
       const connected_agents = {};
 
@@ -414,7 +464,7 @@ const createAgentFromTemplateController = async (req, res, next) => {
           name: childNameSlug.name,
           slugName: childNameSlug.slugName,
           service: child_service,
-          bridgeType: ["api", "chatbot"].includes(child_details.bridgeType) ? child_details.bridgeType : agentType,
+          bridgeType: isEmbedUser ? "api" : ["api", "chatbot"].includes(child_details.bridgeType) ? child_details.bridgeType : agentType,
           org_id,
           gpt_memory: true,
           user_id,
@@ -448,6 +498,8 @@ const createAgentFromTemplateController = async (req, res, next) => {
         if (child_doc_ids) child_updates.doc_ids = child_doc_ids;
         const child_api_calls = resolveApiCalls(child_details.apiCalls);
         if (child_api_calls) child_updates.apiCalls = child_api_calls;
+        const child_tool_choice = resolveToolChoice(child_model_data.tool_choice);
+        if (child_tool_choice !== undefined) child_updates.configuration = { ...child_model_data, tool_choice: child_tool_choice };
         if (Object.keys(child_updates).length > 0) {
           await ConfigurationServices.updateAgent(child_result.bridge._id.toString(), child_updates);
           await ConfigurationServices.updateAgent(null, child_updates, child_version._id.toString());
@@ -459,7 +511,8 @@ const createAgentFromTemplateController = async (req, res, next) => {
             child_details.child_agents,
             child_result.bridge._id.toString(),
             child_version._id.toString(),
-            childAncestors
+            childAncestors,
+            isEmbedUser
           );
         }
 
@@ -478,7 +531,14 @@ const createAgentFromTemplateController = async (req, res, next) => {
 
     if (template_content?.child_agents && Object.keys(template_content.child_agents).length > 0) {
       const rootAncestorIds = new Set(rootBridgeId ? [rootBridgeId] : []);
-      await createChildAgentsRecursively(template_content.child_agents, result.bridge._id.toString(), create_version._id.toString(), rootAncestorIds);
+      const isEmbedUser = req.IsEmbedUser || false;
+      await createChildAgentsRecursively(
+        template_content.child_agents,
+        result.bridge._id.toString(),
+        create_version._id.toString(),
+        rootAncestorIds,
+        isEmbedUser
+      );
     }
 
     const updated_agent_result = await ConfigurationServices.getAgentsWithTools(result.bridge._id.toString(), org_id);
