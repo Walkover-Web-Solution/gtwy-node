@@ -41,7 +41,8 @@ async function handleGptMemory({ id, user, assistant, purpose, gpt_memory_contex
     }
 
     const bridgeContext = bridge_summary ? `Context about the main agent you are storing memory for:\n${bridge_summary}\n\n` : "";
-    const message = `${bridgeContext}use the function to store the memory if the user message and history is related to the context or is important to store else don't call the function and ignore it. is purpose is not there than think its the begining of the conversation. Only return the exact memory as output no an extra text jusy memory if present or Just return False`;
+    const memoryContext = gpt_memory_context ? `\n\nMemory storage instructions: ${gpt_memory_context}` : "";
+    const message = `${bridgeContext}use the function to store the memory if the user message and history is related to the context or is important to store else don't call the function and ignore it. is purpose is not there than think its the begining of the conversation. Only return the exact memory as output no an extra text jusy memory if present or Just return False${memoryContext}`;
 
     const response = await callAiMiddleware(message, bridge_ids.gpt_memory, variables, configuration, "text");
 
