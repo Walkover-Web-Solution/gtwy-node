@@ -1066,40 +1066,6 @@ const updateAgents = async (version_id, agents, add = 1) => {
   return data;
 };
 
-const updateAgentIdsInApiCalls = async (function_id, agent_id, add = 1, isVersion = false) => {
-  const to_update = {};
-  const arrayField = isVersion ? "version_ids" : "bridge_ids";
-
-  if (add === 1) {
-    to_update.$addToSet = { [arrayField]: agent_id };
-  } else {
-    to_update.$pull = { [arrayField]: agent_id };
-  }
-
-  const data = await apiCallModel.findOneAndUpdate({ _id: new ObjectId(function_id) }, to_update, {
-    new: true,
-    upsert: true
-  });
-
-  if (!data) {
-    return {
-      success: false,
-      error: "No records updated or agent not found"
-    };
-  }
-
-  const result = data.toObject ? data.toObject() : data;
-  result._id = result._id.toString();
-  if (result.bridge_ids) {
-    result.bridge_ids = result.bridge_ids.map((bid) => bid.toString());
-  }
-  if (result.version_ids) {
-    result.version_ids = result.version_ids.map((vid) => vid.toString());
-  }
-
-  return result;
-};
-
 const getApikeyCreds = async (org_id, apikey_object_ids) => {
   for (const [service, object_id] of Object.entries(apikey_object_ids)) {
     const apikey_cred = await apikeyCredentialsModel.findOne({ _id: new ObjectId(object_id), org_id: org_id }, { apikey: 1 });
@@ -1444,7 +1410,6 @@ export default {
   updateAgent,
   updateBuiltInTools,
   updateAgents,
-  updateAgentIdsInApiCalls,
   getApikeyCreds,
   updateApikeyCreds,
   getAgentsAndVersionsByModel,

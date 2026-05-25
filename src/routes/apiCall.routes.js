@@ -6,6 +6,7 @@ import apiCallValidation from "../validation/joi_validation/apiCall.validation.j
 
 const router = express.Router();
 
+router.get("/agents-versions-by-functions", middleware, controller.getAgentsAndVersionsByFunctionIds);
 router.get("/", middleware, controller.getAllApiCalls);
 router.put("/:function_id", middleware, checkAgentAccessMiddleware, validate(apiCallValidation.updateApiCalls), controller.updateApiCalls);
 router.delete("/", middleware, checkAgentAccessMiddleware, validate(apiCallValidation.deleteFunction), controller.deleteFunction);
