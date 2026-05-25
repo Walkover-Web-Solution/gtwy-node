@@ -131,18 +131,19 @@ const createAgentController = async (req, res, next) => {
 
     // Use AI configuration if purpose exists and valid, otherwise build manually
     let model_data;
-    let finalSettings;
+    let finalSettings = {
+      maximum_iterations: 3,
+      publicUsers: [],
+      editAccess: [],
+      response_format: { type: "default" },
+      stateless_conversation: agentType === "api",
+      ...(agents?.settings || {})
+    };
+    if (agent_data.guardrails) finalSettings.guardrails = agent_data.guardrails;
+    if (agent_data.fall_back) finalSettings.fall_back = agent_data.fall_back;
     if (purpose && agent_data?.configuration) {
       // Use AI configuration as-is
       // Define the fixed AI-created agent settings
-      finalSettings = {
-        maximum_iterations: 3,
-        publicUsers: [],
-        editAccess: [],
-        response_format: { type: "default" },
-        guardrails: agent_data.guardrails,
-        fall_back: agent_data.fall_back
-      };
       model_data = {
         type: type,
         is_rich_text: false,
@@ -187,14 +188,6 @@ const createAgentController = async (req, res, next) => {
     const useAiData = purpose && Object.keys(agent_data).length > 0;
     const aiVal = (aiField, fallback) => (useAiData ? (aiField ?? fallback) : fallback);
     const mergedConfiguration = { ...(useAiData ? agent_data?.configuration : {}), ...model_data };
-    const fallbackSettings = agents?.settings || {};
-    const baseSettings = (useAiData ? finalSettings : aiVal(agent_data?.settings, fallbackSettings)) || {};
-    const fallbackStatelessConversation =
-      agentType === "api" ? true : (agents?.settings?.stateless_conversation ?? agents?.stateless_conversation ?? false);
-    const mergedSettings = {
-      ...baseSettings,
-      stateless_conversation: baseSettings?.stateless_conversation ?? fallbackStatelessConversation
-    };
     const cleanAgentData = { ...(useAiData ? agent_data : {}) };
     delete cleanAgentData.guardrails;
     delete cleanAgentData.fall_back;
@@ -209,7 +202,7 @@ const createAgentController = async (req, res, next) => {
       gpt_memory: aiVal(agent_data?.gpt_memory, true),
       folder_id: folder_id,
       user_id: user_id,
-      settings: mergedSettings,
+      settings: finalSettings,
       bridge_limit: agent_limit,
       bridge_usage: agent_usage,
       bridge_limit_reset_period: agent_limit_reset_period,
