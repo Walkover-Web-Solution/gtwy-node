@@ -12,8 +12,6 @@ import { convertPromptToString } from "../utils/promptWrapper.utils.js";
 
 const { storeSystemPrompt, addBulkUserEntries } = conversationDbService;
 
-const { addBulkUserEntries } = conversationDbService;
-
 const createVersion = async (req, res, next) => {
   const { version_id, version_description } = req.body;
   const org_id = req.profile.org.id;
