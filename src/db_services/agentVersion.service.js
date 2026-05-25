@@ -500,8 +500,47 @@ async function publish(org_id, version_id, user_id, generate_summary = false) {
       type: "Version published"
     }
   ]);
+  updateApiCallsForPublishedVersion(parentId, publishedVersionId, previousPublishedVersionId, getVersionData, parentConfiguration).catch((error) => {
+    console.error(`Failed to update ApiCall database for published version ${publishedVersionId}:`, error);
+    // TODO: Consider adding retry logic or alerting admin if this fails consistently
+  });
 
   return { success: true, message: "Version published successfully" };
+}
+
+async function updateApiCallsForPublishedVersion(parentId, publishedVersionId, previousPublishedVersionId, getVersionData, parentConfiguration) {
+  try {
+    // Handle functions removed from version: remove agent bridge_id from those tools
+    const currentVersionFunctionIds = (getVersionData.function_ids || []).map((fid) => fid.toString());
+    const parentFunctionIds = (parentConfiguration.function_ids || []).map((fid) => fid.toString());
+
+    // Find functions that were in parent but not in current version
+    for (const parentFunctionId of parentFunctionIds) {
+      if (!currentVersionFunctionIds.includes(parentFunctionId)) {
+        // Check if this function is still used in any other version of this agent
+        const otherVersionWithTool = await bridgeVersionModel
+          .findOne({
+            parent_id: new ObjectId(parentId),
+            _id: { $ne: new ObjectId(publishedVersionId) },
+            function_ids: new ObjectId(parentFunctionId)
+          })
+          .lean();
+
+        // Only remove bridge_id if not used in any other version
+        if (!otherVersionWithTool) {
+          await apiCallModel.updateOne({ _id: new ObjectId(parentFunctionId) }, { $pull: { bridge_ids: parentId } });
+        }
+      }
+    }
+
+    // Add functions from version to agent
+    for (const functionId of currentVersionFunctionIds) {
+      await apiCallModel.updateOne({ _id: new ObjectId(functionId) }, { $addToSet: { bridge_ids: parentId } });
+    }
+  } catch (error) {
+    console.error(`Error updating ApiCall database for published version ${publishedVersionId}:`, error);
+    throw error;
+  }
 }
 
 async function getAllConnectedAgents(id, org_id, type) {
