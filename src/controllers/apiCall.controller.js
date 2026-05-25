@@ -6,6 +6,7 @@ import agentVersionService from "../db_services/agentVersion.service.js";
 import { deleteInCache } from "../cache_service/index.js";
 import { syncToolToViasocketEmbed } from "../services/utils/viasocketSync.utils.js";
 import conversationDbService from "../db_services/conversation.service.js";
+import apiCallService from "../db_services/apiCall.service.js";
 
 const { addBulkUserEntries } = conversationDbService;
 
@@ -180,16 +181,6 @@ const addPreTool = async (req, res, next) => {
     await ConfigurationServices.updateAgent(bridgeId, data_to_update, version_id);
     const result = await ConfigurationServices.getAgentsWithTools(bridgeId, org_id, version_id);
 
-    // Only update ApiCall bridge_ids for custom_function type (others are not tracked as functions)
-    if (pre_tool_entry.type === "custom_function" && pre_tool_entry?.config?.function_id) {
-      await ConfigurationServices.updateAgentIdsInApiCalls(
-        pre_tool_entry?.config?.function_id,
-        version_id || bridgeId,
-        parseInt(status),
-        !!version_id
-      );
-    }
-
     try {
       await addBulkUserEntries([
         {
@@ -233,6 +224,18 @@ const addPreTool = async (req, res, next) => {
   }
 };
 
+const getAgentsAndVersionsByFunctionIds = async (req, res, next) => {
+  const org_id = req.profile?.org?.id;
+  const result = await apiCallService.getAgentsAndVersionsByFunctionIds(org_id);
+  res.locals = {
+    success: result.success,
+    message: "Agents and versions by function IDs retrieved successfully",
+    data: result.data
+  };
+  req.statusCode = 200;
+  return next();
+};
+
 const getAllInBuiltToolsController = async (req, res, next) => {
   res.locals = {
     success: true,
@@ -268,5 +271,6 @@ export default {
   deleteFunction,
   createApi,
   addPreTool,
-  getAllInBuiltToolsController
+  getAllInBuiltToolsController,
+  getAgentsAndVersionsByFunctionIds
 };

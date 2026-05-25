@@ -20,14 +20,6 @@ const apiCall = new mongoose.Schema(
       type: String,
       required: true
     },
-    bridge_ids: {
-      type: [String],
-      default: () => []
-    },
-    version_ids: {
-      type: [String],
-      default: () => []
-    },
     script_id: {
       type: String,
       required: true

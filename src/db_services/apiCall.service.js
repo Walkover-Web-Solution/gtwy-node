@@ -1,5 +1,6 @@
 import apiCallModel from "../mongoModel/ApiCall.model.js";
 import versionModel from "../mongoModel/BridgeVersion.model.js";
+import configurationModel from "../mongoModel/Configuration.model.js";
 import mongoose from "mongoose";
 import { deleteInCache } from "../cache_service/index.js";
 import agentVersionService from "../db_services/agentVersion.service.js";
@@ -161,6 +162,67 @@ async function saveApi(desc, org_id, folder_id, user_id, api_data, bridge_ids = 
   }
 }
 
+async function getAgentsAndVersionsByFunctionIds(org_id) {
+  try {
+    const configurations = await configurationModel
+      .find({ org_id: org_id, function_ids: { $exists: true, $ne: [] } })
+      .select({ _id: 1, function_ids: 1, name: 1 })
+      .lean();
+
+    const versions = await versionModel
+      .find({ org_id: org_id, function_ids: { $exists: true, $ne: [] } })
+      .select({ _id: 1, function_ids: 1, parent_id: 1, name: 1 })
+      .lean();
+
+    const result = {};
+
+    for (const config of configurations) {
+      const agent_id = config._id.toString();
+      for (const functionId of config.function_ids || []) {
+        const key = functionId && functionId.toString ? functionId.toString() : String(functionId);
+
+        if (!result[key]) {
+          result[key] = {};
+        }
+
+        if (!result[key][agent_id]) {
+          result[key][agent_id] = [];
+        }
+      }
+    }
+
+    for (const version of versions) {
+      const version_id = version._id.toString();
+      const parent_id = version.parent_id ? version.parent_id.toString() : null;
+
+      for (const functionId of version.function_ids || []) {
+        const key = functionId && functionId.toString ? functionId.toString() : String(functionId);
+
+        if (!result[key]) {
+          result[key] = {};
+        }
+
+        if (parent_id) {
+          if (!result[key][parent_id]) {
+            result[key][parent_id] = [];
+          }
+          if (!result[key][parent_id].includes(version_id)) {
+            result[key][parent_id].push(version_id);
+          }
+        }
+      }
+    }
+
+    return {
+      success: true,
+      data: result
+    };
+  } catch (error) {
+    console.error("Error in getAgentsAndVersionsByFunctionIds:", error);
+    throw error;
+  }
+}
+
 export default {
   getAllApiCallsByOrgId,
   updateApiCallByFunctionId,
@@ -168,5 +230,6 @@ export default {
   deleteFunctionFromApicallsDb,
   createApiCall,
   getApiData,
-  saveApi
+  saveApi,
+  getAgentsAndVersionsByFunctionIds
 };

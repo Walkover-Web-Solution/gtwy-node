@@ -216,7 +216,6 @@ const updateVersionController = async (req, res, next) => {
           if (!function_ids.includes(function_id)) {
             function_ids.push(function_id);
             update_fields.function_ids = function_ids.map((fid) => new ObjectId(fid));
-            await ConfigurationServices.updateAgentIdsInApiCalls(function_id, version_id, 1, true);
           }
         } else {
           if (script_id && current_variables_path[script_id]) {
@@ -226,7 +225,6 @@ const updateVersionController = async (req, res, next) => {
           if (function_ids.includes(function_id)) {
             function_ids = function_ids.filter((fid) => fid.toString() !== function_id);
             update_fields.function_ids = function_ids.map((fid) => new ObjectId(fid));
-            await ConfigurationServices.updateAgentIdsInApiCalls(function_id, version_id, 0, true);
           }
         }
       }
