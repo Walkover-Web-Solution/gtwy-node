@@ -316,15 +316,11 @@ function calculatePromptTokens(prompt, tools) {
   }
 }
 
-async function generateAgentSummary(org_id, version_id) {
-  const summaryResult = await executeAiOperation({ body: { version_id } }, org_id, AI_OPERATION_CONFIG.generate_summary);
-  const summary = summaryResult?.result;
-  return typeof summary === "string" ? summary : summary ? JSON.stringify(summary) : "";
-}
-
 async function generateAgentSummaryInBackground(parentId, org_id, version_id) {
   try {
-    const bridgeSummary = await generateAgentSummary(org_id, version_id);
+    const summaryResult = await executeAiOperation({ body: { version_id } }, org_id, AI_OPERATION_CONFIG.generate_summary);
+    const summary = summaryResult?.result;
+    const bridgeSummary = typeof summary === "string" ? summary : summary ? JSON.stringify(summary) : "";
     await configurationModel.updateOne({ _id: parentId }, { $set: { bridge_summary: bridgeSummary } });
   } catch (error) {
     console.error(`Error generating agent summary for version ${version_id}:`, error);
