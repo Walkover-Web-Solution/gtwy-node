@@ -3,7 +3,7 @@ import ConfigurationServices from "../db_services/configuration.service.js";
 import agentVersionDbService from "../db_services/agentVersion.service.js";
 import apiCallModel from "../mongoModel/ApiCall.model.js";
 import { ObjectId } from "mongodb";
-import { getUniqueNameAndSlug, normalizeFunctionIds, cloneFunctionsForAgent } from "../utils/agentConfig.utils.js";
+import { normalizeFunctionIds, cloneFunctionsForAgent } from "../utils/agentConfig.utils.js";
 import { copyResourceToOrgUtil } from "../utils/rag.utils.js";
 import { callAiMiddleware } from "../services/utils/aiCall.utils.js";
 import { bridge_ids } from "../configs/constant.js";
@@ -24,11 +24,10 @@ const allTemplates = async (req, res, next) => {
 const FILTER_BRIDGE_EXCLUDE_KEYS = new Set([
   "api_key_object",
   "apikey",
-  "org_id",
   "user_id",
   "total_tokens",
   "prompt_total_tokens",
-  "prompt_enhancer_percentage",
+  "ai_updates",
   "bridge_usage",
   "bridge_limit",
   "bridge_limit_reset_period",
@@ -158,7 +157,13 @@ const createTemplate = async (req, res, next) => {
     bridge.child_agents = await buildConnectedAgents(bridge.connected_agents, new Set([agent_id]));
   }
   const user = "Validate the template";
-  const isValid = await callAiMiddleware(user, bridge_ids["template_validator"], { template: bridge, templateName, email: req.profile?.user?.email });
+  const email = req.profile?.user?.email;
+
+  // Only validate via AI middleware for non-embed users with email
+  let isValid = { status: true };
+  if (!req.IsEmbedUser && email) {
+    isValid = await callAiMiddleware(user, bridge_ids["template_validator"], { template: bridge, templateName, email });
+  }
 
   // Save the template
   if (isValid?.status) {
@@ -184,6 +189,8 @@ const createAgentFromTemplateController = async (req, res, next) => {
     const { template_id } = req.params;
     const org_id = req.profile.org.id;
     const user_id = req.profile.user.id;
+    const folder_id = req.folder_id || null;
+
     const agentType = req.body.bridgeType || "api";
     const meta = req.body.meta || null;
 
@@ -195,53 +202,28 @@ const createAgentFromTemplateController = async (req, res, next) => {
     }
 
     const template_content = JSON.parse(template_data.template);
-    const all_agent = await ConfigurationServices.getAgentsByUserId(org_id);
 
     let name = template_data.templateName;
     let service = template_content?.service;
     let type = template_content?.configuration?.type;
     let prompt = template_content?.configuration?.prompt;
 
-    const nameSlugData = getUniqueNameAndSlug(name, all_agent);
-    const slugName = nameSlugData.slugName;
-    name = nameSlugData.name;
+    const { name: uniqueName, slugName } = await ConfigurationServices.getUniqueAgentNameAndSlug(org_id, name);
+    name = uniqueName;
 
     let model_data = { ...(template_content?.configuration || {}) };
     model_data.type = model_data.type || type;
     if (model_data.is_rich_text === undefined) model_data.is_rich_text = false;
     model_data.prompt = model_data.prompt || prompt;
-    model_data.tool_choice = "default";
 
     const fall_back = template_content?.settings?.fall_back || { is_enable: true, service: "openai", model: "gpt-5.1" };
-    const template_fields = [
-      "variables_state",
-      "built_in_tools",
-      "gpt_memory_context",
-      "user_reference",
-      "bridge_summary",
-      "agent_variables",
-      "actions",
-      "variables_path",
-      "bridge_status",
-      "starterQuestion",
-      "IsstarterQuestionEnable",
-      "defaultQuestions",
-      "page_config",
-      "settings",
-      "criteria_check",
-      "auto_model_select",
-      "connected_agent_details",
-      "meta",
-      "cache_on",
-      "chatbot_auto_answers",
-      "version_description"
-    ];
-    const template_values = {};
-    for (const field of template_fields) {
-      if (template_content[field] !== undefined) template_values[field] = template_content[field];
-    }
+
+    // Exclude _id and other fields that should not be copied from template
+    // eslint-disable-next-line no-unused-vars
+    const { _id, ...templateDataWithoutId } = template_content;
 
     const result = await ConfigurationServices.createAgent({
+      ...templateDataWithoutId,
       configuration: model_data,
       name,
       slugName,
@@ -250,12 +232,12 @@ const createAgentFromTemplateController = async (req, res, next) => {
       org_id,
       gpt_memory: true,
       user_id,
+      folder_id,
       fall_back,
       bridge_status: 1,
       createdAt: new Date(),
       updatedAt: new Date(),
-      meta,
-      ...template_values
+      meta
     });
 
     const create_version = await agentVersionDbService.createAgentVersion(result.bridge);
@@ -263,8 +245,6 @@ const createAgentFromTemplateController = async (req, res, next) => {
       versions: [create_version._id.toString()],
       published_version_id: create_version._id.toString()
     });
-
-    all_agent.push({ name, slugName });
 
     // --- Collect all unique function IDs and doc resource pairs across root + all children ---
     const collectAllResources = (content, allFunctionIds, allDocPairs) => {
@@ -299,7 +279,8 @@ const createAgentFromTemplateController = async (req, res, next) => {
     const functionIdMap = new Map();
     if (allFunctionIds.size > 0) {
       const uniqueIds = [...allFunctionIds];
-      const clonedIds = await cloneFunctionsForAgent(uniqueIds, org_id, result.bridge._id.toString());
+      const isEmbedUser = req.IsEmbedUser || false;
+      const clonedIds = await cloneFunctionsForAgent(uniqueIds, org_id, result.bridge._id.toString(), folder_id, user_id, isEmbedUser);
       uniqueIds.forEach((oldId, i) => {
         if (clonedIds[i]) functionIdMap.set(oldId, clonedIds[i]);
       });
@@ -309,12 +290,16 @@ const createAgentFromTemplateController = async (req, res, next) => {
     const docIdMap = new Map();
     const docEntries = [...allDocPairs.entries()];
     if (docEntries.length > 0) {
+      const isEmbedUser = req.IsEmbedUser || false;
       const docResults = await Promise.allSettled(
         docEntries.map(([key, doc]) =>
           copyResourceToOrgUtil({
             collection_id: doc.collection_id,
             resource_id: doc.resource_id,
             org_id,
+            folder_id,
+            user_id,
+            isEmbedUser,
             extra: { ...(doc.name && { name: doc.name }), ...(doc.description && { description: doc.description }) }
           }).then((copied) => ({ key, copied }))
         )
@@ -361,9 +346,47 @@ const createAgentFromTemplateController = async (req, res, next) => {
       const remapped = {};
       for (const [oldKey, fn] of Object.entries(apiCalls)) {
         const newKey = functionIdMap.get(oldKey) || oldKey;
-        remapped[newKey] = { ...fn, _id: newKey };
+        remapped[newKey] = { ...fn, _id: newKey, version_ids: [] };
       }
       return remapped;
+    };
+
+    const resolveToolChoice = (toolChoice) => {
+      // Handle custom format {"mode":"custom","value":"tool_id"}
+      if (toolChoice && typeof toolChoice === "object" && toolChoice.mode === "custom" && toolChoice.value) {
+        const newToolId = functionIdMap.get(toolChoice.value);
+        if (newToolId) {
+          return newToolId;
+        }
+        return "default";
+      }
+
+      if (!toolChoice || toolChoice === "default" || toolChoice === "auto" || toolChoice === "none") {
+        return toolChoice;
+      }
+      if (typeof toolChoice === "object") {
+        // Extract tool_id from various formats and return as simple string
+        if (toolChoice.tool_id) {
+          const newToolId = functionIdMap.get(toolChoice.tool_id);
+          if (newToolId) return newToolId;
+          return toolChoice.tool_id;
+        }
+        if (toolChoice.function?.tool_id) {
+          const newToolId = functionIdMap.get(toolChoice.function.tool_id);
+          if (newToolId) return newToolId;
+          return toolChoice.function.tool_id;
+        }
+        if (Array.isArray(toolChoice.functions) && toolChoice.functions.length > 0) {
+          // For array format, return the first mapped tool_id
+          const firstFn = toolChoice.functions[0];
+          if (firstFn.tool_id) {
+            const newToolId = functionIdMap.get(firstFn.tool_id);
+            if (newToolId) return newToolId;
+            return firstFn.tool_id;
+          }
+        }
+      }
+      return toolChoice;
     };
 
     // Apply to root agent — batch all updates into single DB calls
@@ -376,6 +399,8 @@ const createAgentFromTemplateController = async (req, res, next) => {
     if (parent_doc_ids) parent_updates.doc_ids = parent_doc_ids;
     const parent_api_calls = resolveApiCalls(template_content?.apiCalls);
     if (parent_api_calls) parent_updates.apiCalls = parent_api_calls;
+    const parent_tool_choice = resolveToolChoice(model_data.tool_choice);
+    if (parent_tool_choice !== undefined) parent_updates.configuration = { ...model_data, tool_choice: parent_tool_choice };
     if (Object.keys(parent_updates).length > 0) {
       await ConfigurationServices.updateAgent(result.bridge._id.toString(), parent_updates);
       await ConfigurationServices.updateAgent(null, parent_updates, create_version._id.toString());
@@ -387,13 +412,19 @@ const createAgentFromTemplateController = async (req, res, next) => {
       createdAgentsMap.set(rootBridgeId, result.bridge._id.toString());
     }
 
-    const createChildAgentsRecursively = async (child_agents_map, parent_bridge_id, parent_version_id, ancestorIds = new Set()) => {
+    const createChildAgentsRecursively = async (
+      child_agents_map,
+      parent_bridge_id,
+      parent_version_id,
+      ancestorIds = new Set(),
+      isEmbedUser = false
+    ) => {
       if (!child_agents_map || Object.keys(child_agents_map).length === 0) return;
       const connected_agents = {};
 
-      for (const [agent_name, child_agent] of Object.entries(child_agents_map)) {
+      for (const [agent_id, child_agent] of Object.entries(child_agents_map)) {
         const templateBridgeId = child_agent?.bridge_id?.toString() ?? child_agent?.bridge_id;
-        const cycleKey = templateBridgeId || agent_name;
+        const cycleKey = templateBridgeId || agent_id;
 
         if (ancestorIds.has(cycleKey)) {
           const existingBridgeId = createdAgentsMap.get(cycleKey);
@@ -413,7 +444,8 @@ const createAgentFromTemplateController = async (req, res, next) => {
         const child_details = child_agent?.bridge_details;
         if (!child_details || Object.keys(child_details).length === 0) continue;
 
-        const childNameSlug = getUniqueNameAndSlug(agent_name, all_agent);
+        const actualAgentName = child_details.name || agent_id;
+        const childNameSlug = await ConfigurationServices.getUniqueAgentNameAndSlug(org_id, actualAgentName);
         const child_model_data = { ...(child_details.configuration || {}) };
         child_model_data.type = child_model_data.type || type;
         if (child_model_data.is_rich_text === undefined) child_model_data.is_rich_text = false;
@@ -421,25 +453,26 @@ const createAgentFromTemplateController = async (req, res, next) => {
         child_model_data.tool_choice = "default";
 
         let child_service = child_details.service || service;
-        const child_template_values = {};
-        for (const field of template_fields) {
-          if (child_details[field] !== undefined) child_template_values[field] = child_details[field];
-        }
+
+        // Exclude _id and other fields that should not be copied from template
+        // eslint-disable-next-line no-unused-vars
+        const { _id, ...childDataWithoutId } = child_details;
 
         const child_result = await ConfigurationServices.createAgent({
+          ...childDataWithoutId,
           configuration: child_model_data,
           name: childNameSlug.name,
           slugName: childNameSlug.slugName,
           service: child_service,
-          bridgeType: ["api", "chatbot"].includes(child_details.bridgeType) ? child_details.bridgeType : agentType,
+          bridgeType: isEmbedUser ? "api" : ["api", "chatbot"].includes(child_details.bridgeType) ? child_details.bridgeType : agentType,
           org_id,
           gpt_memory: true,
           user_id,
+          folder_id,
           fall_back,
           bridge_status: 1,
           createdAt: new Date(),
-          updatedAt: new Date(),
-          ...child_template_values
+          updatedAt: new Date()
         });
 
         const child_version = await agentVersionDbService.createAgentVersion(child_result.bridge);
@@ -447,7 +480,6 @@ const createAgentFromTemplateController = async (req, res, next) => {
           versions: [child_version._id.toString()],
           published_version_id: child_version._id.toString()
         });
-        all_agent.push({ name: childNameSlug.name, slugName: childNameSlug.slugName });
         createdAgentsMap.set(cycleKey, child_result.bridge._id.toString());
 
         // Batch all child agent updates into single DB calls
@@ -456,13 +488,18 @@ const createAgentFromTemplateController = async (req, res, next) => {
         if (child_function_ids_resolved) child_updates.function_ids = child_function_ids_resolved;
         const child_pre_tools = resolvePreTools(child_details.pre_tools);
         if (child_pre_tools) child_updates.pre_tools = child_pre_tools;
-        if (child_details.connected_agent_details && Object.keys(child_details.connected_agent_details).length > 0) {
-          child_updates.connected_agent_details = child_details.connected_agent_details;
+        if (child_details.agent_info && Object.keys(child_details.agent_info).length > 0) {
+          child_updates.agent_info = {
+            ...child_updates.agent_info,
+            ...child_details.agent_info
+          };
         }
         const child_doc_ids = resolveDocIds(child_details.doc_ids);
         if (child_doc_ids) child_updates.doc_ids = child_doc_ids;
         const child_api_calls = resolveApiCalls(child_details.apiCalls);
         if (child_api_calls) child_updates.apiCalls = child_api_calls;
+        const child_tool_choice = resolveToolChoice(child_model_data.tool_choice);
+        if (child_tool_choice !== undefined) child_updates.configuration = { ...child_model_data, tool_choice: child_tool_choice };
         if (Object.keys(child_updates).length > 0) {
           await ConfigurationServices.updateAgent(child_result.bridge._id.toString(), child_updates);
           await ConfigurationServices.updateAgent(null, child_updates, child_version._id.toString());
@@ -474,7 +511,8 @@ const createAgentFromTemplateController = async (req, res, next) => {
             child_details.child_agents,
             child_result.bridge._id.toString(),
             child_version._id.toString(),
-            childAncestors
+            childAncestors,
+            isEmbedUser
           );
         }
 
@@ -493,7 +531,14 @@ const createAgentFromTemplateController = async (req, res, next) => {
 
     if (template_content?.child_agents && Object.keys(template_content.child_agents).length > 0) {
       const rootAncestorIds = new Set(rootBridgeId ? [rootBridgeId] : []);
-      await createChildAgentsRecursively(template_content.child_agents, result.bridge._id.toString(), create_version._id.toString(), rootAncestorIds);
+      const isEmbedUser = req.IsEmbedUser || false;
+      await createChildAgentsRecursively(
+        template_content.child_agents,
+        result.bridge._id.toString(),
+        create_version._id.toString(),
+        rootAncestorIds,
+        isEmbedUser
+      );
     }
 
     const updated_agent_result = await ConfigurationServices.getAgentsWithTools(result.bridge._id.toString(), org_id);

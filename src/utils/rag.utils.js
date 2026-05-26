@@ -10,10 +10,34 @@ export const genrateToken = async (orgId) => {
   return token;
 };
 
-export const copyResourceToOrgUtil = async ({ collection_id, resource_id, org_id, extra = {} }) => {
+export const copyResourceToOrgUtil = async ({
+  collection_id,
+  resource_id,
+  org_id,
+  folder_id = null,
+  user_id = null,
+  isEmbedUser = false,
+  extra = {}
+}) => {
   const hippocampusUrl = "http://hippocampus.gtwy.ai";
   const hippocampusApiKey = process.env.HIPPOCAMPUS_API_KEY;
   const headers = { "Content-Type": "application/json", "x-api-key": hippocampusApiKey };
+
+  // Create embed-style ownerId for hippocampus
+  let ownerId = org_id;
+  if (user_id && isEmbedUser && folder_id) {
+    ownerId = `${org_id}_${folder_id}_${user_id}`;
+  }
+
+  // Add authorization token for embed users (only if env vars are available)
+  if (isEmbedUser && folder_id && process.env.RAG_EMBED_SECRET_KEY) {
+    try {
+      const auth_token = await genrateToken(ownerId);
+      headers.Authorization = auth_token;
+    } catch (e) {
+      console.error("Failed to generate auth token for hippocampus:", e.message);
+    }
+  }
 
   const [collectionResponse, resourceResponse] = await Promise.all([
     axios.get(`${hippocampusUrl}/collection/${collection_id}`, { headers }),
@@ -52,7 +76,7 @@ export const copyResourceToOrgUtil = async ({ collection_id, resource_id, org_id
       content: sourceResource.content,
       url: sourceResource.url,
       description: sourceResource.description,
-      ownerId: org_id,
+      ownerId: ownerId,
       settings: sourceResource.settings
     },
     { headers }
@@ -65,6 +89,7 @@ export const copyResourceToOrgUtil = async ({ collection_id, resource_id, org_id
   return {
     collection_id: targetCollectionId,
     resource_id: createResponse.data._id,
+    folder_id: folder_id || "",
     ...extra
   };
 };

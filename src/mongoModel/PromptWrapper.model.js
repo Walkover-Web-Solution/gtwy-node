@@ -1,4 +1,6 @@
 import mongoose from "mongoose";
+import { cacheInvalidationPlugin } from "../cache_service/mongoosePlugin.js";
+import { tag_keys } from "../configs/tagKeys.js";
 
 const promptWrapperSchema = new mongoose.Schema(
   {
@@ -26,6 +28,8 @@ const promptWrapperSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+promptWrapperSchema.plugin(cacheInvalidationPlugin, { tags: [tag_keys.wrapper] });
 
 const PromptWrapperModel = mongoose.model("prompt_wrappers", promptWrapperSchema);
 

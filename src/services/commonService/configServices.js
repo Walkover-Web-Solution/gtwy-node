@@ -22,9 +22,7 @@ const getThreads = async (req, res, next) => {
   let bridge = {};
 
   if (bridge_slugName) {
-    bridge = req.chatBot?.ispublic
-      ? await configurationService.getAgentByUrlSlugname(bridge_slugName)
-      : await configurationService.getAgentIdBySlugname(org_id, bridge_slugName);
+    bridge = await configurationService.getAgentIdBySlugname(org_id, bridge_slugName);
     bridge_id = bridge?._id?.toString();
     starterQuestion = !bridge?.IsstarterQuestionEnable ? [] : bridge?.starterQuestion;
     org_id = req.chatBot?.ispublic ? bridge?.org_id : org_id;
@@ -195,7 +193,7 @@ const sendError = async (bridge_id, org_id, error_message, error_type) => {
 };
 
 export const createEntry = async (req, res, next) => {
-  const { thread_id, bridge_id } = req.params;
+  const { thread_id, bridge_id, sub_thread_id } = req.params;
   const { message } = req.body;
   const message_id = crypto.randomUUID();
   const org_id = req?.profile?.org?.id || req?.profile?.org_id;
@@ -209,7 +207,7 @@ export const createEntry = async (req, res, next) => {
     type: "chat",
     message_by: "assistant",
     message_id: message_id,
-    sub_thread_id: thread_id
+    sub_thread_id: sub_thread_id || thread_id
   };
   try {
     await createThreadHistrorySchema.validateAsync(payload);
@@ -223,7 +221,7 @@ export const createEntry = async (req, res, next) => {
 
   await createThread({
     thread_id,
-    sub_thread_id: thread_id,
+    sub_thread_id: sub_thread_id || thread_id,
     display_name: thread_id,
     org_id: org_id?.toString(),
     bridge_id

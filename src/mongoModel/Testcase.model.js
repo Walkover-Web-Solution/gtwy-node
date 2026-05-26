@@ -22,6 +22,20 @@ const testcaseSchema = new mongoose.Schema({
     type: String,
     enum: ["exact", "ai", "cosine"],
     required: true
+  },
+  variables: {
+    type: Object,
+    default: {}
+  },
+  execution: {
+    lastExecutedAt: {
+      type: Date,
+      default: null
+    }
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now
   }
 });
 

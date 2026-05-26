@@ -1,27 +1,40 @@
 import { findInCache, storeInCache } from "../../cache_service/index.js";
 import axios from "axios";
 
-const _deserializeCachedValue = (rawValue) => {
-  if (!rawValue) return null;
-  try {
-    return JSON.parse(rawValue);
-  } catch {
-    return rawValue;
+const _isEmptyMemoryResponse = (value) =>
+  value && typeof value === "object" && !Array.isArray(value) && value.success === true && value.message === "No response";
+
+export const parseMemory = (raw) => {
+  if (raw === null || raw === undefined) return null;
+  let value = raw;
+  if (typeof value === "string") {
+    try {
+      value = JSON.parse(value);
+    } catch {
+      return raw;
+    }
   }
+  if (_isEmptyMemoryResponse(value)) return null;
+  if (value && typeof value === "object" && !Array.isArray(value)) return value;
+  if (typeof value === "string") return value;
+  return String(value);
 };
 
 const _fetchMemoryFromCache = async (memoryId) => {
   const cachedValue = await findInCache(memoryId);
-  return _deserializeCachedValue(cachedValue);
+  return parseMemory(cachedValue);
 };
 
 const _fetchMemoryFromRemote = async (memoryId) => {
   try {
     const response = await axios.post("https://flow.sokt.io/func/scriCJLHynCG", { threadID: memoryId });
-    if (response.data) {
-      await storeInCache(memoryId, JSON.stringify(response.data));
+    const data = response.data;
+    if (data === undefined || data === null || _isEmptyMemoryResponse(data)) {
+      return null;
     }
-    return response.data;
+    const payload = typeof data === "string" ? data : JSON.stringify(data);
+    await storeInCache(memoryId, payload);
+    return parseMemory(data);
   } catch (error) {
     console.error(`Error fetching GPT memory from remote for ${memoryId}:`, error.message);
     return null;
@@ -58,5 +71,6 @@ const retrieveGptMemoryService = async ({ bridge_id, thread_id, sub_thread_id, v
 };
 
 export default {
-  retrieveGptMemoryService
+  retrieveGptMemoryService,
+  parseMemory
 };

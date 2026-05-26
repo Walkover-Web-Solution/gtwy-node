@@ -1,4 +1,6 @@
 import mongoose from "mongoose";
+import { cacheInvalidationPlugin } from "../cache_service/mongoosePlugin.js";
+import { tag_keys } from "../configs/tagKeys.js";
 const Schema = mongoose.Schema;
 
 const actionTypeModel = new Schema(
@@ -18,19 +20,27 @@ const actionTypeModel = new Schema(
   }
 );
 
-const pageConfigSchema = new Schema(
+const agentInfoSchema = new Schema(
   {
-    url_slugname: {
-      type: String,
-      unique: true,
-      sparse: true // this makes sure that if the url_slugname is not present in the document
-      // mongo will still create an index on the field, and will not throw an error if the field is not present in the document.
-      // This is useful when we are using the same schema for multiple collections, and not all collections have this field.
+    prompt_total_tokens: {
+      type: Number,
+      default: 0
     },
-    availability: {
+    agent_variables: {
+      type: Object,
+      default: {}
+    },
+    description: {
       type: String,
-      enum: ["public", "private"],
-      default: "private"
+      default: ""
+    },
+    thread_id: {
+      type: Boolean,
+      default: false
+    },
+    variables_state: {
+      type: Object,
+      default: {}
     }
   },
   { _id: false }
@@ -99,9 +109,15 @@ const configuration = new mongoose.Schema({
     type: Object,
     default: {}
   },
-  variables_state: {
-    type: Object,
-    default: {}
+  agent_info: {
+    type: agentInfoSchema,
+    default: () => ({
+      prompt_total_tokens: 0,
+      agent_variables: {},
+      description: "",
+      thread_id: false,
+      variables_state: {}
+    })
   },
   starterQuestion: {
     type: Array,
@@ -127,10 +143,6 @@ const configuration = new mongoose.Schema({
     type: String,
     default: ""
   },
-  connected_agent_details: {
-    type: Object,
-    default: {}
-  },
   user_reference: {
     type: String,
     default: ""
@@ -151,17 +163,12 @@ const configuration = new mongoose.Schema({
     type: Number,
     default: 0
   },
-  prompt_total_tokens: {
-    type: Number,
-    default: 0
-  },
-  prompt_enhancer_percentage: {
-    type: Number,
-    default: 0
-  },
-  criteria_check: {
+  ai_updates: {
     type: Object,
-    default: {}
+    default: {
+      prompt_enhancer_percentage: 0,
+      criteria_check: {}
+    }
   },
   created_at: {
     type: Date,
@@ -216,10 +223,6 @@ const configuration = new mongoose.Schema({
   IsstarterQuestionEnable: {
     type: Boolean
   },
-  page_config: {
-    type: pageConfigSchema,
-    default: null
-  },
   apikey_object_id: {
     type: Object
   },
@@ -258,6 +261,7 @@ const configuration = new mongoose.Schema({
       maximum_iterations: 3,
       publicUsers: [],
       editAccess: [],
+      stateless_conversation: false,
       tone: {},
       responseStyle: {},
       response_format: { type: "default", cred: {} },
@@ -278,8 +282,8 @@ const configuration = new mongoose.Schema({
     default: false
   },
   auto_model_select: {
-    type: Boolean,
-    default: false
+    type: Object,
+    default: null
   },
   cache_on: {
     type: Boolean,
@@ -290,5 +294,6 @@ const configuration = new mongoose.Schema({
 configuration.index({ org_id: 1, slugName: 1 }, { unique: true });
 configuration.index({ deletedAt: 1 }, { expireAfterSeconds: 2592000 }); // TTL index for 30 days (1 month)
 configuration.index({ org_id: 1, deletedAt: 1 });
+configuration.plugin(cacheInvalidationPlugin, { tags: [tag_keys.agent, tag_keys.connected_agent] });
 const configurationModel = mongoose.model("configuration", configuration);
 export default configurationModel;

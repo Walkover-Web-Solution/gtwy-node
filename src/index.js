@@ -1,7 +1,9 @@
+import { configDotenv } from "dotenv";
+configDotenv();
+
 import "express-async-errors";
 import express from "express";
 import cors from "cors";
-import { configDotenv } from "dotenv";
 import "./grafana.js";
 import "./consumers/index.js";
 import "./services/cache.service.js";
@@ -17,6 +19,7 @@ import clientAuthRoutes from "./routes/userOrgLocal.routes.js";
 import initializeMonthlyLatencyReport from "./cron/monthlyLatencyReport.js";
 import initializeWeeklyLatencyReport from "./cron/weeklyLatencyReport.js";
 import initializeDailyUpdateCron from "./cron/initializeDailyUpdateCron.js";
+import initializeCleanupOrphanedThreadsCron from "./cron/cleanupOrphanedThreads.js";
 import authRouter from "./routes/auth.routes.js";
 import notFoundMiddleware from "./middlewares/notFound.js";
 import errorHandlerMiddleware from "./middlewares/errorHandler.js";
@@ -38,9 +41,9 @@ import converstaionRoutes from "./routes/conversation.routes.js";
 import internalRoutes from "./routes/internal.routes.js";
 import promptWrapperRoutes from "./routes/promptWrapper.routes.js";
 import richUiTemplateRoutes from "./routes/richUiTemplate.routes.js";
+import lagoRoutes from "./routes/lago.routes.js";
 import batchHistoryRoutes from "./routes/batchHistory.routes.js";
 const app = express();
-configDotenv();
 const PORT = process.env.PORT || 7072;
 
 app.use(
@@ -90,6 +93,7 @@ app.use("/api/template", templateRoute);
 app.use("/api/prompt_wrappers", promptWrapperRoutes);
 app.use("/api/internal", internalRoutes);
 app.use("/api/rich_ui_templates", richUiTemplateRoutes);
+app.use("/api/lago", lagoRoutes);
 
 //Metrics
 // app.use('/api/v1/metrics', metrisRoutes);
@@ -103,6 +107,7 @@ import { initModelConfiguration, backgroundListenForChanges } from "./services/u
 initializeMonthlyLatencyReport();
 initializeWeeklyLatencyReport();
 initializeDailyUpdateCron();
+initializeCleanupOrphanedThreadsCron();
 
 initModelConfiguration();
 backgroundListenForChanges();

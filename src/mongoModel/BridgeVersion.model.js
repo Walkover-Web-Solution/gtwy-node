@@ -1,4 +1,6 @@
 import mongoose from "mongoose";
+import { cacheInvalidationPlugin } from "../cache_service/mongoosePlugin.js";
+import { tag_keys } from "../configs/tagKeys.js";
 const Schema = mongoose.Schema;
 
 const actionTypeModel = new Schema(
@@ -17,6 +19,33 @@ const actionTypeModel = new Schema(
     _id: false
   }
 );
+
+const agentInfoSchema = new Schema(
+  {
+    prompt_total_tokens: {
+      type: Number,
+      default: 0
+    },
+    agent_variables: {
+      type: Object,
+      default: {}
+    },
+    description: {
+      type: String,
+      default: ""
+    },
+    thread_id: {
+      type: Boolean,
+      default: false
+    },
+    variables_state: {
+      type: Object,
+      default: {}
+    }
+  },
+  { _id: false }
+);
+
 const version = new mongoose.Schema({
   org_id: {
     type: String,
@@ -61,9 +90,15 @@ const version = new mongoose.Schema({
     type: String,
     default: null
   },
-  variables_state: {
-    type: Object,
-    default: {}
+  agent_info: {
+    type: agentInfoSchema,
+    default: () => ({
+      prompt_total_tokens: 0,
+      agent_variables: {},
+      description: "",
+      thread_id: false,
+      variables_state: {}
+    })
   },
   function_ids: {
     type: [mongoose.Schema.Types.ObjectId],
@@ -88,6 +123,13 @@ const version = new mongoose.Schema({
   total_tokens: {
     type: Number,
     default: 0
+  },
+  ai_updates: {
+    type: Object,
+    default: {
+      prompt_enhancer_percentage: 0,
+      criteria_check: {}
+    }
   },
   version_description: {
     type: String,
@@ -116,10 +158,6 @@ const version = new mongoose.Schema({
   built_in_tools: {
     type: Array,
     default: []
-  },
-  connected_agent_details: {
-    type: Object,
-    default: {}
   },
   created_at: {
     type: Date,
@@ -192,16 +230,21 @@ const version = new mongoose.Schema({
     default: false
   },
   auto_model_select: {
-    type: Boolean,
-    default: false
+    type: Object,
+    default: null
   },
   cache_on: {
     type: Boolean,
     default: false
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now
   }
 });
 
 version.index({ deletedAt: 1 }, { expireAfterSeconds: 2592000 }); // TTL index for 30 days (1 month)
 version.index({ org_id: 1, deletedAt: 1 });
+version.plugin(cacheInvalidationPlugin, { tags: [tag_keys.version] });
 const versionModel = mongoose.model("configuration_versions", version);
 export default versionModel;

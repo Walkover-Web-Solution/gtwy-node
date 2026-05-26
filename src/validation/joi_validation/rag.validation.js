@@ -81,6 +81,10 @@ const getResourcesByCollectionQuerySchema = Joi.object({
   })
 }).unknown(true);
 
+const deleteResourcesByCollectionQuerySchema = Joi.object({
+  ownerId: Joi.string().optional()
+}).unknown(true);
+
 export {
   searchSchema,
   createCollectionSchema,
@@ -88,5 +92,6 @@ export {
   collectionIdSchema,
   resourceIdSchema,
   updateResourceSchema,
-  getResourcesByCollectionQuerySchema
+  getResourcesByCollectionQuerySchema,
+  deleteResourcesByCollectionQuerySchema
 };

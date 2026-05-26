@@ -1,20 +1,22 @@
 import mongoose from "mongoose";
+import { cacheInvalidationPlugin } from "../cache_service/mongoosePlugin.js";
+import { tag_keys } from "../configs/tagKeys.js";
 
 const ConfigSchema = new mongoose.Schema(
   {
-    hideHomeButton: { type: Boolean, default: false },
+    showHomeButton: { type: Boolean, default: true },
     showAgentTypeOnCreateAgent: { type: Boolean, default: false },
     showHistory: { type: Boolean, default: false },
     showConfigType: { type: Boolean, default: false },
-    hideAdvancedParameters: { type: Boolean, default: false },
-    hideCreateManuallyButton: { type: Boolean, default: false },
-    hideAdvancedConfigurations: { type: Boolean, default: false },
-    hidePreTool: { type: Boolean, default: false },
+    showAdvancedParameters: { type: Boolean, default: true },
+    showCreateManuallyButton: { type: Boolean, default: true },
+    showAdvancedConfigurations: { type: Boolean, default: true },
+    showPreTool: { type: Boolean, default: true },
     slide: { type: String, default: "right" },
     defaultOpen: { type: Boolean, default: false },
-    hideFullScreenButton: { type: Boolean, default: false },
-    hideCloseButton: { type: Boolean, default: false },
-    hideHeader: { type: Boolean, default: false },
+    showFullScreenButton: { type: Boolean, default: true },
+    showCloseButton: { type: Boolean, default: true },
+    showHeader: { type: Boolean, default: true },
     addDefaultApiKeys: { type: Boolean, default: false },
     showResponseType: { type: Boolean, default: false },
     showVariables: { type: Boolean, default: false },
@@ -29,7 +31,7 @@ const ConfigSchema = new mongoose.Schema(
     pre_tool_id: { type: String, default: "" },
     prompt: { type: Object, default: {} },
     models: { type: Object, default: {} },
-    hidePromptHelper: { type: Boolean, default: false }
+    showPromptHelper: { type: Boolean, default: true }
   },
   { _id: false, strict: false }
 );
@@ -80,6 +82,8 @@ const FolderSchema = new mongoose.Schema({
     default: Date.now
   }
 });
+
+FolderSchema.plugin(cacheInvalidationPlugin, { tags: [tag_keys.folder] });
 
 const FolderModel = mongoose.model("Folder", FolderSchema);
 

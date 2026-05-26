@@ -3,8 +3,7 @@ import { validateModel } from "../services/utils/modelValidation.utils.js";
 import ConfigurationServices from "../db_services/configuration.service.js";
 
 async function saveUserModelConfiguration(req, res, next) {
-  const org_id = req.profile.org.id;
-  const { model_name, service, display_name, status, configuration, outputConfig, validationConfig } = req.body;
+  const { model_name, service, status, configuration, outputConfig, validationConfig } = req.body;
 
   // check models validity and support
   const isModelSupported = await validateModel(service, model_name);
@@ -20,10 +19,8 @@ async function saveUserModelConfiguration(req, res, next) {
   }
 
   const result = await modelConfigDbService.saveModelConfig({
-    org_id,
     service,
     model_name,
-    display_name,
     status,
     configuration,
     outputConfig,
@@ -67,4 +64,45 @@ async function deleteUserModelConfiguration(req, res, next) {
   return next();
 }
 
-export { saveUserModelConfiguration, deleteUserModelConfiguration };
+async function bulkUpdateUserModelConfigurations(req, res, next) {
+  const { models, filter, change } = req.body;
+  const result = await modelConfigDbService.bulkUpdateModelConfigs({ models, filter, change });
+
+  if (result?.error === "invalidChange") {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid change payload. Use either Mongo update operators or a plain object patch."
+    });
+  }
+
+  if (result?.error === "keyError") {
+    return res.status(400).json({
+      success: false,
+      message: `Invalid or restricted key '${result.key}' in change payload.`
+    });
+  }
+
+  if (result?.error === "invalidFilter") {
+    return res.status(400).json({
+      success: false,
+      message: result.key ? `Invalid or restricted key '${result.key}' in filter payload.` : "Invalid filter payload."
+    });
+  }
+
+  if (result?.error === "documentNotFound") {
+    return res.status(404).json({
+      success: false,
+      message: "No model configurations found for the provided models/filter."
+    });
+  }
+
+  res.locals = {
+    success: true,
+    message: "Bulk model configuration update completed",
+    result
+  };
+  req.statusCode = 200;
+  return next();
+}
+
+export { saveUserModelConfiguration, deleteUserModelConfiguration, bulkUpdateUserModelConfigurations };

@@ -101,7 +101,6 @@ export async function updateOrganizationData(orgId, orgDetails) {
       }
       // You can include credentials if required (e.g., 'withCredentials': true)
     });
-
     if (orgId) {
       await deleteInCache(embed_cache.keys.org(orgId));
     }
@@ -157,7 +156,7 @@ export async function getUsers(org_id, page = 1, pageSize = 10, exclude_role_ids
 export async function validateCauthKey(pauthkey) {
   try {
     const response = await axios.post(
-      "https://routes.msg91.com/api/validateCauthKey",
+      `https://routes.msg91.com/api/validateCauthKey`,
       {
         cAuthKey: pauthkey
       },
@@ -228,7 +227,13 @@ export async function removeClientUser(userId, companyId, featureId) {
   }
 }
 
-export async function getOrganizationOwner(orgId) {
-  const org = await getOrganizationById(orgId);
-  return org?.created_by?.toString() || null;
+export async function generateProxyAuthToken(req) {
+  const apiUrl = `https://routes.msg91.com/api/${process.env.PUBLIC_REFERENCEID}/generateAuthToken`;
+  const response = await axios.get(apiUrl, {
+    headers: {
+      authkey: process.env.ADMIN_API_KEY,
+      proxy_auth_token: req.headers.proxy_auth_token || req.headers.authorization?.replace("Bearer ", "")
+    }
+  });
+  return response.data.data.jwt;
 }

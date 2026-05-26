@@ -84,9 +84,7 @@ async function getAllSubThreadController(req, res, next) {
   const { slugName } = req.query;
 
   const org_id = req?.profile?.org_id || req?.profile?.org?.id;
-  const data = req?.chatBot?.ispublic
-    ? await configurationService.getAgentByUrlSlugname(slugName)
-    : await configurationService.getAgentIdBySlugname(org_id, slugName);
+  const data = await configurationService.getAgentIdBySlugname(org_id, slugName);
   const bridge_id = data?._id?.toString();
   const bridge_org_id = req?.chatBot?.ispublic ? data?.org_id : org_id;
   const threads = await getThreads(bridge_org_id, thread_id, bridge_id);

@@ -259,9 +259,10 @@ const getEmbedDataByUserId = async (req, res, next) => {
   try {
     const user_id = req.profile.user.id;
     const org_id = req.profile.org.id;
+    const folder_id = req?.Embed?.folder_id;
     const { agent_id } = req.query;
 
-    const data = await ConfigurationServices.getAgentsByUserId(org_id, user_id, agent_id);
+    const data = await ConfigurationServices.getAgentsByUserId(org_id, user_id, agent_id, folder_id);
 
     res.locals = {
       success: true,

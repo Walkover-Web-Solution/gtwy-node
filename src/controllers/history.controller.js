@@ -227,13 +227,17 @@ const getRecursiveAgentHistory = async (req, res, next) => {
 const getChatbotThreadHistory = async (req, res, next) => {
   const page = parseInt(req.query.pageNo) || 1;
   const pageSize = parseInt(req.query.limit) || 30;
-  const { thread_id, bridge_slugName } = req.params;
+  let { thread_id, bridge_slugName } = req.params;
   const { sub_thread_id = thread_id } = req.query;
   let org_id = req?.profile?.org?.id || req?.profile?.org_id;
 
-  const bridge = req.chatBot?.ispublic
-    ? await configurationService.getAgentByUrlSlugname(bridge_slugName)
-    : await configurationService.getAgentIdBySlugname(org_id, bridge_slugName);
+  if (req.chatBot?.ispublic && bridge_slugName?.includes("::")) {
+    const [orgIdFromSlug, actualSlugName] = bridge_slugName.split("::");
+    org_id = orgIdFromSlug;
+    bridge_slugName = actualSlugName;
+  }
+
+  const bridge = await configurationService.getAgentIdBySlugname(org_id, bridge_slugName);
 
   const bridge_id = bridge?._id?.toString();
   const starterQuestion = !bridge?.IsstarterQuestionEnable ? [] : bridge?.starterQuestion;

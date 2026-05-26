@@ -3,7 +3,7 @@ import Joi from "joi";
 const loginPublicUser = {
   body: Joi.object()
     .keys({
-      user_id: Joi.string().optional()
+      user_id: Joi.string().optional().allow(null)
     })
     .unknown(true)
 };

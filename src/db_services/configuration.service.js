@@ -4,13 +4,11 @@ import apiCallModel from "../mongoModel/ApiCall.model.js";
 import templateModel from "../mongoModel/Template.model.js";
 import ChatBotModel from "../mongoModel/ChatBot.model.js";
 import apikeyCredentialsModel from "../mongoModel/Api.model.js";
-import { deleteInCache } from "../cache_service/index.js";
 import models from "../../models/index.js";
 import jwt from "jsonwebtoken";
 import axios from "axios";
 import { ObjectId } from "mongodb";
 // import { getAgentData } from "../services/utils/getConfiguration.js";
-import agentVersionService from "./agentVersion.service.js";
 
 const cloneAgentToOrg = async (agent_id, to_shift_org_id, cloned_agents_map = null, depth = 0) => {
   try {
@@ -695,7 +693,7 @@ const getAgentIdBySlugname = async (orgId, slugName) => {
       slugName: slugName,
       org_id: orgId
     })
-    .select({ _id: 1, slugName: 1, starterQuestion: 1, IsstarterQuestionEnable: 1 })
+    .select({ _id: 1, slugName: 1, starterQuestion: 1, IsstarterQuestionEnable: 1, org_id: 1 })
     .lean();
 };
 const getAgentBySlugname = async (orgId, slugName, versionId) => {
@@ -741,32 +739,47 @@ const getAgentBySlugname = async (orgId, slugName, versionId) => {
   }
 };
 
-const getAgentsByUserId = async (orgId, userId, agent_id) => {
+const getAgentsByUserId = async (orgId, userId, agent_id, folder_id) => {
   try {
-    const query = { org_id: orgId };
+    const query = { org_id: String(orgId) };
     if (userId) {
       query.user_id = String(userId);
     }
     if (agent_id) {
-      query._id = agent_id;
+      query._id = new ObjectId(agent_id);
     }
-    const agents = await configurationModel.find(query, {
-      _id: 1,
-      name: 1,
-      service: 1,
-      "configuration.model": 1,
-      "configuration.prompt": 1,
-      "configuration.type": 1,
-      bridgeType: 1,
-      slugName: 1,
-      variables_state: 1,
-      meta: 1,
-      deletedAt: 1
-    });
+    if (folder_id) {
+      query.folder_id = folder_id;
+    }
+    const agents = await configurationModel.aggregate([
+      { $match: query },
+      {
+        $addFields: {
+          variables_state: { $ifNull: ["$agent_info.variables_state", {}] }
+        }
+      },
+      {
+        $project: {
+          _id: 1,
+          name: 1,
+          service: 1,
+          "configuration.model": 1,
+          "configuration.prompt": 1,
+          "configuration.type": 1,
+          bridgeType: 1,
+          slugName: 1,
+          variables_state: 1,
+          meta: 1,
+          deletedAt: 1,
+          createdAt: 1,
+          updatedAt: 1
+        }
+      }
+    ]);
+
     return agents.map((agent) => {
-      const agentData = agent._doc;
       const filtered = {};
-      for (const [key, value] of Object.entries(agentData)) {
+      for (const [key, value] of Object.entries(agent)) {
         if (value === null || value === undefined) {
           continue;
         }
@@ -870,31 +883,6 @@ const getAgentNameById = async (agent_id, org_id) => {
   }
 };
 
-const getAgentByUrlSlugname = async (url_slugName) => {
-  try {
-    const hello_id = await configurationModel
-      .findOne({
-        "page_config.url_slugname": url_slugName
-      })
-      .select({ _id: 1, name: 1, service: 1, org_id: 1 });
-
-    if (!hello_id) return false;
-
-    return {
-      _id: hello_id._id,
-      name: hello_id.name,
-      service: hello_id.service,
-      org_id: hello_id.org_id
-    };
-  } catch (error) {
-    console.log("error:", error);
-    return {
-      success: false,
-      error: "something went wrong!!"
-    };
-  }
-};
-
 const findIdsByModelAndService = async (model, service, org_id) => {
   // Query for models in configuration.model
   const primaryQuery = {
@@ -948,24 +936,28 @@ const findIdsByModelAndService = async (model, service, org_id) => {
 const getAllAgentsData = async (userEmail) => {
   const query = {
     $or: [
-      { "page_config.availability": "public" },
       {
-        "page_config.availability": "private",
-        "settings.publicUsers": userEmail
+        "settings.publicAgentConfig.availability": "public",
+        "settings.publicAgentConfig.isPublicAgent": true
+      },
+      {
+        "settings.publicAgentConfig.availability": "private",
+        "settings.publicAgentConfig.publicUsers": userEmail,
+        "settings.publicAgentConfig.isPublicAgent": false
       }
     ]
   };
-  return await configurationModel.find(query);
+  return await configurationModel.find(query).select({ name: 1, slugName: 1, org_id: 1, "settings.publicAgentConfig": 1 }).lean();
 };
 
-const getAgentsData = async (slugName, userEmail) => {
+const getAgentsData = async (slugName, userEmail, org_id) => {
   return await configurationModel.findOne({
     $or: [
       {
-        $and: [{ "page_config.availability": "public" }, { "page_config.url_slugname": slugName }]
+        $and: [{ "settings.availability": "public" }, { slugname: slugName }, { org_id: org_id }]
       },
       {
-        $and: [{ "page_config.availability": "private" }, { "page_config.url_slugname": slugName }, { "settings.publicUsers": userEmail }]
+        $and: [{ "settings.availability": "private" }, { slugname: slugName }, { "settings.publicUsers": userEmail }, { org_id: org_id }]
       }
     ]
   });
@@ -1074,35 +1066,6 @@ const updateAgents = async (version_id, agents, add = 1) => {
   return data;
 };
 
-const updateAgentIdsInApiCalls = async (function_id, agent_id, add = 1) => {
-  const to_update = {};
-  if (add === 1) {
-    to_update.$addToSet = { bridge_ids: agent_id };
-  } else {
-    to_update.$pull = { bridge_ids: agent_id };
-  }
-
-  const data = await apiCallModel.findOneAndUpdate({ _id: new ObjectId(function_id) }, to_update, {
-    new: true,
-    upsert: true
-  });
-
-  if (!data) {
-    return {
-      success: false,
-      error: "No records updated or agent not found"
-    };
-  }
-
-  const result = data.toObject ? data.toObject() : data;
-  result._id = result._id.toString();
-  if (result.bridge_ids) {
-    result.bridge_ids = result.bridge_ids.map((bid) => bid.toString());
-  }
-
-  return result;
-};
-
 const getApikeyCreds = async (org_id, apikey_object_ids) => {
   for (const [service, object_id] of Object.entries(apikey_object_ids)) {
     const apikey_cred = await apikeyCredentialsModel.findOne({ _id: new ObjectId(object_id), org_id: org_id }, { apikey: 1 });
@@ -1139,19 +1102,6 @@ const updateAgent = async (agent_id, update_fields, version_id = null) => {
   const model = version_id ? versionModel : configurationModel;
   const id_to_use = version_id ? version_id : agent_id;
   const result = await model.findOneAndUpdate({ _id: id_to_use }, { $set: update_fields }, { new: true });
-
-  const cacheKeysToDelete = agentVersionService._buildCacheKeys(
-    version_id,
-    agent_id || result.parent_id,
-    { bridges: [], versions: [] },
-    [],
-    result.org_id
-  );
-
-  if (cacheKeysToDelete.length > 0) {
-    await deleteInCache(cacheKeysToDelete);
-  }
-
   return { result };
 };
 
@@ -1232,7 +1182,7 @@ const getAgentsWithTools = async (agent_id, org_id, version_id = null) => {
 
     const result = await model.aggregate(pipeline);
 
-    if (!result || result.length === 0) {
+    if (!result) {
       throw new Error("No matching agent found");
     }
 
@@ -1289,12 +1239,10 @@ const getAllAgentsInOrg = async (org_id, folder_id, user_id, isEmbedUser) => {
       versions: 1,
       published_version_id: 1,
       total_tokens: 1,
-      variables_state: 1,
       agent_variables: 1,
       bridge_status: 1,
       connected_agents: 1,
       function_ids: 1,
-      connected_agent_details: 1,
       bridge_summary: 1,
       deletedAt: 1,
       bridge_limit: 1,
@@ -1306,9 +1254,9 @@ const getAllAgentsInOrg = async (org_id, folder_id, user_id, isEmbedUser) => {
       users: 1,
       createdAt: 1,
       updatedAt: 1,
-      prompt_total_tokens: 1,
-      prompt_enhancer_percentage: 1,
-      criteria_check: 1,
+      agent_info: 1,
+      "ai_updates.prompt_enhancer_percentage": 1,
+      "ai_updates.criteria_check": 1,
       settings: 1,
       meta: 1
     })
@@ -1452,7 +1400,6 @@ export default {
   removeActionInAgent,
   getAgents,
   getAgentNameById,
-  getAgentByUrlSlugname,
   findIdsByModelAndService,
   getAgentsByUserId,
   getAllAgentsData,
@@ -1463,7 +1410,6 @@ export default {
   updateAgent,
   updateBuiltInTools,
   updateAgents,
-  updateAgentIdsInApiCalls,
   getApikeyCreds,
   updateApikeyCreds,
   getAgentsAndVersionsByModel,

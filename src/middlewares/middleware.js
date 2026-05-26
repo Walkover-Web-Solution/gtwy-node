@@ -350,6 +350,95 @@ const loginAuth = async (req, res, next) => {
 };
 
 /**
+ * Combined middleware that handles both regular authorization tokens and embed tokens
+ * Tries to validate as embed token first, then falls back to regular auth
+ */
+const combinedAuthMiddleware = async (req, res, next) => {
+  try {
+    const token = req?.get("Authorization");
+    if (!token) {
+      return res.status(401).json({ message: "invalid token" });
+    }
+
+    const isBlacklisted = await findInCache(`blacklist:${token}`);
+    if (isBlacklisted) {
+      return res.status(401).json({ message: "token revoked" });
+    }
+
+    const decodedToken = jwt.decode(token);
+    if (!decodedToken) {
+      return res.status(401).json({ message: "invalid token" });
+    }
+
+    // Try embed token first if it has user_id, folder_id, org_id
+    if (decodedToken.user_id && decodedToken.folder_id && decodedToken.org_id) {
+      try {
+        if (req.headers.pauthkey || req.headers.pauthtoken) {
+          const res = await makeDataIfPauthKeyGiven(req);
+          if (res.org.id != decodedToken.org_id) {
+            return res.status(401).json({ message: "unauthorized user" });
+          }
+        } else {
+          return res.status(401).json({ message: "unauthorized user" });
+        }
+        const orgTokenFromDb = await getOrganizationById(decodedToken?.org_id);
+        const orgToken = orgTokenFromDb?.meta?.gtwyAccessToken;
+        if (orgToken) {
+          const checkToken = jwt.verify(token, orgToken);
+          if (checkToken) {
+            if (checkToken.user_id) checkToken.user_id = encryptString(checkToken.user_id);
+
+            const proxyUserData = await createOrGetUser(checkToken, decodedToken, orgTokenFromDb);
+            const { proxyResponse, name } = proxyUserData;
+
+            req.profile = {
+              user: {
+                id: proxyResponse.data.user.id,
+                name: name
+              },
+              org: {
+                id: proxyResponse.data.company.id,
+                name: orgTokenFromDb?.name
+              }
+            };
+            req.folder_id = decodedToken.folder_id || null;
+            req.IsEmbedUser = true;
+            return next();
+          }
+        }
+      } catch (embedError) {
+        console.log("Embed token verification failed, trying regular auth...", embedError?.message);
+        // Continue to regular auth
+      }
+    }
+
+    // Try regular authorization token
+    try {
+      req.profile = jwt.verify(token, process.env.SecretKey);
+      const userPermissions = req.profile?.user?.permissions || [];
+      const determinedRole = determineRoleFromPermissions(userPermissions, false);
+
+      if (!req.profile.user) {
+        req.profile.user = {};
+      }
+      req.profile.user.role_name = determinedRole;
+      req.profile.org.id = req.profile.org.id.toString();
+      req.user_id = req.profile?.user?.id ? req.profile.user.id.toString() : null;
+      req.role_name = req.profile?.user?.role_name || null;
+      req.org_id = req.profile.org.id;
+      req.ownerId = req.org_id;
+      return next();
+    } catch (authError) {
+      console.log("Regular auth token verification failed", authError?.message);
+      return res.status(401).json({ message: "unauthorized user" });
+    }
+  } catch (err) {
+    console.error("combinedAuthMiddleware error =>", err);
+    return res.status(401).json({ message: "unauthorized user" });
+  }
+};
+
+/**
  * Helper function to get access role for a specific bridge.
  *
  * Logic:
@@ -582,6 +671,7 @@ export {
   EmbeddecodeToken,
   InternalAuth,
   loginAuth,
+  combinedAuthMiddleware,
   checkAgentAccessMiddleware,
   getAgentAccessRole,
   requireAdminRole

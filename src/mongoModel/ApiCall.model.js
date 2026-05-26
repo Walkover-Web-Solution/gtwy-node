@@ -1,4 +1,6 @@
 import mongoose from "mongoose";
+import { cacheInvalidationPlugin } from "../cache_service/mongoosePlugin.js";
+import { tag_keys } from "../configs/tagKeys.js";
 
 const fieldValueSchema = new mongoose.Schema(
   {
@@ -6,8 +8,8 @@ const fieldValueSchema = new mongoose.Schema(
     type: { type: String, default: "string" },
     enum: { type: [String], default: () => [] },
     items: { type: mongoose.Schema.Types.Mixed, default: undefined },
-    required_params: { type: [String], default: () => [] },
-    parameter: { type: mongoose.Schema.Types.Mixed, default: () => ({}) }
+    required: { type: [String], default: () => [] },
+    properties: { type: mongoose.Schema.Types.Mixed, default: () => ({}) }
   },
   { _id: false }
 );
@@ -17,14 +19,6 @@ const apiCall = new mongoose.Schema(
     org_id: {
       type: String,
       required: true
-    },
-    bridge_ids: {
-      type: [String],
-      default: () => []
-    },
-    version_ids: {
-      type: [String],
-      default: () => []
     },
     script_id: {
       type: String,
@@ -40,7 +34,7 @@ const apiCall = new mongoose.Schema(
       of: fieldValueSchema,
       default: () => ({})
     },
-    required_params: {
+    required: {
       type: [String],
       default: () => []
     },
@@ -66,6 +60,7 @@ const apiCall = new mongoose.Schema(
   }
 );
 apiCall.index({ org_id: 1, script_id: 1 });
+apiCall.plugin(cacheInvalidationPlugin, { tags: [tag_keys.tool] });
 
 const apiCallModel = mongoose.model("apicall", apiCall);
 export default apiCallModel;
