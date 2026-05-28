@@ -86,8 +86,9 @@ const createTemplate = async (req, res, next) => {
 
   // Get function data for each function_id in the bridge
   const functionData = [];
-  if (bridge.function_ids && bridge.function_ids.length > 0) {
-    for (const functionId of bridge.function_ids) {
+  const bridgeFunctionIds = bridge.connected_tools?.function_ids || bridge.function_ids;
+  if (bridgeFunctionIds && bridgeFunctionIds.length > 0) {
+    for (const functionId of bridgeFunctionIds) {
       // Convert buffer to ObjectId if needed
       const id = functionId.buffer ? new ObjectId(Buffer.from(functionId.buffer)) : new ObjectId(functionId);
 
@@ -125,8 +126,9 @@ const createTemplate = async (req, res, next) => {
       let childBridge = childBridgeData.bridges;
 
       const childFunctionData = [];
-      if (childBridge.function_ids && childBridge.function_ids.length > 0) {
-        for (const functionId of childBridge.function_ids) {
+      const childBridgeFunctionIds = childBridge.connected_tools?.function_ids || childBridge.function_ids;
+      if (childBridgeFunctionIds && childBridgeFunctionIds.length > 0) {
+        for (const functionId of childBridgeFunctionIds) {
           const id = functionId.buffer ? new ObjectId(Buffer.from(functionId.buffer)) : new ObjectId(functionId);
           const functionDetails = await apiCallModel.findOne({ _id: id }, { function_name: 1 });
           if (functionDetails) childFunctionData.push(functionDetails);
@@ -138,9 +140,10 @@ const createTemplate = async (req, res, next) => {
         Object.entries(filterBridge(childBridge)?.bridge).filter(([k, v]) => v !== null && k !== "connected_agents")
       );
 
-      if (childBridge.connected_agents && Object.keys(childBridge.connected_agents).length > 0) {
+      const childBridgeConnectedAgents = childBridge.connected_tools?.connected_agents || childBridge.connected_agents;
+      if (childBridgeConnectedAgents && Object.keys(childBridgeConnectedAgents).length > 0) {
         const childAncestors = new Set([...ancestorIds, agentBridgeId]);
-        filteredBridge.child_agents = await buildConnectedAgents(childBridge.connected_agents, childAncestors);
+        filteredBridge.child_agents = await buildConnectedAgents(childBridgeConnectedAgents, childAncestors);
       }
 
       result[key] = {
@@ -153,8 +156,9 @@ const createTemplate = async (req, res, next) => {
     return result;
   };
 
-  if (bridge.connected_agents && Object.keys(bridge.connected_agents).length > 0) {
-    bridge.child_agents = await buildConnectedAgents(bridge.connected_agents, new Set([agent_id]));
+  const bridgeConnectedAgents = bridge.connected_tools?.connected_agents;
+  if (bridgeConnectedAgents && Object.keys(bridgeConnectedAgents).length > 0) {
+    bridge.child_agents = await buildConnectedAgents(bridgeConnectedAgents, new Set([agent_id]));
   }
   const user = "Validate the template";
   const email = req.profile?.user?.email;
@@ -249,7 +253,7 @@ const createAgentFromTemplateController = async (req, res, next) => {
     // --- Collect all unique function IDs and doc resource pairs across root + all children ---
     const collectAllResources = (content, allFunctionIds, allDocPairs) => {
       if (!content) return;
-      for (const fid of normalizeFunctionIds(content.function_ids)) allFunctionIds.add(fid);
+      for (const fid of normalizeFunctionIds(content.connected_tools?.function_ids || content.function_ids)) allFunctionIds.add(fid);
       if (Array.isArray(content.pre_tools)) {
         for (const tool of content.pre_tools) {
           if (tool.type === "custom_function" && tool.config?.function_id) {
@@ -257,8 +261,8 @@ const createAgentFromTemplateController = async (req, res, next) => {
           }
         }
       }
-      if (Array.isArray(content.doc_ids)) {
-        for (const doc of content.doc_ids) {
+      if (Array.isArray(content.connected_tools?.doc_ids || content.doc_ids)) {
+        for (const doc of content.connected_tools?.doc_ids || content.doc_ids) {
           if (doc.collection_id && doc.resource_id) {
             allDocPairs.set(`${doc.collection_id}:${doc.resource_id}`, doc);
           }
@@ -391,12 +395,12 @@ const createAgentFromTemplateController = async (req, res, next) => {
 
     // Apply to root agent — batch all updates into single DB calls
     const parent_updates = {};
-    const parent_function_ids_resolved = resolveFunctionIds(template_content?.function_ids);
-    if (parent_function_ids_resolved) parent_updates.function_ids = parent_function_ids_resolved;
+    const parent_function_ids_resolved = resolveFunctionIds(template_content?.connected_tools?.function_ids || template_content?.function_ids);
+    if (parent_function_ids_resolved) parent_updates["connected_tools.function_ids"] = parent_function_ids_resolved;
     const parent_pre_tools = resolvePreTools(template_content?.pre_tools);
     if (parent_pre_tools) parent_updates.pre_tools = parent_pre_tools;
-    const parent_doc_ids = resolveDocIds(template_content?.doc_ids);
-    if (parent_doc_ids) parent_updates.doc_ids = parent_doc_ids;
+    const parent_doc_ids = resolveDocIds(template_content?.connected_tools?.doc_ids || template_content?.doc_ids);
+    if (parent_doc_ids) parent_updates["connected_tools.doc_ids"] = parent_doc_ids;
     const parent_api_calls = resolveApiCalls(template_content?.apiCalls);
     if (parent_api_calls) parent_updates.apiCalls = parent_api_calls;
     const parent_tool_choice = resolveToolChoice(model_data.tool_choice);
@@ -484,8 +488,8 @@ const createAgentFromTemplateController = async (req, res, next) => {
 
         // Batch all child agent updates into single DB calls
         const child_updates = {};
-        const child_function_ids_resolved = resolveFunctionIds(child_details.function_ids);
-        if (child_function_ids_resolved) child_updates.function_ids = child_function_ids_resolved;
+        const child_function_ids_resolved = resolveFunctionIds(child_details.connected_tools?.function_ids || child_details.function_ids);
+        if (child_function_ids_resolved) child_updates["connected_tools.function_ids"] = child_function_ids_resolved;
         const child_pre_tools = resolvePreTools(child_details.pre_tools);
         if (child_pre_tools) child_updates.pre_tools = child_pre_tools;
         if (child_details.agent_info && Object.keys(child_details.agent_info).length > 0) {
@@ -494,8 +498,8 @@ const createAgentFromTemplateController = async (req, res, next) => {
             ...child_details.agent_info
           };
         }
-        const child_doc_ids = resolveDocIds(child_details.doc_ids);
-        if (child_doc_ids) child_updates.doc_ids = child_doc_ids;
+        const child_doc_ids = resolveDocIds(child_details.connected_tools?.doc_ids || child_details.doc_ids);
+        if (child_doc_ids) child_updates["connected_tools.doc_ids"] = child_doc_ids;
         const child_api_calls = resolveApiCalls(child_details.apiCalls);
         if (child_api_calls) child_updates.apiCalls = child_api_calls;
         const child_tool_choice = resolveToolChoice(child_model_data.tool_choice);
@@ -524,8 +528,8 @@ const createAgentFromTemplateController = async (req, res, next) => {
       }
 
       if (Object.keys(connected_agents).length > 0) {
-        await ConfigurationServices.updateAgent(parent_bridge_id, { connected_agents });
-        await ConfigurationServices.updateAgent(null, { connected_agents }, parent_version_id);
+        await ConfigurationServices.updateAgent(parent_bridge_id, { "connected_tools.connected_agents": connected_agents });
+        await ConfigurationServices.updateAgent(null, { "connected_tools.connected_agents": connected_agents }, parent_version_id);
       }
     };
 

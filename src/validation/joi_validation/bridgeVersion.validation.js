@@ -86,6 +86,28 @@ const updateVersionSchema = Joi.object({
   }).optional(),
   variables_path: Joi.object().optional(),
   variables_state: Joi.object().optional(),
+  connected_tools: Joi.object({
+    tools: Joi.object().optional(),
+    function_ids: Joi.array()
+      .items(Joi.string().pattern(/^[0-9a-fA-F]{24}$/))
+      .optional(),
+    connected_agents: Joi.object()
+      .pattern(
+        Joi.string(),
+        Joi.object({
+          bridge_id: Joi.string()
+            .pattern(/^[0-9a-fA-F]{24}$/)
+            .optional()
+        })
+      )
+      .optional(),
+    agent_status: Joi.string().valid("0", "1").optional(),
+    built_in_tools: Joi.array().items(Joi.string()).optional(),
+    doc_ids: Joi.array().items(Joi.string()).optional(),
+    variables_path: Joi.object().optional(),
+    web_search_filters: Joi.alternatives().try(Joi.array().items(Joi.string()), Joi.object()).optional(),
+    gtwy_web_search_filters: Joi.alternatives().try(Joi.array().items(Joi.string()), Joi.object()).optional()
+  }).optional(),
   built_in_tools_data: Joi.object({
     built_in_tools: Joi.string().optional(),
     built_in_tools_operation: Joi.string().valid("0", "1").optional()

@@ -9,6 +9,7 @@ import { getDefaultValuesController } from "../services/utils/getDefaultValue.js
 import { purgeRelatedBridgeCaches } from "../services/utils/redis.utils.js";
 import { validateJsonSchemaConfiguration } from "../services/utils/common.utils.js";
 import { convertPromptToString } from "../utils/promptWrapper.utils.js";
+import { normalizeConnectedTools } from "../utils/agentConfig.utils.js";
 
 const { storeSystemPrompt, addBulkUserEntries } = conversationDbService;
 
@@ -139,6 +140,117 @@ const updateVersionController = async (req, res, next) => {
       }
     }
 
+    const current_connected_tools = normalizeConnectedTools(versionData.connected_tools || {});
+
+    const has_connected_tools_payload = body.connected_tools && typeof body.connected_tools === "object";
+    if (has_connected_tools_payload || body.gtwy_web_search_filters !== undefined) {
+      const incoming_connected_tools = {
+        ...(has_connected_tools_payload ? body.connected_tools : {})
+      };
+
+      if (body.gtwy_web_search_filters !== undefined) {
+        incoming_connected_tools.gtwy_web_search_filters = body.gtwy_web_search_filters;
+      }
+
+      const normalized_incoming = normalizeConnectedTools(incoming_connected_tools);
+      
+      const merged_tools = {
+        ...(current_connected_tools.tools || {}),
+        ...(normalized_incoming.tools || {})
+      };
+
+      const target_id = version_id;
+
+      if (incoming_connected_tools.function_ids !== undefined) {
+        const previous_ids = (current_connected_tools.function_ids || []).map((id) => id.toString());
+        const next_ids = (incoming_connected_tools.function_ids || []).map((id) => id.toString());
+        const added_ids = next_ids.filter((id) => !previous_ids.includes(id));
+        const removed_ids = previous_ids.filter((id) => !next_ids.includes(id));
+
+        for (const function_id of added_ids) {
+          await ConfigurationServices.updateAgentIdsInApiCalls(function_id, target_id, 1);
+        }
+        for (const function_id of removed_ids) {
+          await ConfigurationServices.updateAgentIdsInApiCalls(function_id, target_id, 0);
+        }
+
+        // Remove old functions from tools
+        for (const [key, tool] of Object.entries(merged_tools)) {
+          if (tool && tool.type === "function" && !next_ids.includes(key)) {
+            delete merged_tools[key];
+          }
+        }
+        // Add new functions to tools
+        for (const fid of next_ids) {
+          if (!merged_tools[fid]) {
+            merged_tools[fid] = { type: "function", variable_path: {} };
+          }
+        }
+      }
+
+      if (incoming_connected_tools.connected_agents) {
+        const { connected_agents, agent_status } = incoming_connected_tools;
+        const op = agent_status === "1" ? 1 : 0;
+
+        if (op === 0) {
+          for (const agent_info of Object.values(connected_agents)) {
+            const key = agent_info.bridge_id?.toString() ?? agent_info.bridge_id;
+            if (key) {
+              delete merged_tools[key];
+            }
+          }
+        } else {
+          for (const agent_info of Object.values(connected_agents)) {
+            const key = agent_info.bridge_id?.toString() ?? agent_info.bridge_id;
+            if (key) {
+              merged_tools[key] = {
+                type: "agent",
+                bridge_id: key,
+                version_id: agent_info.version_id,
+                thread_id: agent_info.thread_id !== undefined ? agent_info.thread_id : true,
+                variable_path: agent_info.variable_path || {}
+              };
+            }
+          }
+        }
+
+        await ConfigurationServices.updateAgents(target_id, connected_agents, op);
+      }
+
+      if (incoming_connected_tools.functionData) {
+        const { function_id, function_operation, script_id } = incoming_connected_tools.functionData;
+        if (function_id) {
+          const op = function_operation === "1" ? 1 : 0;
+
+          if (op === 1) {
+            if (!merged_tools[function_id]) {
+              merged_tools[function_id] = { type: "function", variable_path: {} };
+              await ConfigurationServices.updateAgentIdsInApiCalls(function_id, target_id, 1);
+            }
+          } else {
+            delete merged_tools[function_id];
+            await ConfigurationServices.updateAgentIdsInApiCalls(function_id, target_id, 0);
+          }
+        }
+      }
+
+      if (incoming_connected_tools.variables_path) {
+        for (const [key, path] of Object.entries(incoming_connected_tools.variables_path)) {
+          if (merged_tools[key]) {
+            merged_tools[key].variable_path = path;
+          }
+        }
+      }
+
+      const final_connected_tools = normalizeConnectedTools({
+        ...current_connected_tools,
+        ...incoming_connected_tools,
+        tools: merged_tools
+      });
+
+      update_fields.connected_tools = final_connected_tools;
+    }
+
     if (body.settings !== undefined) {
       const current_settings = version.settings || {};
       update_fields.settings = { ...current_settings, ...body.settings };
@@ -175,6 +287,22 @@ const updateVersionController = async (req, res, next) => {
       }
       update_fields.variables_path = updated_variables_path;
       current_variables_path = updated_variables_path;
+
+      // Sync variables_path to connected_tools.tools
+      const tools = update_fields.connected_tools?.tools || current_connected_tools.tools || {};
+      let tools_modified = false;
+      for (const [key, path] of Object.entries(updated_variables_path)) {
+        if (tools[key]) {
+          tools[key].variable_path = path;
+          tools_modified = true;
+        }
+      }
+      if (tools_modified) {
+        update_fields.connected_tools = normalizeConnectedTools({
+          ...(update_fields.connected_tools || current_connected_tools),
+          tools
+        });
+      }
     }
 
     if (body.built_in_tools_data) {
@@ -202,20 +330,64 @@ const updateVersionController = async (req, res, next) => {
       }
     }
 
+    if (body.doc_ids !== undefined) {
+      const tools = update_fields.connected_tools?.tools || current_connected_tools.tools || {};
+      // Remove old doc tools
+      for (const [key, tool] of Object.entries(tools)) {
+        if (tool && tool.type === "knowledgebase" && !body.doc_ids.includes(key)) {
+          delete tools[key];
+        }
+      }
+      // Add new ones
+      for (const docId of body.doc_ids) {
+        if (!tools[docId]) {
+          tools[docId] = { type: "knowledgebase", variable_path: {} };
+        }
+      }
+      update_fields.connected_tools = normalizeConnectedTools({
+        ...(update_fields.connected_tools || current_connected_tools),
+        tools
+      });
+    }
+
     if (Array.isArray(body.function_ids)) {
       update_fields.function_ids = body.function_ids.filter((id) => ObjectId.isValid(id)).map((id) => new ObjectId(id));
       function_ids = [...body.function_ids];
+
+      // Sync function_ids to connected_tools.tools
+      const tools = update_fields.connected_tools?.tools || current_connected_tools.tools || {};
+      const fidsStr = function_ids.map(id => id.toString());
+      // Remove old function tools
+      for (const [key, tool] of Object.entries(tools)) {
+        if (tool && tool.type === "function" && !fidsStr.includes(key)) {
+          delete tools[key];
+        }
+      }
+      // Add new ones
+      for (const fid of fidsStr) {
+        if (!tools[fid]) {
+          tools[fid] = { type: "function", variable_path: {} };
+        }
+      }
+      update_fields.connected_tools = normalizeConnectedTools({
+        ...(update_fields.connected_tools || current_connected_tools),
+        tools
+      });
     }
 
     if (body.functionData) {
       const { function_id, function_operation, script_id } = body.functionData;
       if (function_id) {
         const op = function_operation === "1" ? 1 : 0;
+        const tools = update_fields.connected_tools?.tools || current_connected_tools.tools || {};
 
         if (op === 1) {
           if (!function_ids.includes(function_id)) {
             function_ids.push(function_id);
             update_fields.function_ids = function_ids.map((fid) => new ObjectId(fid));
+          }
+          if (!tools[function_id]) {
+            tools[function_id] = { type: "function", variable_path: {} };
           }
         } else {
           if (script_id && current_variables_path[script_id]) {
@@ -226,7 +398,13 @@ const updateVersionController = async (req, res, next) => {
             function_ids = function_ids.filter((fid) => fid.toString() !== function_id);
             update_fields.function_ids = function_ids.map((fid) => new ObjectId(fid));
           }
+          delete tools[function_id];
         }
+
+        update_fields.connected_tools = normalizeConnectedTools({
+          ...(update_fields.connected_tools || current_connected_tools),
+          tools
+        });
       }
     }
 

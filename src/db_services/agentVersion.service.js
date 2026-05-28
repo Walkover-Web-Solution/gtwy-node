@@ -12,12 +12,14 @@ import { redis_keys, bridge_ids, AI_OPERATION_CONFIG } from "../configs/constant
 import { getReqOptVariablesInPrompt, transformAgentVariableToToolCallFormat } from "../utils/agentVariables.js";
 import { convertPromptToString } from "../utils/promptWrapper.utils.js";
 import { executeAiOperation } from "../services/utils/utility.service.js";
+import { normalizeConnectedTools } from "../utils/agentConfig.utils.js";
 const ObjectId = mongoose.Types.ObjectId;
 
 async function getVersion(version_id) {
   try {
     const version = await bridgeVersionModel.findById(version_id).lean();
     if (!version) return null;
+    version.connected_tools = normalizeConnectedTools(version.connected_tools);
     version._id = version._id.toString();
     if (version.parent_id) version.parent_id = version.parent_id.toString();
     return version;
@@ -77,9 +79,32 @@ async function getVersionWithTools(version_id) {
     const pipeline = [
       { $match: { _id: new ObjectId(version_id) } },
       {
+        $addFields: {
+          function_ids_for_lookup: {
+            $cond: {
+              if: { $gt: [{ $size: { $objectToArray: { $ifNull: ["$connected_tools.tools", {}] } } }, 0] },
+              then: {
+                $map: {
+                  input: {
+                    $filter: {
+                      input: { $objectToArray: "$connected_tools.tools" },
+                      as: "tool",
+                      cond: { $eq: ["$$tool.v.type", "function"] }
+                    }
+                  },
+                  as: "tool",
+                  in: { $toObjectId: "$$tool.k" }
+                }
+              },
+              else: { $ifNull: ["$connected_tools.function_ids", "$function_ids"] }
+            }
+          }
+        }
+      },
+      {
         $lookup: {
           from: "apicalls",
-          localField: "function_ids",
+          localField: "function_ids_for_lookup",
           foreignField: "_id",
           as: "apiCalls"
         }
@@ -89,7 +114,7 @@ async function getVersionWithTools(version_id) {
           _id: { $toString: "$_id" },
           function_ids: {
             $map: {
-              input: "$function_ids",
+              input: "$function_ids_for_lookup",
               as: "fid",
               in: { $toString: "$$fid" }
             }
@@ -127,6 +152,7 @@ async function getVersionWithTools(version_id) {
     const result = await bridgeVersionModel.aggregate(pipeline);
     if (!result || result.length === 0) return null;
 
+    result[0].connected_tools = normalizeConnectedTools(result[0].connected_tools);
     return { success: true, bridges: result[0] };
   } catch (error) {
     console.error("Error fetching version with tools:", error);
@@ -156,43 +182,73 @@ async function _cleanupConnectedAgents(version_id, org_id) {
   const affectedIds = { versions: new Set(), bridges: new Set() };
 
   // Cleanup agents
-  const agents = await configurationModel.find({ org_id, connected_agents: { $exists: true } });
+  const agents = await configurationModel.find({
+    org_id,
+    $or: [
+      { "connected_tools.connected_agents": { $exists: true } },
+      { "connected_tools.tools": { $exists: true } }
+    ]
+  });
   for (const agent of agents) {
-    const connectedAgents = agent.connected_agents || {};
     let modified = false;
-    const newAgents = {};
-
-    for (const [key, info] of Object.entries(connectedAgents)) {
-      if (info.version_id !== version_id) {
-        newAgents[key] = info;
-      } else {
+    const connectedTools = normalizeConnectedTools(agent.connected_tools || {});
+    const tools = connectedTools.tools || {};
+    
+    for (const [key, tool] of Object.entries(tools)) {
+      if (tool && tool.type === "agent" && tool.version_id === version_id) {
+        delete tools[key];
         modified = true;
       }
     }
 
     if (modified) {
-      await configurationModel.updateOne({ _id: agent._id }, { $set: { connected_agents: newAgents } });
+      const updated = normalizeConnectedTools({ ...connectedTools, tools });
+      await configurationModel.updateOne(
+        { _id: agent._id },
+        { 
+          $set: { 
+            "connected_tools.tools": updated.tools,
+            "connected_tools.connected_agents": updated.connected_agents,
+            "connected_tools.variables_path": updated.variables_path
+          } 
+        }
+      );
       affectedIds.bridges.add(agent._id.toString());
     }
   }
 
   // Cleanup versions
-  const versions = await bridgeVersionModel.find({ org_id, connected_agents: { $exists: true } });
+  const versions = await bridgeVersionModel.find({
+    org_id,
+    $or: [
+      { "connected_tools.connected_agents": { $exists: true } },
+      { "connected_tools.tools": { $exists: true } }
+    ]
+  });
   for (const version of versions) {
-    const connectedAgents = version.connected_agents || {};
     let modified = false;
-    const newAgents = {};
+    const connectedTools = normalizeConnectedTools(version.connected_tools || {});
+    const tools = connectedTools.tools || {};
 
-    for (const [key, info] of Object.entries(connectedAgents)) {
-      if (info.version_id !== version_id) {
-        newAgents[key] = info;
-      } else {
+    for (const [key, tool] of Object.entries(tools)) {
+      if (tool && tool.type === "agent" && tool.version_id === version_id) {
+        delete tools[key];
         modified = true;
       }
     }
 
     if (modified) {
-      await bridgeVersionModel.updateOne({ _id: version._id }, { $set: { connected_agents: newAgents } });
+      const updated = normalizeConnectedTools({ ...connectedTools, tools });
+      await bridgeVersionModel.updateOne(
+        { _id: version._id },
+        { 
+          $set: { 
+            "connected_tools.tools": updated.tools,
+            "connected_tools.connected_agents": updated.connected_agents,
+            "connected_tools.variables_path": updated.variables_path
+          } 
+        }
+      );
       affectedIds.versions.add(version._id.toString());
     }
   }
@@ -229,7 +285,7 @@ async function _cleanupTestcaseHistory(version_id) {
 
 function _collectRagCacheKeys(version_doc) {
   const cacheKeys = new Set();
-  const docIds = version_doc.doc_ids || [];
+  const docIds = version_doc.connected_tools?.doc_ids || version_doc.doc_ids || [];
   docIds.forEach((docId) => {
     if (typeof docId === "string") {
       cacheKeys.add(`${redis_keys["files_"]}${docId}`);
@@ -407,7 +463,7 @@ async function publish(org_id, version_id, user_id, generate_summary = false) {
   // Extract agent variables logic
   const prompt = convertPromptToString(getVersionData.configuration?.prompt || "");
   const variableState = getVersionData.agent_info?.variables_state || {};
-  const variablePath = getVersionData.variables_path || {};
+  const variablePath = getVersionData.connected_tools?.variables_path || getVersionData.variables_path || {};
 
   if (Array.isArray(getVersionData.pre_tools)) {
     getVersionData.pre_tools.forEach((tool) => {
@@ -434,8 +490,11 @@ async function publish(org_id, version_id, user_id, generate_summary = false) {
     updatedConfiguration.settings.publicAgentConfig = publicAgentConfig;
   }
 
-  if (updatedConfiguration.function_ids) {
-    updatedConfiguration.function_ids = updatedConfiguration.function_ids.map((fid) => new ObjectId(fid));
+  if (updatedConfiguration.connected_tools) {
+    updatedConfiguration.connected_tools = normalizeConnectedTools(updatedConfiguration.connected_tools);
+    if (updatedConfiguration.connected_tools.function_ids) {
+      updatedConfiguration.connected_tools.function_ids = updatedConfiguration.connected_tools.function_ids.map((fid) => new ObjectId(fid));
+    }
   }
 
   // Update agent_info with agent_variables (flattened structure)
@@ -677,7 +736,7 @@ async function getAllConnectedAgents(id, org_id, type) {
     }
 
     // Process children
-    const connectedAgents = doc.connected_agents || {};
+    const connectedAgents = doc.connected_tools?.connected_agents || doc.connected_agents || {};
 
     for (const [, info] of Object.entries(connectedAgents)) {
       if (!info) {
