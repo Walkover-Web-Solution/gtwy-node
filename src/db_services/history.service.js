@@ -91,7 +91,7 @@ async function findBatchConversationLogsCountByAgentId(org_id, bridge_id) {
   }
 }
 
-async function findConversationLogsByIds(org_id, bridge_id, thread_id, sub_thread_id, page = 1, limit = 30, version_id = null) {
+async function findConversationLogsByIds(org_id, bridge_id, thread_id, sub_thread_id, page = 1, limit = 30, version_id = null, testcase_id = null) {
   try {
     const offset = (page - 1) * limit;
 
@@ -105,6 +105,10 @@ async function findConversationLogsByIds(org_id, bridge_id, thread_id, sub_threa
 
     if (version_id) {
       whereConditions.version_id = version_id;
+    }
+
+    if (testcase_id) {
+      whereConditions.testcase_id = testcase_id;
     }
 
     // Get paginated data
@@ -145,7 +149,17 @@ async function findConversationLogsByIds(org_id, bridge_id, thread_id, sub_threa
  * @param {number} limit - Items per page (default: 30)
  * @returns {Object} - Success status and data
  */
-async function findRecentThreadsByBridgeId(org_id, bridge_id, filters, user_feedback, error, page = 1, limit = 30, version_id = null) {
+async function findRecentThreadsByBridgeId(
+  org_id,
+  bridge_id,
+  filters,
+  user_feedback,
+  error,
+  page = 1,
+  limit = 30,
+  version_id = null,
+  testcase_id = null
+) {
   try {
     const offset = (page - 1) * limit;
 
@@ -165,6 +179,10 @@ async function findRecentThreadsByBridgeId(org_id, bridge_id, filters, user_feed
 
     if (version_id) {
       whereConditions.version_id = version_id;
+    }
+
+    if (testcase_id) {
+      whereConditions.testcase_id = testcase_id;
     }
 
     // Add time range filter

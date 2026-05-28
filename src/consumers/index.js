@@ -47,18 +47,22 @@ class Consumer {
   }
 
   start() {
-    this.channel.consume(
-      this.queueName,
-      async (message) => {
-        if (!message) return this.setup(); // message is null means the queue is closed or deleted.
-        try {
-          await this.processor(message, this.channel);
-        } catch (error) {
-          logger.error(`${this.queueName} Error in consuming`, error);
-        }
-      },
-      { noAck: false }
-    );
+    this.channel
+      .consume(
+        this.queueName,
+        async (message) => {
+          if (!message) return this.setup(); // message is null means the queue is closed or deleted.
+          try {
+            await this.processor(message, this.channel);
+          } catch (error) {
+            logger.error(`${this.queueName} Error in consuming`, error);
+          }
+        },
+        { noAck: false }
+      )
+      .catch((error) => {
+        logger.error(`${this.queueName} Failed to start consumer:`, error);
+      });
 
     this.channel.on("error", async (error) => {
       logger.error(`${this.queueName} RabbitMQ connection error:`, error);

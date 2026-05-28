@@ -43,7 +43,9 @@ async function saveConversationHistory(historyEntries) {
       finish_reason: data.finish_reason ?? null,
       parent_id: data.parent_id ?? null,
       child_id: data.child_id ?? null,
-      plans: data.plans ?? null
+      plans: data.plans ?? null,
+      testcase_id: data.testcase_id ?? null,
+      testcase_data: data.testcase_data ?? null
     });
   } catch (err) {
     logger.error(`Error saving conversation log (message_id=${data.message_id}): ${err.message}`);
@@ -192,7 +194,9 @@ const UPDATABLE_COLS = new Set([
   "firstAttemptError",
   "finish_reason",
   "plans",
-  "prompt"
+  "prompt",
+  "testcase_id",
+  "testcase_data"
 ]);
 
 async function updateConversationHistory(updateData) {
