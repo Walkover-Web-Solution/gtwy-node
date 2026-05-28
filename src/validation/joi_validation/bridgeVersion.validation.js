@@ -101,7 +101,8 @@ const updateVersionSchema = Joi.object({
           thread_id: Joi.boolean().optional(),
           version_id: Joi.string()
             .pattern(/^[0-9a-fA-F]{24}$/)
-            .optional()
+            .optional(),
+          environment: Joi.string().optional()
         })
       )
       .optional(),
