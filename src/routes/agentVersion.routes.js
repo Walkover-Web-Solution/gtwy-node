@@ -8,82 +8,39 @@ import { transformAgentAdvanceParametersMiddleware, transformToFrontendFormatMid
 const router = express.Router();
 
 //create Version
-router.post(
-  "/",
-  middleware,
-  requireAdminRole,
-  validate(bridgeVersionValidation.createVersion),
-  transformAgentAdvanceParametersMiddleware,
-  agentVersionController.createVersion,
-  transformToFrontendFormatMiddleware
-);
+// prettier-ignore
+router.post("/", middleware, requireAdminRole, validate(bridgeVersionValidation.createVersion), transformAgentAdvanceParametersMiddleware, agentVersionController.createVersion, transformToFrontendFormatMiddleware);
 
 //bulk publish
-router.post(
-  "/bulk_publish",
-  middleware,
-  requireAdminRole,
-  validate(bridgeVersionValidation.bulkPublishVersion),
-  agentVersionController.bulkPublishVersion
-);
+// prettier-ignore
+router.post("/bulk_publish", middleware, requireAdminRole, validate(bridgeVersionValidation.bulkPublishVersion), agentVersionController.bulkPublishVersion);
 
 //get Version
-router.get(
-  "/:version_id",
-  middleware,
-  validate(bridgeVersionValidation.getVersion),
-  agentVersionController.getVersion,
-  transformToFrontendFormatMiddleware
-);
+// prettier-ignore
+router.get("/:version_id", middleware, validate(bridgeVersionValidation.getVersion), agentVersionController.getVersion, transformToFrontendFormatMiddleware);
 
 //publish Version
-router.post(
-  "/publish/:version_id",
-  middleware,
-  requireAdminRole,
-  validate(bridgeVersionValidation.publishVersion),
-  agentVersionController.publishVersion
-);
+// prettier-ignore
+router.post("/publish/:version_id", middleware, requireAdminRole, validate(bridgeVersionValidation.publishVersion), agentVersionController.publishVersion);
 
 //delete Version
+// prettier-ignore
 router.delete("/:version_id", middleware, requireAdminRole, validate(bridgeVersionValidation.removeVersion), agentVersionController.removeVersion);
 
 //discard Version
-router.post(
-  "/discard/:version_id",
-  middleware,
-  requireAdminRole,
-  validate(bridgeVersionValidation.discardVersion),
-  agentVersionController.discardVersion
-);
+// prettier-ignore
+router.post("/discard/:version_id", middleware, requireAdminRole, validate(bridgeVersionValidation.discardVersion), agentVersionController.discardVersion);
 
 //suggest Model
-router.get(
-  "/suggest-model/:version_id",
-  middleware,
-  validate(bridgeVersionValidation.suggestModel),
-  agentVersionController.suggestModel,
-  transformToFrontendFormatMiddleware
-);
+// prettier-ignore
+router.get("/suggest-model/:version_id", middleware, validate(bridgeVersionValidation.suggestModel), agentVersionController.suggestModel, transformToFrontendFormatMiddleware);
 
 //get Connected Agents
-router.get(
-  "/connected-agents/:version_id",
-  middleware,
-  validate(bridgeVersionValidation.getConnectedAgents),
-  agentVersionController.getConnectedAgents,
-  transformToFrontendFormatMiddleware
-);
+// prettier-ignore
+router.get("/connected-agents/:version_id", middleware, validate(bridgeVersionValidation.getConnectedAgents), agentVersionController.getConnectedAgents, transformToFrontendFormatMiddleware);
 
 //update Version
-router.put(
-  "/:version_id",
-  middleware,
-  requireAdminRole,
-  transformAgentAdvanceParametersMiddleware,
-  validate(bridgeVersionValidation.updateVersion),
-  agentVersionController.updateVersionController,
-  transformToFrontendFormatMiddleware
-);
+// prettier-ignore
+router.put("/:version_id", middleware, requireAdminRole, transformAgentAdvanceParametersMiddleware, validate(bridgeVersionValidation.updateVersion), agentVersionController.updateVersionController, transformToFrontendFormatMiddleware);
 
 export default router;
