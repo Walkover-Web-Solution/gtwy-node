@@ -1,7 +1,13 @@
 import { callAiMiddleware } from "../utils/aiCall.utils.js";
 import { bridge_ids } from "../../configs/constant.js";
 import prebuiltPromptDbService from "../../db_services/prebuiltPrompt.service.js";
+import { deleteInCache } from "../../cache_service/index.js";
 import logger from "../../logger.js";
+
+const buildMemoryId = (threadId, subThreadId, bridgeId, versionId) => {
+  const versionOrBridge = (versionId || bridgeId || "").trim();
+  return `${(threadId || "").trim()}_${(subThreadId || "").trim()}_${versionOrBridge}`;
+};
 
 function normalizeContent(value) {
   if (value && typeof value === "object") return JSON.stringify(value);
@@ -21,7 +27,20 @@ function buildConversation(pendingTurns, user, assistant) {
   ];
 }
 
-async function handleGptMemory({ id, user, assistant, purpose, gpt_memory_context, org_id, pending_turns, bridge_summary }) {
+async function handleGptMemory({
+  id,
+  user,
+  assistant,
+  purpose,
+  gpt_memory_context,
+  org_id,
+  pending_turns,
+  bridge_summary,
+  thread_id,
+  sub_thread_id,
+  bridge_id,
+  version_id
+}) {
   try {
     const memoryVar = purpose && typeof purpose === "object" ? JSON.stringify(purpose) : purpose;
     const variables = {
@@ -42,12 +61,18 @@ async function handleGptMemory({ id, user, assistant, purpose, gpt_memory_contex
 
     const bridgeContext = bridge_summary ? `Context about the main agent you are storing memory for:\n${bridge_summary}\n\n` : "";
     const memoryContext = gpt_memory_context ? `\n\nMemory storage instructions: ${gpt_memory_context}` : "";
-    const message = `${bridgeContext}use the function to store the memory if the user message and history is related to the context or is important to store else don't call the function and ignore it. is purpose is not there than think its the begining of the conversation. Only return the exact memory as output no an extra text jusy memory if present or Just return False${memoryContext}`;
+    const message = `${bridgeContext}\n\n${memoryContext}`;
 
     const response = await callAiMiddleware(message, bridge_ids.gpt_memory, variables, configuration, "text");
 
     if (response === "True") {
-      logger.info(`handleGptMemory: memory updated via tool for ${id}`);
+      const memoryId = buildMemoryId(thread_id, sub_thread_id, bridge_id, version_id);
+      try {
+        await deleteInCache(memoryId);
+        logger.info(`handleGptMemory: memory updated via tool for ${id}, cleared cache ${memoryId}`);
+      } catch (cacheErr) {
+        logger.error(`handleGptMemory: failed to clear cache ${memoryId}: ${cacheErr.message}`);
+      }
     } else if (response === "False") {
       logger.info(`handleGptMemory: no update needed for ${id}`);
     } else {
