@@ -251,22 +251,22 @@ function _mergeImpactedIds(...impacts) {
 function _buildCacheKeys(version_id, parent_id, impacted_ids, extra_keys, org_id) {
   const cacheKeys = new Set([
     `${redis_keys.get_bridge_data_}${org_id}_${version_id}`,
-    `${redis_keys.bridge_data_with_tools_}${org_id}_${version_id}`
+    `${redis_keys.bridge_data_with_tools_}${org_id}_version_${version_id}`
   ]);
 
   if (parent_id) {
     cacheKeys.add(`${redis_keys.get_bridge_data_}${org_id}_${parent_id}`);
-    cacheKeys.add(`${redis_keys.bridge_data_with_tools_}${org_id}_${parent_id}`);
+    cacheKeys.add(`${redis_keys.bridge_data_with_tools_}${org_id}_bridge_${parent_id}`);
   }
 
   impacted_ids.bridges.forEach((id) => {
     cacheKeys.add(`${redis_keys.get_bridge_data_}${org_id}_${id}`);
-    cacheKeys.add(`${redis_keys.bridge_data_with_tools_}${org_id}_${id}`);
+    cacheKeys.add(`${redis_keys.bridge_data_with_tools_}${org_id}_bridge_${id}`);
   });
 
   impacted_ids.versions.forEach((id) => {
     cacheKeys.add(`${redis_keys.get_bridge_data_}${org_id}_${id}`);
-    cacheKeys.add(`${redis_keys.bridge_data_with_tools_}${org_id}_${id}`);
+    cacheKeys.add(`${redis_keys.bridge_data_with_tools_}${org_id}_version_${id}`);
   });
 
   extra_keys.forEach((key) => cacheKeys.add(key));
