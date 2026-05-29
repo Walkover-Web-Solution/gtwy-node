@@ -1,13 +1,8 @@
 import { callAiMiddleware } from "../utils/aiCall.utils.js";
 import { bridge_ids } from "../../configs/constant.js";
 import prebuiltPromptDbService from "../../db_services/prebuiltPrompt.service.js";
-import { deleteInCache } from "../../cache_service/index.js";
+import { refreshGptMemoryCache } from "../utils/gptMemory.service.js";
 import logger from "../../logger.js";
-
-const buildMemoryId = (threadId, subThreadId, bridgeId, versionId) => {
-  const versionOrBridge = (versionId || bridgeId || "").trim();
-  return `${(threadId || "").trim()}_${(subThreadId || "").trim()}_${versionOrBridge}`;
-};
 
 function normalizeContent(value) {
   if (value && typeof value === "object") return JSON.stringify(value);
@@ -66,12 +61,16 @@ async function handleGptMemory({
     const response = await callAiMiddleware(message, bridge_ids.gpt_memory, variables, configuration, "text");
 
     if (response === "True") {
-      const memoryId = buildMemoryId(thread_id, sub_thread_id, bridge_id, version_id);
       try {
-        await deleteInCache(memoryId);
-        logger.info(`handleGptMemory: memory updated via tool for ${id}, cleared cache ${memoryId}`);
+        const { memoryId } = await refreshGptMemoryCache({
+          bridge_id,
+          thread_id,
+          sub_thread_id,
+          version_id
+        });
+        logger.info(`handleGptMemory: memory updated via tool for ${id}, refreshed cache ${memoryId}`);
       } catch (cacheErr) {
-        logger.error(`handleGptMemory: failed to clear cache ${memoryId}: ${cacheErr.message}`);
+        logger.error(`handleGptMemory: failed to refresh cache for ${id}: ${cacheErr.message}`);
       }
     } else if (response === "False") {
       logger.info(`handleGptMemory: no update needed for ${id}`);
