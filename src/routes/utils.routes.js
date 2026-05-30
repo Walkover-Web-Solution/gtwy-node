@@ -24,5 +24,6 @@ router.get("/users-details", middleware, utilsController.getCurrentOrgUsers);
 router.delete("/agent/:agent_id", middleware, validate(agentConfigValidation.getAgent), agentConfigController.permanentlyDeleteAgentController);
 router.patch("/models/status", middleware, InternalAuth, validate({ body: setModelStatusAdminBodySchema }), utilsController.setModelStatus);
 router.post("/models/bulk-update", middleware, validate({ body: bulkUpdateUserModelConfigurationBodySchema }), bulkUpdateUserModelConfigurations);
+router.get("/models/status/:status", middleware, utilsController.getModelsByStatus);
 
 export default router;

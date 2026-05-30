@@ -212,6 +212,43 @@ const setModelStatus = async (req, res, next) => {
   return next();
 };
 
+const getModelsByStatus = async (req, res, next) => {
+  try {
+    const status = Number(req.params.status);
+
+    if (![0, 1].includes(status)) {
+      res.locals = {
+        success: false,
+        message: "Invalid status. Status must be 0 or 1."
+      };
+
+      req.statusCode = 400;
+      return next();
+    }
+
+    const models = await modelConfigDbService.getModelsbyStatus(status);
+
+    const groupedModels = models.reduce((acc, model) => {
+      if (!acc[model.service]) {
+        acc[model.service] = [];
+      }
+      acc[model.service].push(model.model_name);
+      return acc;
+    }, {});
+
+    res.locals = {
+      success: true,
+      message: status === 1 ? "Active models fetched successfully" : "Disabled models fetched successfully",
+      data: groupedModels
+    };
+
+    req.statusCode = 200;
+    return next();
+  } catch (error) {
+    return next(error);
+  }
+};
+
 export default {
   clearRedisCache,
   getRedisCache,
@@ -219,5 +256,6 @@ export default {
   generateToken,
   getCurrentOrgUsers,
   getAffiliateEmbedToken,
-  setModelStatus
+  setModelStatus,
+  getModelsByStatus
 };
