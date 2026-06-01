@@ -45,14 +45,23 @@ async function insertBatch(pgClient, rows) {
     "updated_at"
   ];
 
-  const placeholders = rows.map((_, rowIdx) => `(${columns.map((_, colIdx) => `$${rowIdx * columns.length + colIdx + 1}`).join(", ")})`).join(", ");
+  // message_id has no unique constraint, so filter out already-inserted rows manually
+  const messageIds = rows.map((r) => r.message_id);
+  const { rows: existing } = await pgClient.query(`SELECT message_id FROM conversation_logs WHERE message_id = ANY($1::text[])`, [messageIds]);
+  const existingSet = new Set(existing.map((r) => r.message_id));
+  const newRows = rows.filter((r) => !existingSet.has(r.message_id));
 
-  const values = rows.flatMap((row) => columns.map((col) => row[col]));
+  if (newRows.length === 0) return;
+
+  const placeholders = newRows
+    .map((_, rowIdx) => `(${columns.map((_, colIdx) => `$${rowIdx * columns.length + colIdx + 1}`).join(", ")})`)
+    .join(", ");
+
+  const values = newRows.flatMap((row) => columns.map((col) => row[col]));
 
   await pgClient.query(
     `INSERT INTO conversation_logs (${columns.join(", ")})
-     VALUES ${placeholders}
-     ON CONFLICT (message_id) DO NOTHING`,
+     VALUES ${placeholders}`,
     values
   );
 }
