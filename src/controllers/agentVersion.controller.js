@@ -304,7 +304,7 @@ const getVersion = async (req, res, next) => {
   const agent = result.bridges;
   res.locals = {
     success: true,
-    message: "agent get successfully",
+    message: "Version get successfully",
     agent: agent
   };
   req.statusCode = 200;
