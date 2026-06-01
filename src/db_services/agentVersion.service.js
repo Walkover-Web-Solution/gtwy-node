@@ -4,7 +4,6 @@ import bridgeVersionModel from "../mongoModel/BridgeVersion.model.js";
 import configurationModel from "../mongoModel/Configuration.model.js";
 import apiCallModel from "../mongoModel/ApiCall.model.js";
 import apikeyCredentialsModel from "../mongoModel/Api.model.js"; // Check if this is correct model for apikeycredentials
-import testcasesHistoryModel from "../mongoModel/TestcaseHistory.model.js";
 import conversationDbService from "./conversation.service.js";
 import { deleteInCache } from "../cache_service/index.js";
 import { callAiMiddleware } from "../services/utils/aiCall.utils.js";
@@ -221,12 +220,6 @@ async function _cleanupApikeyCredentials(version_id) {
   }
 }
 
-async function _cleanupTestcaseHistory(version_id) {
-  if (testcasesHistoryModel) {
-    await testcasesHistoryModel.deleteMany({ version_id: version_id });
-  }
-}
-
 function _collectRagCacheKeys(version_doc) {
   const cacheKeys = new Set();
   const docIds = version_doc.doc_ids || [];
@@ -374,7 +367,6 @@ async function deleteAgentVersion(org_id, version_id) {
 
   const apiCallsImpacted = await _cleanupApiCalls(version_id);
   await _cleanupApikeyCredentials(version_id);
-  await _cleanupTestcaseHistory(version_id);
 
   const deleteResult = await bridgeVersionModel.deleteOne({ _id: version_id, org_id });
   if (deleteResult.deletedCount === 0) throw new Error("Failed to delete version");
@@ -480,7 +472,6 @@ async function publish(org_id, version_id, user_id, generate_summary = false) {
   if (generate_summary) {
     generateAgentSummaryInBackground(parentId, org_id, version_id).catch(console.error);
   }
-  // deleteCurrentTestcaseHistory(version_id).catch(console.error); // Implement if needed
 
   const cacheKeysToDelete = _buildCacheKeys(publishedVersionId, parentId, { bridges: [], versions: [] }, [], org_id);
   if (cacheKeysToDelete.length > 0) {

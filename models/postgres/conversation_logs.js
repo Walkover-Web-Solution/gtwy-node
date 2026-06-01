@@ -140,6 +140,14 @@ export default (sequelize, DataTypes) => {
       plans: {
         type: DataTypes.JSONB,
         allowNull: true
+      },
+      testcase_id: {
+        type: DataTypes.STRING,
+        allowNull: true
+      },
+      testcase_data: {
+        type: DataTypes.JSONB,
+        allowNull: true
       }
     },
     {

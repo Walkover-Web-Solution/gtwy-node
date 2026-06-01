@@ -25,32 +25,9 @@ async function getTestcaseById(id) {
   return result ? { ...result, _id: result._id.toString() } : null;
 }
 
-async function getMergedTestcasesAndHistoryByBridgeId(bridge_id, page = 1, limit = 30) {
-  const skip = (page - 1) * limit;
-  const data = await testcaseModel.aggregate([
-    { $match: { bridge_id: bridge_id } },
-    { $sort: { _id: -1 } },
-    { $skip: skip },
-    { $limit: limit },
-    {
-      $lookup: {
-        from: "testcases_history",
-        let: { testcase_id: "$_id" },
-        pipeline: [
-          {
-            $match: {
-              $expr: {
-                $or: [{ $eq: ["$testcase_id", "$$testcase_id"] }, { $eq: ["$testcase_id", { $toString: "$$testcase_id" }] }]
-              }
-            }
-          }
-        ],
-        as: "history"
-      }
-    }
-  ]);
-
-  return { data };
+async function getAllTestcasesByBridgeId(bridge_id) {
+  const testcases = await testcaseModel.find({ bridge_id }).lean();
+  return testcases.map((tc) => ({ ...tc, _id: tc._id.toString() }));
 }
 
 async function parseAndSaveTestcases(testcasesData, bridge_id) {
@@ -118,6 +95,6 @@ export default {
   deleteTestCaseById,
   updateTestCaseById,
   getTestcaseById,
-  getMergedTestcasesAndHistoryByBridgeId,
+  getAllTestcasesByBridgeId,
   parseAndSaveTestcases
 };
