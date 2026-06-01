@@ -11,7 +11,7 @@ const createRedisKeys = (data, org_id) => {
     const versions = data.versions || [];
 
     for (const version of versions) {
-      keys_to_delete.push(`${redis_keys.bridge_data_with_tools_}${org_id}_${version}`);
+      keys_to_delete.push(`${redis_keys.bridge_data_with_tools_}${org_id}_version_${version}`);
       keys_to_delete.push(`${redis_keys.get_bridge_data_}${org_id}_${version}`);
     }
   } catch (e) {
@@ -41,7 +41,7 @@ export const purgeRelatedBridgeCaches = async (bridge_id, bridge_usage = -1, org
     }
 
     // Ensure current bridge's own keys are covered
-    keys_to_delete.push(`${redis_keys.bridge_data_with_tools_}${org_id}_${bridge_id}`);
+    keys_to_delete.push(`${redis_keys.bridge_data_with_tools_}${org_id}_bridge_${bridge_id}`);
     keys_to_delete.push(`${redis_keys.get_bridge_data_}${org_id}_${bridge_id}`);
 
     if (keys_to_delete.length > 0) {
@@ -67,13 +67,13 @@ export async function cleanupCache(type, id, org_id) {
 
       if (versions && versions.length > 0) {
         versions.forEach((version) => {
-          allcachekeys.push(`${redis_keys.bridge_data_with_tools_}${org_id}_${version}`);
+          allcachekeys.push(`${redis_keys.bridge_data_with_tools_}${org_id}_version_${version}`);
           allcachekeys.push(`${redis_keys.get_bridge_data_}${org_id}_${version}`);
         });
       }
       if (bridges && bridges.length > 0) {
         bridges.forEach((bridge) => {
-          allcachekeys.push(`${redis_keys.bridge_data_with_tools_}${org_id}_${bridge}`);
+          allcachekeys.push(`${redis_keys.bridge_data_with_tools_}${org_id}_bridge_${bridge}`);
           allcachekeys.push(`${redis_keys.get_bridge_data_}${org_id}_${bridge}`);
         });
       }
