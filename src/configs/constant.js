@@ -33,24 +33,26 @@ const bridge_ids = {
   template_validator: "69c134229df6d4d2d1dd2ae5"
 };
 
+// cd_ = can delete (DB-backed caches, safe to regenerate)
+// nd_ = no delete (Redis-ONLY stores or cost/metrics accumulators)
 const redis_keys = {
-  bridgeusedcost_: "bridgeusedcost_",
-  folderusedcost_: "folderusedcost_",
-  apikeyusedcost_: "apikeyusedcost_",
-  bridge_data_with_tools_: "bridge_data_with_tools_",
-  get_bridge_data_: "get_bridge_data_",
-  apikeylastused_: "apikeylastused_",
-  bridgelastused_: "bridgelastused_",
-  files_: "files_",
-  gpt_memory_: "gpt_memory_",
-  pdf_url_: "pdf_url_",
-  metrix_bridges_: "metrix_bridges_",
-  rate_limit_: "rate_limit_",
-  openai_batch_: "openai_batch_",
-  avg_response_time_: "avg_response_time_",
-  timezone_and_org_: "timezone_and_org_",
-  conversation_: "conversation_",
-  last_transffered_agent_: "last_transffered_agent_"
+  // Deletable — regenerable from DB
+  bridge_data_with_tools_: "cd_bridge_data_with_tools_",
+  get_bridge_data_: "cd_get_bridge_data_",
+  timezone_and_org_: "cd_timezone_and_org_",
+  conversation_: "cd_conversation_",
+  last_transffered_agent_: "cd_last_transffered_agent_",
+  // Protected — source of truth or cost accumulators
+  bridgeusedcost_: "nd_bridgeusedcost_",
+  folderusedcost_: "nd_folderusedcost_",
+  apikeyusedcost_: "nd_apikeyusedcost_",
+  apikeylastused_: "nd_apikeylastused_",
+  bridgelastused_: "nd_bridgelastused_",
+  files_: "nd_files_",
+  gpt_memory_: "nd_gpt_memory_",
+  metrix_bridges_: "nd_metrix_bridges_",
+  rate_limit_: "nd_rate_limit_",
+  openai_batch_: "nd_openai_batch_"
 };
 
 const embed_cache = {

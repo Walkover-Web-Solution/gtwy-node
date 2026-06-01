@@ -22,16 +22,16 @@ const clearRedisCache = async (req, res, next) => {
     req.statusCode = 200;
     return next();
   } else {
-    // Clear all keys except protected patterns
-    const protectedPatterns = ["bridgeusedcost_", "folderusedcost_", "apikeyusedcost_", "blacklist:"];
+    // Clear only cd_ (can-delete) keys; skip nd_ (no-delete) keys and blacklist entries
+    const REDIS_PREFIX = `AIMIDDLEWARE_${process.env.ENVIRONMENT}_`;
+    const isProtected = (key) => {
+      const bare = key.startsWith(REDIS_PREFIX) ? key.slice(REDIS_PREFIX.length) : key;
+      return bare.startsWith("nd_") || key.includes("blacklist:");
+    };
 
     const keys = await scanCacheKeys("*");
-    const keysToDelete = keys.filter((key) => {
-      return !protectedPatterns.some((pattern) => key.includes(pattern));
-    });
-    const skippedKeys = keys.filter((key) => {
-      return protectedPatterns.some((pattern) => key.includes(pattern));
-    });
+    const keysToDelete = keys.filter((key) => !isProtected(key));
+    const skippedKeys = keys.filter((key) => isProtected(key));
 
     if (keysToDelete && keysToDelete.length > 0) {
       await deleteInCache(keysToDelete);
