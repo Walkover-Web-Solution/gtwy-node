@@ -1107,7 +1107,7 @@ const updateAgent = async (agent_id, update_fields, version_id = null) => {
 
 const getAgentsWithTools = async (agent_id, org_id, version_id = null) => {
   try {
-    // const cacheKey = `${redis_keys.bridge_data_with_tools_}${org_id}_${version_id || agent_id}`;
+    // const cacheKey = `${redis_keys.bridge_data_with_tools_}${org_id}_${version_id ? "version" : "bridge"}_${version_id || agent_id}`;
     // const cachedData = await findInCache(cacheKey);
     // if (cachedData) {
     //   return JSON.parse(cachedData);

@@ -70,7 +70,14 @@ const retrieveGptMemoryService = async ({ bridge_id, thread_id, sub_thread_id, v
   };
 };
 
+export const refreshGptMemoryCache = async ({ bridge_id, thread_id, sub_thread_id, version_id }) => {
+  const memoryId = _buildMemoryId(thread_id, sub_thread_id, bridge_id, version_id);
+  const memory = await _fetchMemoryFromRemote(memoryId);
+  return { memoryId, memory };
+};
+
 export default {
   retrieveGptMemoryService,
-  parseMemory
+  parseMemory,
+  refreshGptMemoryCache
 };
