@@ -9,7 +9,8 @@ const service_name = {
   mistral: "mistral",
   gemini: "gemini",
   openai_completion: "openai_completion",
-  deepgram: "deepgram"
+  deepgram: "deepgram",
+  neev_cloud: "neev_cloud"
 };
 
 const validateFallBack = (fall_back_data) => {
