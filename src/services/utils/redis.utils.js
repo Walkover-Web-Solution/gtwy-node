@@ -1,4 +1,4 @@
-import { findInCache, deleteInCache } from "../../cache_service/index.js";
+import { findInCache, deleteInCache, invalidateByTag } from "../../cache_service/index.js";
 import { redis_keys } from "../../configs/constant.js";
 
 const createRedisKeys = (data, org_id) => {
@@ -21,39 +21,62 @@ const createRedisKeys = (data, org_id) => {
   return keys_to_delete;
 };
 
-export const purgeRelatedBridgeCaches = async (bridge_id, bridge_usage = -1, org_id) => {
+/**
+ * Unified cache purge for an agent/version.
+ *
+ * @param {Object} options
+ * @param {string}       options.bridge_id    - Agent or version ID whose explicit cache keys should be deleted.
+ * @param {number}       [options.bridge_usage=-1] - When 0, the usage-cost tracking key is also deleted.
+ * @param {string}       options.org_id       - Organisation ID (used in cache key construction).
+ * @param {string|null}  [options.version_id=null] - Version ID to match against environment_config entries.
+ * @param {Object|null}  [options.agent_config=null] - The agent/bridge document (needs _id, parent_id, settings.environment_config).
+ */
+export async function purgeAgentCache({ bridge_id, bridge_usage = -1, org_id, version_id = null, agent_config = null }) {
   try {
-    if (!bridge_id) {
-      return;
-    }
+    // ── 1. Explicit key deletion (bridge data keys) ──
+    if (bridge_id) {
+      const usage_cache_key = `${redis_keys.bridgeusedcost_}${bridge_id}`;
+      const keys_to_delete = [];
 
-    const usage_cache_key = `${redis_keys.bridgeusedcost_}${bridge_id}`;
-    const keys_to_delete = [];
+      const usage_cache_value = await findInCache(usage_cache_key);
+      if (usage_cache_value) {
+        try {
+          const usage_data = JSON.parse(usage_cache_value) || {};
+          keys_to_delete.push(...createRedisKeys(usage_data, org_id));
+        } catch {
+          // ignore
+        }
+      }
 
-    const usage_cache_value = await findInCache(usage_cache_key);
-    if (usage_cache_value) {
-      try {
-        const usage_data = JSON.parse(usage_cache_value) || {};
-        keys_to_delete.push(...createRedisKeys(usage_data, org_id));
-      } catch {
-        // ignore
+      // Ensure current bridge's own keys are covered
+      keys_to_delete.push(`${redis_keys.bridge_data_with_tools_}${org_id}_bridge_${bridge_id}`);
+      keys_to_delete.push(`${redis_keys.get_bridge_data_}${org_id}_${bridge_id}`);
+
+      if (keys_to_delete.length > 0) {
+        await deleteInCache(keys_to_delete);
+      }
+      if (bridge_usage === 0) {
+        await deleteInCache(usage_cache_key);
       }
     }
 
-    // Ensure current bridge's own keys are covered
-    keys_to_delete.push(`${redis_keys.bridge_data_with_tools_}${org_id}_bridge_${bridge_id}`);
-    keys_to_delete.push(`${redis_keys.get_bridge_data_}${org_id}_${bridge_id}`);
+    // ── 2. Tag-based environment invalidation ──
+    if (agent_config) {
+      const agent_id = agent_config.parent_id || agent_config._id;
+      if (agent_id) {
+        const environment_config = agent_config.settings?.environment_config || {};
 
-    if (keys_to_delete.length > 0) {
-      await deleteInCache(keys_to_delete);
-    }
-    if (bridge_usage === 0) {
-      await deleteInCache(usage_cache_key);
+        for (const [environment, deployed_version_id] of Object.entries(environment_config)) {
+          if (!version_id || deployed_version_id === version_id) {
+            await invalidateByTag("agent", `${agent_id}_env_${environment}`);
+          }
+        }
+      }
     }
   } catch (e) {
-    console.error(`Failed purging related bridge caches: ${e}`);
+    console.error(`Failed purging agent cache: ${e}`);
   }
-};
+}
 
 export async function cleanupCache(type, id, org_id) {
   try {

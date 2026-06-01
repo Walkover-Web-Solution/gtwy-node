@@ -258,6 +258,7 @@ const configuration = new mongoose.Schema({
   settings: {
     type: Object,
     default: {
+      environment_config: {},
       maximum_iterations: 3,
       publicUsers: [],
       editAccess: [],

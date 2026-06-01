@@ -6,6 +6,7 @@ import apiCallModel from "../mongoModel/ApiCall.model.js";
 import apikeyCredentialsModel from "../mongoModel/Api.model.js"; // Check if this is correct model for apikeycredentials
 import conversationDbService from "./conversation.service.js";
 import { deleteInCache } from "../cache_service/index.js";
+import { purgeAgentCache } from "../services/utils/redis.utils.js";
 import { callAiMiddleware } from "../services/utils/aiCall.utils.js";
 import { redis_keys, bridge_ids, AI_OPERATION_CONFIG } from "../configs/constant.js";
 import { getReqOptVariablesInPrompt, transformAgentVariableToToolCallFormat } from "../utils/agentVariables.js";
@@ -420,10 +421,16 @@ async function publish(org_id, version_id, user_id, generate_summary = false) {
   delete updatedConfiguration.apiCalls; // Remove looked-up data
 
   const publicAgentConfig = parentConfiguration.settings?.publicAgentConfig;
+  const environment_config = parentConfiguration.settings?.environment_config;
 
   // Restore the settings.publicAgentConfig value from parent
   if (publicAgentConfig !== undefined) {
     updatedConfiguration.settings.publicAgentConfig = publicAgentConfig;
+  }
+
+  // Restore the settings.environment_config value from parent
+  if (environment_config !== undefined) {
+    updatedConfiguration.settings.environment_config = environment_config;
   }
 
   if (updatedConfiguration.function_ids) {
@@ -477,6 +484,7 @@ async function publish(org_id, version_id, user_id, generate_summary = false) {
   if (cacheKeysToDelete.length > 0) {
     await deleteInCache(cacheKeysToDelete);
   }
+  await purgeAgentCache({ org_id, bridge_id: parentId, agent_config: parentConfiguration });
 
   await conversationDbService.addBulkUserEntries([
     {
