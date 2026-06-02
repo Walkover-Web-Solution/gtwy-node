@@ -111,10 +111,45 @@ export const AI_OPERATION_CONFIG = {
     getPrompt: (context) => context.bridge.configuration?.prompt || "",
     getVariables: (req, context) => {
       const prompt = context.bridge.configuration?.prompt;
-      const fields = prompt && typeof prompt === "object" ? { [context.variables.variable_key]: prompt[context.variables.variable_key] } : prompt;
+      const variable_key = context.variables?.variable_key;
+
+      let fields;
+      if (prompt && typeof prompt === "object") {
+        // New agent (role/goal/instruction) or embed with custom fields
+        if (variable_key) {
+          // Field-specific prompt helper — send only that key name
+          fields = [variable_key];
+        } else {
+          // Main prompt helper — send all key names as an array
+          fields = Object.keys(prompt);
+        }
+      } else {
+        // Old agent (single textarea) — send ["prompt"] as the key name only
+        fields = ["prompt"];
+      }
+
       return { query: req.body.query, fields };
     },
-    getMessage: () => "optimize the prompt according the data contain in the fields",
+    getMessage: (req, context) => {
+      const prompt = context.bridge.configuration?.prompt;
+      const variable_key = context.variables?.variable_key;
+
+      if (prompt && typeof prompt === "object") {
+        if (variable_key) {
+          // Field-specific prompt helper: always include the field even if empty
+          const value = prompt[variable_key] ?? "";
+          return `${variable_key}: ${value}`;
+        } else {
+          // Main prompt helper: include all fields even if their value is empty
+          return Object.entries(prompt)
+            .map(([k, v]) => `${k}: ${v ?? ""}`)
+            .join(", ");
+        }
+      }
+
+      // Old agent (single textarea): send as "prompt: <value>"
+      return `prompt: ${prompt ?? ""}`;
+    },
     successMessage: "Prompt optimized successfully"
   },
   generate_summary: {
