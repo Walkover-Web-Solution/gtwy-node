@@ -38,10 +38,15 @@ async function deleteTestcase(req, res, next) {
 
 async function getAllTestcases(req, res, next) {
   const bridge_id = req.params.bridge_id;
-  const testcases = await testcaseSevice.getAllTestcasesByBridgeId(bridge_id);
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 30;
+  const result = await testcaseSevice.getAllTestcasesByBridgeId(bridge_id, page, limit);
   res.locals = {
     success: true,
-    data: testcases
+    data: result.data,
+    total: result.total,
+    page: result.page,
+    limit: result.limit
   };
   req.statusCode = 200;
   return next();
