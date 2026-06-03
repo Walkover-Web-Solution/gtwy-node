@@ -558,11 +558,10 @@ const deleteAgentController = async (req, res, next) => {
 
 const permanentlyDeleteAgentController = async (req, res, next) => {
   const { agent_id } = req.params;
-  const org_id = req.profile.org.id;
   try {
-    const result = await ConfigurationServices.permanentlyDeleteAgent(agent_id, org_id);
+    const result = await ConfigurationServices.permanentlyDeleteAgent(agent_id);
     if (result.success) {
-      console.log(`Permanent delete completed for agent ${agent_id} and ${result.deletedVersionsCount || 0} versions for org ${org_id}`);
+      console.log(`Permanent delete completed for agent ${agent_id} and ${result.deletedVersionsCount || 0} versions.`);
     }
     res.locals = result;
     req.statusCode = result?.success ? 200 : 400;
