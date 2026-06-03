@@ -415,11 +415,10 @@ const deleteAgent = async (agent_id, org_id) => {
   }
 };
 
-const permanentlyDeleteAgent = async (agent_id, org_id) => {
+const permanentlyDeleteAgent = async (agent_id) => {
   try {
     const agent = await configurationModel.findOne({
-      _id: new ObjectId(agent_id),
-      org_id: org_id
+      _id: new ObjectId(agent_id)
     });
     if (!agent) {
       return {
@@ -433,7 +432,6 @@ const permanentlyDeleteAgent = async (agent_id, org_id) => {
       versionModel.aggregate([
         {
           $match: {
-            org_id: org_id,
             connected_agents: { $exists: true, $ne: null }
           }
         },
@@ -457,7 +455,6 @@ const permanentlyDeleteAgent = async (agent_id, org_id) => {
       configurationModel.aggregate([
         {
           $match: {
-            org_id: org_id,
             connected_agents: { $exists: true, $ne: null }
           }
         },
@@ -485,8 +482,7 @@ const permanentlyDeleteAgent = async (agent_id, org_id) => {
     if (uniqueAgentIds.length > 0) {
       const connectedAgents = await configurationModel
         .find({
-          _id: { $in: uniqueAgentIds.map((id) => new ObjectId(id)) },
-          org_id: org_id
+          _id: { $in: uniqueAgentIds.map((id) => new ObjectId(id)) }
         })
         .select({ _id: 1, name: 1 })
         .lean();
@@ -514,7 +510,6 @@ const permanentlyDeleteAgent = async (agent_id, org_id) => {
       : [];
 
     const versionDeleteFilter = {
-      org_id: org_id,
       $or: [{ parent_id: agent_id.toString() }, { parent_id: agent_id }]
     };
     if (versionIdsFromArray.length > 0) {
@@ -525,8 +520,7 @@ const permanentlyDeleteAgent = async (agent_id, org_id) => {
 
     // Hard delete the agent itself
     const deletedAgent = await configurationModel.deleteOne({
-      _id: new ObjectId(agent_id),
-      org_id: org_id
+      _id: new ObjectId(agent_id)
     });
 
     if (deletedAgent.deletedCount === 0) {
