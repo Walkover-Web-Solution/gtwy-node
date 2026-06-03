@@ -190,6 +190,28 @@ async function validateDeepgramModel(modelName) {
 }
 
 /**
+ * Validates if a model is supported by Neev Cloud
+ * @param {string} modelName - The model name to validate
+ * @returns {Promise<boolean>} - True if model is supported, false otherwise
+ */
+async function validateNeevCloudModel(modelName) {
+  try {
+    const response = await axios.get("https://inference.ai.neevcloud.com/v1/models");
+
+    if (response.status !== 200) {
+      console.error("Failed to fetch models from Neev Cloud:", response.status);
+      return false;
+    }
+
+    const models = response.data.data || [];
+    return models.some((model) => model.id === modelName);
+  } catch (error) {
+    console.error("Error validating Neev Cloud model:", error.message);
+    return false;
+  }
+}
+
+/**
  * Validates if a model is supported by a specific service
  * @param {string} service - The service name (e.g., 'open_router', 'anthropic', 'openai')
  * @param {string} modelName - The model name to validate
@@ -214,6 +236,8 @@ async function validateModel(service, modelName) {
       return await validateMistralModel(modelName);
     case "deepgram":
       return await validateDeepgramModel(modelName);
+    case "neev_cloud":
+      return await validateNeevCloudModel(modelName);
     default:
       console.warn(`No validation method available for service: ${service}`);
       return true; // Default to true for services without validation
@@ -227,5 +251,6 @@ export {
   validateOpenAIModel,
   validateGroqModel,
   validateMistralModel,
-  validateDeepgramModel
+  validateDeepgramModel,
+  validateNeevCloudModel
 };
