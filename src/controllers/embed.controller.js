@@ -9,6 +9,7 @@ import { deleteInCache, findInCache } from "../cache_service/index.js";
 import { cost_types, redis_keys, embed_cache } from "../configs/constant.js";
 import { generateAuthToken } from "../services/utils/utility.service.js";
 import jwt from "jsonwebtoken";
+import { validateJsonSchemaConfiguration } from "../services/utils/common.utils.js";
 
 const embedLogin = async (req, res) => {
   const { name: embeduser_name, email: embeduser_email } = req.Embed;
@@ -139,6 +140,15 @@ const updateEmbed = async (req, res, next) => {
       name
     } = req.body;
     const org_id = req.profile.org.id;
+
+    if (config) {
+      const { isValid, errorMessage } = validateJsonSchemaConfiguration(config);
+      if (!isValid) {
+        res.locals = { success: false, message: errorMessage };
+        req.statusCode = 400;
+        return next();
+      }
+    }
 
     const folder = await FolderModel.findOne({ _id: folder_id, org_id });
     if (!folder) {
