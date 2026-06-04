@@ -6,7 +6,7 @@ import { modelConfigDocument } from "../services/utils/loadModelConfigs.js";
 import { selectBestModel } from "../services/utils/notDiamond.utils.js";
 import { ObjectId } from "mongodb";
 import { getDefaultValuesController } from "../services/utils/getDefaultValue.js";
-import { purgeRelatedBridgeCaches } from "../services/utils/redis.utils.js";
+import { purgeAgentCache } from "../services/utils/redis.utils.js";
 import { validateJsonSchemaConfiguration } from "../services/utils/common.utils.js";
 import { convertPromptToString } from "../utils/promptWrapper.utils.js";
 
@@ -256,20 +256,20 @@ const updateVersionController = async (req, res, next) => {
     }
 
     update_fields.updatedAt = new Date();
-    await ConfigurationServices.updateAgent(parent_id || version_id, update_fields, version_id);
+    const updatedVersionData = await ConfigurationServices.updateAgent(parent_id || version_id, update_fields, version_id);
 
     if (parent_id) {
       await ConfigurationServices.updateAgent(parent_id, { updatedAt: new Date() }, null);
     }
 
-    const updatedAgent = await ConfigurationServices.getAgentsWithTools(parent_id || version_id, org_id, version_id);
+    const updatedAgent = await ConfigurationServices.getAgentsWithTools(parent_id || version_id, org_id, null);
 
     if (user_history.length > 0) {
       await addBulkUserEntries(user_history);
     }
 
     try {
-      await purgeRelatedBridgeCaches(parent_id || version_id, -1);
+      await purgeAgentCache({ bridge_id: parent_id || version_id, org_id, version_id, agent_config: updatedAgent.bridges });
     } catch (e) {
       console.error(`Failed clearing version related cache on update: ${e}`);
     }
@@ -281,7 +281,7 @@ const updateVersionController = async (req, res, next) => {
     res.locals = {
       success: true,
       message: "Version Updated successfully",
-      agent: updatedAgent.bridges
+      agent: updatedVersionData?.result?.toObject()
     };
     req.statusCode = 200;
     return next();
@@ -304,7 +304,7 @@ const getVersion = async (req, res, next) => {
   const agent = result.bridges;
   res.locals = {
     success: true,
-    message: "agent get successfully",
+    message: "Version get successfully",
     agent: agent
   };
   req.statusCode = 200;

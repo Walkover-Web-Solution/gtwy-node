@@ -40,7 +40,8 @@ const updateBridgeSchema = Joi.object({
     }).optional(),
     guardrails: Joi.object().optional(),
     reviewer_agent: Joi.objectId().optional(),
-    publicAgentConfig: Joi.object().optional()
+    publicAgentConfig: Joi.object().optional(),
+    environment_config: Joi.object().optional()
   }).optional(),
   web_search_filters: Joi.alternatives().try(Joi.array().items(Joi.string()), Joi.object()).optional(),
   gtwy_web_search_filters: Joi.alternatives().try(Joi.array().items(Joi.string()), Joi.object()).optional(),

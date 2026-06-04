@@ -6,7 +6,7 @@ import { bridge_ids, new_agent_service } from "../configs/constant.js";
 import Helper from "../services/utils/helper.utils.js";
 import conversationDbService from "../db_services/conversation.service.js";
 const { addBulkUserEntries } = conversationDbService;
-import { purgeRelatedBridgeCaches } from "../services/utils/redis.utils.js";
+import { purgeAgentCache } from "../services/utils/redis.utils.js";
 import { ensureChatbotPreview } from "../services/utility.service.js";
 import { modelConfigDocument } from "../services/utils/loadModelConfigs.js";
 import { sendAgentCreatedWebhook } from "../services/utils/agentWebhook.utils.js";
@@ -325,7 +325,12 @@ const updateAgentController = async (req, res, next) => {
     const updatedAgent = await ConfigurationServices.getAgentsWithTools(agent_id, org_id);
 
     try {
-      await purgeRelatedBridgeCaches(agent_id, body.bridge_usage !== undefined ? body.bridge_usage : -1);
+      await purgeAgentCache({
+        bridge_id: agent_id,
+        bridge_usage: body.bridge_usage !== undefined ? body.bridge_usage : -1,
+        org_id,
+        agent_config: updatedAgent.bridges
+      });
     } catch (e) {
       console.error(`Failed clearing agent related cache on update: ${e}`);
     }
@@ -553,11 +558,10 @@ const deleteAgentController = async (req, res, next) => {
 
 const permanentlyDeleteAgentController = async (req, res, next) => {
   const { agent_id } = req.params;
-  const org_id = req.profile.org.id;
   try {
-    const result = await ConfigurationServices.permanentlyDeleteAgent(agent_id, org_id);
+    const result = await ConfigurationServices.permanentlyDeleteAgent(agent_id);
     if (result.success) {
-      console.log(`Permanent delete completed for agent ${agent_id} and ${result.deletedVersionsCount || 0} versions for org ${org_id}`);
+      console.log(`Permanent delete completed for agent ${agent_id} and ${result.deletedVersionsCount || 0} versions.`);
     }
     res.locals = result;
     req.statusCode = result?.success ? 200 : 400;

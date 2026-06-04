@@ -213,6 +213,18 @@ async function bulkUpdateModelConfigs({ models, filter, change }) {
   };
 }
 
+async function getModelsbyStatus(status) {
+  const models = await ModelsConfigModel.find(
+    { status },
+    {
+      service: 1,
+      model_name: 1,
+      _id: 0
+    }
+  ).lean();
+  return models;
+}
+
 export default {
   getAllModelConfigs,
   saveModelConfig,
@@ -224,5 +236,6 @@ export default {
   getModelConfigsByNameAndService,
   checkModel,
   updateModelConfigs,
-  bulkUpdateModelConfigs
+  bulkUpdateModelConfigs,
+  getModelsbyStatus
 };

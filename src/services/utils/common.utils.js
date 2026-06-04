@@ -5,7 +5,7 @@ const validateJsonSchemaConfiguration = (configuration) => {
     return { isValid: true, errorMessage: null };
   }
 
-  const response_type = configuration.response_type;
+  const response_type = configuration.response_type.value || configuration.response_type;
 
   if (!response_type) {
     return { isValid: true, errorMessage: null };

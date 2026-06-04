@@ -185,4 +185,39 @@ async function callDeepgramApi(apiKey) {
   }
 }
 
-export { callOpenAIModelsApi, callAnthropicApi, callGroqApi, callOpenRouterApi, callMistralApi, callGeminiApi, callGrokApi, callDeepgramApi };
+async function callNeevCloudApi(apiKey, model = "gpt-oss-120b") {
+  try {
+    const response = await fetch("https://inference.ai.neevcloud.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: model,
+        messages: [{ role: "user", content: "hi" }]
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return { success: true, data };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+export {
+  callOpenAIModelsApi,
+  callAnthropicApi,
+  callGroqApi,
+  callOpenRouterApi,
+  callMistralApi,
+  callGeminiApi,
+  callGrokApi,
+  callDeepgramApi,
+  callNeevCloudApi
+};

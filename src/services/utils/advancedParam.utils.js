@@ -1,33 +1,13 @@
-import { modelConfigDocument } from "./loadModelConfigs.js";
+const SKIP_KEYS = new Set(["prompt", "model", "type", "system_prompt_version_id", "is_rich_text"]);
 
-const getAdvancedParamKeys = (service, model) => {
-  if (!service || !model) return new Set();
-
-  const serviceLower = service.toLowerCase();
-  const modelConfig = modelConfigDocument[serviceLower]?.[model];
-  if (!modelConfig) {
-    return new Set();
-  }
-
-  const advancedKeys = new Set();
-  const config = modelConfig.configuration || {};
-
-  for (const key of Object.keys(config)) {
-    if (key === "model") continue;
-    advancedKeys.add(key);
-  }
-  return advancedKeys;
-};
-
-const transformToDbFormat = (configuration, service, model) => {
+const transformToDbFormat = (configuration) => {
   if (!configuration || typeof configuration !== "object") {
     return configuration;
   }
-  const advancedKeys = getAdvancedParamKeys(service, model);
   const transformed = {};
 
   for (const [key, value] of Object.entries(configuration)) {
-    if (!advancedKeys.has(key)) {
+    if (SKIP_KEYS.has(key)) {
       transformed[key] = value;
       continue;
     }
@@ -60,14 +40,17 @@ const transformToDbFormat = (configuration, service, model) => {
   return transformed;
 };
 
-const transformToFrontendFormat = (configuration, service, model) => {
+const transformToFrontendFormat = (configuration) => {
   if (!configuration || typeof configuration !== "object") {
     return configuration;
   }
-  const advancedKeys = getAdvancedParamKeys(service, model);
   const transformed = {};
   for (const [key, value] of Object.entries(configuration)) {
-    if (advancedKeys.has(key) && value && typeof value === "object" && "mode" in value) {
+    if (SKIP_KEYS.has(key)) {
+      transformed[key] = value;
+      continue;
+    }
+    if (value && typeof value === "object" && "mode" in value) {
       if (value.mode === "custom") {
         transformed[key] = value.value;
       } else {
@@ -87,16 +70,12 @@ const isDbFormat = (value) => {
 export const transformAgentAdvanceParametersMiddleware = (req, res, next) => {
   try {
     if (req.body && Object.keys(req.body).length > 0) {
-      const { service, model, configuration } = req.body;
-      if (service && model && configuration && typeof configuration === "object") {
-        const transformedConfig = transformToDbFormat(configuration, service, model);
+      const { configuration } = req.body;
+      if (configuration && typeof configuration === "object") {
+        const transformedConfig = transformToDbFormat(configuration);
         req.body.configuration = transformedConfig;
       }
     }
-    if (!req.body.configuration?.model) {
-      delete req.body.service;
-    }
-    delete req.body.model;
     next();
   } catch (error) {
     console.error("Error in transformAgentAdvanceParametersMiddleware:", error);
@@ -151,13 +130,8 @@ function transformAgentItemToFrontend(item) {
     return item;
   }
   const transformed = { ...item };
-  if (transformed.configuration && transformed.service) {
-    const service = transformed.service;
-    const model = transformed.configuration?.model;
-
-    if (service && model) {
-      transformed.configuration = transformToFrontendFormat(transformed.configuration, service, model);
-    }
+  if (transformed.configuration) {
+    transformed.configuration = transformToFrontendFormat(transformed.configuration);
   }
   if (transformed.agent && transformed.agent.bridges) {
     transformed.agent = transformAgentItemToFrontend(transformed.agent);
@@ -166,4 +140,4 @@ function transformAgentItemToFrontend(item) {
   return transformed;
 }
 
-export { getAdvancedParamKeys, transformToDbFormat, transformToFrontendFormat, isDbFormat };
+export { transformToDbFormat, transformToFrontendFormat, isDbFormat };

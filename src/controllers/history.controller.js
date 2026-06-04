@@ -66,9 +66,11 @@ const getConversationLogs = async (req, res, next) => {
   const { agent_id, thread_id, sub_thread_id } = req.params;
   const pageNum = req.query.page || 1;
   const limitNum = req.query.limit || 30;
+  const version_id = req.query.version_id || null;
+  const testcase_id = req.query.testcase_id || null;
 
   // Get conversation logs
-  const result = await findConversationLogsByIds(org_id, agent_id, thread_id, sub_thread_id, pageNum, limitNum);
+  const result = await findConversationLogsByIds(org_id, agent_id, thread_id, sub_thread_id, pageNum, limitNum, version_id, testcase_id);
 
   if (result.success) {
     res.locals = {
@@ -101,7 +103,7 @@ const getRecentThreads = async (req, res, next) => {
   const user_feedback = req.query.user_feedback || "all";
   const error = req.query.error || "false";
   const version_id = req.query.version_id;
-  const type = req.query.type;
+  const testcase_id = req.query.testcase_id || null;
 
   // Extract search filters (supports both search and regular listing)
   const filters = {
@@ -117,7 +119,7 @@ const getRecentThreads = async (req, res, next) => {
   };
 
   // Get recent threads with search functionality built-in
-  const result = await findRecentThreadsByBridgeId(org_id, agent_id, filters, user_feedback, error, pageNum, limitNum, version_id, type);
+  const result = await findRecentThreadsByBridgeId(org_id, agent_id, filters, user_feedback, error, pageNum, limitNum, version_id, testcase_id);
 
   if (result.success) {
     res.locals = {

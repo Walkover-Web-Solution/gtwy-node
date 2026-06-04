@@ -1,4 +1,6 @@
 import testcaseModel from "../mongoModel/Testcase.model.js";
+import models from "../../models/index.js";
+import Sequelize from "sequelize";
 
 async function saveTestCase(testcaseData) {
   const newTestCase = new testcaseModel(testcaseData);
@@ -25,32 +27,50 @@ async function getTestcaseById(id) {
   return result ? { ...result, _id: result._id.toString() } : null;
 }
 
-async function getMergedTestcasesAndHistoryByBridgeId(bridge_id, page = 1, limit = 30) {
+async function getAllTestcasesByBridgeId(bridge_id, page = 1, limit = 30) {
   const skip = (page - 1) * limit;
-  const data = await testcaseModel.aggregate([
-    { $match: { bridge_id: bridge_id } },
-    { $sort: { _id: -1 } },
-    { $skip: skip },
-    { $limit: limit },
-    {
-      $lookup: {
-        from: "testcases_history",
-        let: { testcase_id: "$_id" },
-        pipeline: [
-          {
-            $match: {
-              $expr: {
-                $or: [{ $eq: ["$testcase_id", "$$testcase_id"] }, { $eq: ["$testcase_id", { $toString: "$$testcase_id" }] }]
-              }
-            }
-          }
-        ],
-        as: "history"
-      }
-    }
-  ]);
+  const testcases = await testcaseModel.find({ bridge_id }).skip(skip).limit(limit).lean();
+  const testcasesWithIds = testcases.map((tc) => ({ ...tc, _id: tc._id.toString() }));
 
-  return { data };
+  // Get total count
+  const totalCount = await testcaseModel.countDocuments({ bridge_id });
+
+  // Fetch history for each testcase from PostgreSQL
+  const testcaseIds = testcasesWithIds.map((tc) => tc._id);
+  const historyMap = {};
+
+  if (testcaseIds.length > 0) {
+    const historyLogs = await models.pg.conversation_logs.findAll({
+      where: {
+        bridge_id: bridge_id,
+        testcase_id: { [Sequelize.Op.in]: testcaseIds }
+      },
+      order: [["created_at", "DESC"]]
+    });
+
+    // Group history by testcase_id
+    historyLogs.forEach((log) => {
+      if (log.testcase_id && !historyMap[log.testcase_id]) {
+        historyMap[log.testcase_id] = [];
+      }
+      if (log.testcase_id) {
+        historyMap[log.testcase_id].push(log);
+      }
+    });
+  }
+
+  // Append history to each testcase
+  const testcasesWithHistory = testcasesWithIds.map((tc) => ({
+    ...tc,
+    history: historyMap[tc._id] || []
+  }));
+
+  return {
+    data: testcasesWithHistory,
+    total: totalCount,
+    page: page,
+    limit: limit
+  };
 }
 
 async function parseAndSaveTestcases(testcasesData, bridge_id) {
@@ -118,6 +138,6 @@ export default {
   deleteTestCaseById,
   updateTestCaseById,
   getTestcaseById,
-  getMergedTestcasesAndHistoryByBridgeId,
+  getAllTestcasesByBridgeId,
   parseAndSaveTestcases
 };
