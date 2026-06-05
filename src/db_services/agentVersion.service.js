@@ -412,7 +412,8 @@ async function publish(org_id, version_id, user_id, generate_summary = false) {
   }
 
   const agentVariables = getReqOptVariablesInPrompt(prompt, variableState, variablePath);
-  const transformedAgentVariables = transformAgentVariableToToolCallFormat(agentVariables);
+  const existingAgentVariables = getVersionData.agent_info?.agent_variables || parentConfiguration.agent_info?.agent_variables;
+  const transformedAgentVariables = transformAgentVariableToToolCallFormat(agentVariables, existingAgentVariables);
 
   // Prepare updated configuration
   const updatedConfiguration = { ...parentConfiguration, ...getVersionData };
