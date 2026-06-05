@@ -251,7 +251,7 @@ const checkApikey = async (apikey, service) => {
     case "neev_cloud":
       check = await callNeevCloudApi(apikey, model);
       break;
-    case "moon_shot":
+    case "moonshot":
       check = await callMoonShotApi(apikey);
       break;
     default:

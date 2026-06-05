@@ -11,7 +11,7 @@ const service_name = {
   openai_completion: "openai_completion",
   deepgram: "deepgram",
   neev_cloud: "neev_cloud",
-  moon_shot: "moon_shot"
+  moonshot: "moonshot"
 };
 
 const validateFallBack = (fall_back_data) => {

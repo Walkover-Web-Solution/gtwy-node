@@ -2,7 +2,7 @@ import Joi from "joi";
 
 const modelConfigSchema = Joi.object({
   service: Joi.string()
-    .valid("openai", "openai_response", "gemini", "anthropic", "groq", "open_router", "mistral", "deepgram", "neev_cloud", "moon_shot")
+    .valid("openai", "openai_response", "gemini", "anthropic", "groq", "open_router", "mistral", "deepgram", "neev_cloud", "moonshot")
     .optional(),
   model_name: Joi.string()
     .pattern(/^[^\s]+$/)
@@ -16,7 +16,7 @@ const modelConfigSchema = Joi.object({
 
 const saveUserModelConfigurationBodySchema = Joi.object({
   service: Joi.string()
-    .valid("openai", "openai_response", "gemini", "anthropic", "groq", "open_router", "mistral", "deepgram", "neev_cloud", "moon_shot")
+    .valid("openai", "openai_response", "gemini", "anthropic", "groq", "open_router", "mistral", "deepgram", "neev_cloud", "moonshot")
     .required(),
   model_name: Joi.string()
     .pattern(/^[^\s]+$/)
@@ -48,7 +48,7 @@ const deleteUserModelConfigurationQuerySchema = Joi.object({
     "any.required": "model_name is required"
   }),
   service: Joi.string()
-    .valid("openai", "openai_response", "gemini", "anthropic", "groq", "open_router", "mistral", "deepgram", "neev_cloud", "moon_shot")
+    .valid("openai", "openai_response", "gemini", "anthropic", "groq", "open_router", "mistral", "deepgram", "neev_cloud", "moonshot")
     .required()
     .messages({
       "any.required": "service is required"
@@ -83,7 +83,7 @@ const bulkUpdateUserModelConfigurationBodySchema = Joi.object({
 const UserModelConfigSchema = Joi.object({
   org_id: Joi.string().required(),
   service: Joi.string()
-    .valid("openai", "openai_response", "gemini", "anthropic", "groq", "open_router", "mistral", "deepgram", "neev_cloud", "moon_shot")
+    .valid("openai", "openai_response", "gemini", "anthropic", "groq", "open_router", "mistral", "deepgram", "neev_cloud", "moonshot")
     .required(),
   model_name: Joi.string()
     .pattern(/^[^\s]+$/)
@@ -101,7 +101,7 @@ const setModelStatusAdminBodySchema = Joi.object({
     "any.required": "model_name is required"
   }),
   service: Joi.string()
-    .valid("openai", "openai_response", "gemini", "anthropic", "groq", "open_router", "mistral", "deepgram", "neev_cloud", "moon_shot")
+    .valid("openai", "openai_response", "gemini", "anthropic", "groq", "open_router", "mistral", "deepgram", "neev_cloud", "moonshot")
     .required()
     .messages({
       "any.required": "service is required"

@@ -260,7 +260,7 @@ async function validateModel(service, modelName) {
       return await validateDeepgramModel(modelName);
     case "neev_cloud":
       return await validateNeevCloudModel(modelName);
-    case "moon_shot":
+    case "moonshot":
       return await validateMoonShotModel(modelName);
     default:
       console.warn(`No validation method available for service: ${service}`);

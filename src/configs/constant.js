@@ -96,7 +96,7 @@ const new_agent_service = {
   grok: { model: "grok-4-fast", default_fallback_model: "grok-4-fast-reasoning", default_name: "Grok" },
   deepgram: { model: "nova-3", default_fallback_model: "nova-2", default_name: "Deepgram" },
   neev_cloud: { model: "gpt-oss-120b", default_fallback_model: "gpt-oss-120b", default_name: "Neev Cloud" },
-  moon_shot: { model: "kimi-k2.6", default_fallback_model: "kimi-k2.5", default_name: "Moonshot" }
+  moonshot: { model: "kimi-k2.6", default_fallback_model: "kimi-k2.5", default_name: "Moonshot" }
 };
 
 export { collectionNames, bridge_ids, redis_keys, cost_types, prebuilt_prompt_bridge_id, new_agent_service, embed_cache };
