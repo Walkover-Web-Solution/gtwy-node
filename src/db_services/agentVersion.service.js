@@ -420,6 +420,11 @@ async function publish(org_id, version_id, user_id, generate_summary = false) {
   updatedConfiguration.published_version_id = publishedVersionId;
   delete updatedConfiguration.apiCalls; // Remove looked-up data
 
+  // Explicitly copy suggestionCustomPrompt from version to bridge
+  if (getVersionData.suggestionCustomPrompt !== undefined) {
+    updatedConfiguration.suggestionCustomPrompt = getVersionData.suggestionCustomPrompt;
+  }
+
   const publicAgentConfig = parentConfiguration.settings?.publicAgentConfig;
   const environment_config = parentConfiguration.settings?.environment_config;
 

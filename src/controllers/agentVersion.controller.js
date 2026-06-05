@@ -130,7 +130,8 @@ const updateVersionController = async (req, res, next) => {
       "web_search_filters",
       "gtwy_web_search_filters",
       "connected_agent_flow",
-      "variables_state"
+      "variables_state",
+      "suggestionCustomPrompt"
     ];
 
     for (const field of simpleVersionFields) {

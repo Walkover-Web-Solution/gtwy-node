@@ -289,6 +289,10 @@ const configuration = new mongoose.Schema({
   cache_on: {
     type: Boolean,
     default: false
+  },
+  suggestionCustomPrompt: {
+    type: String,
+    default: ""
   }
 });
 

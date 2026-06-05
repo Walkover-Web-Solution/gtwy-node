@@ -5,7 +5,17 @@ import { bridge_ids } from "../../configs/constant.js";
 import prebuiltPromptDbService from "../../db_services/prebuiltPrompt.service.js";
 import logger from "../../logger.js";
 
-async function chatbotSuggestions({ response_format, assistant, user, bridge_summary, thread_id, sub_thread_id, configuration, org_id }) {
+async function chatbotSuggestions({
+  response_format,
+  assistant,
+  user,
+  bridge_summary,
+  thread_id,
+  sub_thread_id,
+  configuration,
+  org_id,
+  suggestionCustomPrompt
+}) {
   try {
     const prompt_summary = bridge_summary;
     const prompt = configuration?.prompt;
@@ -25,7 +35,10 @@ async function chatbotSuggestions({ response_format, assistant, user, bridge_sum
     }
 
     const message = `Generate suggestions based on the user conversations. \n **User Conversations**: ${JSON.stringify(conversation.slice(-2))}`;
-    const variables = { prompt_summary: final_prompt };
+    const variables = {
+      prompt_summary: final_prompt,
+      suggestionCustomPrompt: suggestionCustomPrompt
+    };
     const composed_thread_id = `${thread_id || random_id}-${sub_thread_id || random_id}`;
 
     const result = await callAiMiddleware(message, bridge_ids.chatbot_suggestions, variables, ai_configuration, null, composed_thread_id);
