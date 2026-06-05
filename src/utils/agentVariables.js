@@ -29,6 +29,7 @@ function getReqOptVariablesInPrompt(prompt, variableState, variablePath) {
   // Determine status for prompt variables based on new structure
   const final = {};
   for (const varName of promptVars) {
+    if (varName === "pre_function") continue;
     if (variableState[varName] && typeof variableState[varName] === "object") {
       // Use the status from the variable_state structure
       const varStatus = variableState[varName].status || "optional";
@@ -42,6 +43,7 @@ function getReqOptVariablesInPrompt(prompt, variableState, variablePath) {
   // Add flattened variable_path keys as required
   const flattenedPaths = flattenValuesOnly(variablePath || {});
   for (const path of Object.keys(flattenedPaths)) {
+    if (path === "pre_function" || path.startsWith("pre_function.")) continue;
     final[path] = "required";
   }
 
