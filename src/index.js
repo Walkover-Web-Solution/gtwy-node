@@ -43,6 +43,7 @@ import promptWrapperRoutes from "./routes/promptWrapper.routes.js";
 import richUiTemplateRoutes from "./routes/richUiTemplate.routes.js";
 import lagoRoutes from "./routes/lago.routes.js";
 import batchHistoryRoutes from "./routes/batchHistory.routes.js";
+import observabilityRoutes from "./routes/observability.routes.js";
 const app = express();
 const PORT = process.env.PORT || 7072;
 
@@ -94,6 +95,7 @@ app.use("/api/prompt_wrappers", promptWrapperRoutes);
 app.use("/api/internal", internalRoutes);
 app.use("/api/rich_ui_templates", richUiTemplateRoutes);
 app.use("/api/lago", lagoRoutes);
+app.use("/api/observability", observabilityRoutes);
 
 //Metrics
 // app.use('/api/v1/metrics', metrisRoutes);
