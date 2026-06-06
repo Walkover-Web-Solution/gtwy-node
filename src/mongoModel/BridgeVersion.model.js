@@ -237,6 +237,10 @@ const version = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  suggestionCustomPrompt: {
+    type: String,
+    default: ""
+  },
   updatedAt: {
     type: Date,
     default: Date.now
