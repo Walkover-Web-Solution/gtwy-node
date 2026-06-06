@@ -124,6 +124,7 @@ const updateVersionController = async (req, res, next) => {
       "gpt_memory_context",
       "doc_ids",
       "IsstarterQuestionEnable",
+      "starterQuestion",
       "auto_model_select",
       "cache_on",
       "pre_tools",

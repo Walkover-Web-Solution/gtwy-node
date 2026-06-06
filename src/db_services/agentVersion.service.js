@@ -475,7 +475,12 @@ async function publish(org_id, version_id, user_id, generate_summary = false) {
   }
 
   // Background tasks (after transaction to avoid write conflicts on configurationModel)
-  makeQuestion(parentId, prompt, tools, true).catch(console.error);
+  // If the version being published already has static starterQuestions, skip AI generation –
+  // they are already persisted on the bridge via the updatedConfiguration spread above.
+  const versionStarterQuestions = getVersionData.starterQuestion;
+  if (!Array.isArray(versionStarterQuestions) || versionStarterQuestions.length === 0) {
+    makeQuestion(parentId, prompt, tools, true).catch(console.error);
+  }
   getPromptEnhancerPercentage(parentId, prompt).catch(console.error);
   if (generate_summary) {
     generateAgentSummaryInBackground(parentId, org_id, version_id).catch(console.error);

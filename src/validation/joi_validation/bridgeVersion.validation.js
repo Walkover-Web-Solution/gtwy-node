@@ -63,6 +63,7 @@ const updateVersionSchema = Joi.object({
   gpt_memory_context: Joi.string().allow("").optional(),
   doc_ids: Joi.array().items(Joi.object()).optional(),
   IsstarterQuestionEnable: Joi.boolean().optional(),
+  starterQuestion: Joi.array().items(Joi.string()).optional(),
   auto_model_select: Joi.object().allow(null).optional(),
   cache_on: Joi.boolean().optional(),
   pre_tools: Joi.array().optional(),
