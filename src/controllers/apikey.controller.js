@@ -9,6 +9,7 @@ import {
   callMistralApi,
   callGeminiApi,
   callGrokApi,
+  callDeepseekApi,
   callDeepgramApi,
   callNeevCloudApi,
   callMoonShotApi
@@ -244,6 +245,9 @@ const checkApikey = async (apikey, service) => {
       break;
     case "grok":
       check = await callGrokApi(apikey);
+      break;
+    case "deepseek":
+      check = await callDeepseekApi(apikey, model);
       break;
     case "deepgram":
       check = await callDeepgramApi(apikey);

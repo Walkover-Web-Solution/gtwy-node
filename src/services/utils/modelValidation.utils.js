@@ -190,6 +190,40 @@ async function validateDeepgramModel(modelName) {
 }
 
 /**
+ * Validates if a model is supported by DeepSeek
+ * @param {string} modelName - The model name to validate
+ * @returns {Promise<boolean>} - True if model is supported, false otherwise
+ */
+async function validateDeepseekModel(modelName) {
+  try {
+    const apiKey = process.env.DEEPSEEK_API_KEY;
+
+    if (!apiKey) {
+      console.error("Missing DEEPSEEK_API_KEY for DeepSeek model validation");
+      return false;
+    }
+
+    const response = await axios.get("https://api.deepseek.com/models", {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      }
+    });
+
+    if (response.status !== 200) {
+      console.error("Failed to fetch models from DeepSeek:", response.status);
+      return false;
+    }
+
+    const models = response.data.data || [];
+    return models.some((model) => model.id === modelName);
+  } catch (error) {
+    console.error("Error validating DeepSeek model:", error.message);
+    return false;
+  }
+}
+
+/**
  * Validates if a model is supported by Neev Cloud
  * @param {string} modelName - The model name to validate
  * @returns {Promise<boolean>} - True if model is supported, false otherwise
@@ -260,6 +294,8 @@ async function validateModel(service, modelName) {
       return await validateDeepgramModel(modelName);
     case "neev_cloud":
       return await validateNeevCloudModel(modelName);
+    case "deepseek":
+      return await validateDeepseekModel(modelName);
     case "moonshot":
       return await validateMoonShotModel(modelName);
     default:
@@ -276,5 +312,6 @@ export {
   validateGroqModel,
   validateMistralModel,
   validateDeepgramModel,
-  validateNeevCloudModel
+  validateNeevCloudModel,
+  validateDeepseekModel
 };

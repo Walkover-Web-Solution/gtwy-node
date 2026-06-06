@@ -145,6 +145,32 @@ async function callGeminiApi(apiKey) {
   }
 }
 
+async function callDeepseekApi(apiKey, model = "deepseek-v4-flash") {
+  const url = "https://api.deepseek.com/chat/completions";
+  const headers = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${apiKey}`
+  };
+
+  const body = JSON.stringify({
+    model: model,
+    messages: [{ role: "user", content: "hi" }]
+  });
+
+  try {
+    const response = await fetch(url, { method: "POST", headers, body });
+    console.log("respobse ", response);
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return { success: true, data };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
 async function callGrokApi(apiKey) {
   try {
     const response = await fetch("https://api.x.ai/v1/models", {
@@ -238,6 +264,7 @@ export {
   callMistralApi,
   callGeminiApi,
   callGrokApi,
+  callDeepseekApi,
   callDeepgramApi,
   callNeevCloudApi,
   callMoonShotApi

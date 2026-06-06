@@ -5,6 +5,7 @@ const service_name = {
   anthropic: "anthropic",
   groq: "groq",
   grok: "grok",
+  deepseek: "deepseek",
   open_router: "open_router",
   mistral: "mistral",
   gemini: "gemini",
