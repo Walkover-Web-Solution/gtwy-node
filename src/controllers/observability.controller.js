@@ -35,7 +35,35 @@ const getLogs = async (req, res, next) => {
   }
 };
 
+// GET / — returns all logs (paginated). Pass ?log_id=... to filter to one log id.
+const listLogs = async (req, res, next) => {
+  try {
+    const { log_id, page, pageSize } = req.query;
+
+    const { total, rows } = await observabilityService.getLogs({ log_id, page, pageSize });
+
+    res.locals = {
+      success: true,
+      ...(log_id ? { log_id } : {}),
+      page,
+      pageSize,
+      total,
+      totalPages: Math.ceil(total / pageSize),
+      count: rows.length,
+      logs: rows
+    };
+    req.statusCode = 200;
+    return next();
+  } catch (error) {
+    logger.error(`Error listing observability logs: ${error.message}`);
+    res.locals = { success: false, error: error.message };
+    req.statusCode = 500;
+    return next();
+  }
+};
+
 export default {
   createLog,
-  getLogs
+  getLogs,
+  listLogs
 };
