@@ -81,7 +81,8 @@ const updateBridgeSchema = Joi.object({
     }).optional(),
     thread_id: Joi.boolean().optional(),
     variables_state: Joi.object().optional()
-  }).optional()
+  }).optional(),
+  starterQuestion: Joi.array().items(Joi.string()).optional()
 });
 
 const bridgeIdParamSchema = Joi.object({
