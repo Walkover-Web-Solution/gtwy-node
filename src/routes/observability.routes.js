@@ -11,6 +11,8 @@ const createRateLimit = rateLimit({ limit: 50, windowSeconds: 60, keyPrefix: "ob
 
 // Public routes (no auth) — SDK ingests and reads agent observability logs.
 router.post("/", createRateLimit, validate(observabilityValidation.createLog), observabilityController.createLog);
+// List all logs (paginated); pass ?log_id=... to filter. Defined before /:log_id.
+router.get("/", validate(observabilityValidation.listLogs), observabilityController.listLogs);
 router.get("/:log_id", validate(observabilityValidation.getLogs), observabilityController.getLogs);
 
 export default router;
