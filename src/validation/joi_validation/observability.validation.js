@@ -26,7 +26,20 @@ const getLogs = {
     .unknown(true)
 };
 
+const listLogs = {
+  query: Joi.object()
+    .keys({
+      log_id: Joi.string().trim().min(1).optional(),
+      page: Joi.number().integer().min(1).default(1),
+      pageSize: Joi.number().integer().min(1).max(100).default(50).messages({
+        "number.max": "pageSize cannot exceed 100"
+      })
+    })
+    .unknown(true)
+};
+
 export default {
   createLog,
-  getLogs
+  getLogs,
+  listLogs
 };
