@@ -613,9 +613,13 @@ async function findThreadHistoryFormatted(org_id, thread_id, bridge_id, sub_thre
   }
 }
 
-const findHistoryByMessageId = async (message_id) => {
+const findHistoryByMessageId = async (message_id, agent_id) => {
+  const whereConditions = { message_id };
+  if (agent_id) {
+    whereConditions.bridge_id = agent_id;
+  }
   const result = await models.pg.conversation_logs.findOne({
-    where: { message_id }
+    where: whereConditions
   });
   return result;
 };
