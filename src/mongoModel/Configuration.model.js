@@ -41,6 +41,10 @@ const agentInfoSchema = new Schema(
     variables_state: {
       type: Object,
       default: {}
+    },
+    ai_matching_custom_prompt: {
+      type: String,
+      default: ""
     }
   },
   { _id: false }

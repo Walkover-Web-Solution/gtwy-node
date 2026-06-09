@@ -80,7 +80,8 @@ const updateBridgeSchema = Joi.object({
       required: Joi.array().optional()
     }).optional(),
     thread_id: Joi.boolean().optional(),
-    variables_state: Joi.object().optional()
+    variables_state: Joi.object().optional(),
+    ai_matching_custom_prompt: Joi.string().allow("").optional()
   }).optional(),
   starterQuestion: Joi.array().items(Joi.string()).optional()
 });
