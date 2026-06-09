@@ -150,40 +150,50 @@ const getRecursiveAgentHistory = async (req, res, next) => {
       return next();
     }
 
-    const resolveMessage = async (msgId) => {
+    const resolveMessage = async (msgId, currentAgentId) => {
       if (!msgId) return null;
 
-      const messageRecord = await findHistoryByMessageId(msgId);
+      const messageRecord = await findHistoryByMessageId(msgId, currentAgentId);
       if (!messageRecord) return null;
 
       const message = messageRecord?.toJSON ? messageRecord.toJSON() : messageRecord;
 
-      if (!Array.isArray(message.tools_call_data)) {
-        return message;
-      }
+      const processTool = async (tool) => {
+        const metadata = tool?.data?.metadata;
+        if (metadata?.type === "agent" && metadata?.message_id) {
+          const childAgentId = metadata.agent_id || tool.bridge_id || tool.agent_id;
+          const fullChildMessage = await resolveMessage(metadata.message_id, childAgentId);
 
-      for (let i = 0; i < message.tools_call_data.length; i++) {
-        const toolGroup = message.tools_call_data[i];
+          if (fullChildMessage) {
+            fullChildMessage.name = tool?.name || null;
+            if (!tool.data) {
+              tool.data = {};
+            }
+            tool.data.response = fullChildMessage;
+            tool.response = fullChildMessage;
+          }
+        }
+      };
 
-        for (const key of Object.keys(toolGroup)) {
-          const tool = toolGroup[key];
-          const metadata = tool?.data?.metadata;
-
-          if (metadata?.type === "agent" && metadata?.message_id) {
-            const fullChildMessage = await resolveMessage(metadata.message_id);
-
-            if (fullChildMessage) {
-              fullChildMessage.name = tool?.name || null;
-              toolGroup[key] = fullChildMessage;
+      if (Array.isArray(message.tools_call_data)) {
+        for (let i = 0; i < message.tools_call_data.length; i++) {
+          const toolGroup = message.tools_call_data[i];
+          if (toolGroup && typeof toolGroup === "object") {
+            for (const key of Object.keys(toolGroup)) {
+              await processTool(toolGroup[key]);
             }
           }
+        }
+      } else if (message.tools_call_data && typeof message.tools_call_data === "object") {
+        for (const key of Object.keys(message.tools_call_data)) {
+          await processTool(message.tools_call_data[key]);
         }
       }
 
       return message;
     };
 
-    const rootMessage = await findHistoryByMessageId(message_id);
+    const rootMessage = await findHistoryByMessageId(message_id, agent_id);
 
     if (!rootMessage) {
       res.locals = { success: false, message: "Message not found" };
@@ -206,7 +216,7 @@ const getRecursiveAgentHistory = async (req, res, next) => {
       return next();
     }
 
-    const finalHistory = await resolveMessage(message_id);
+    const finalHistory = await resolveMessage(message_id, agent_id);
 
     res.locals = {
       success: true,
