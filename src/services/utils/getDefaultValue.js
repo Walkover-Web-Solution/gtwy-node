@@ -5,12 +5,14 @@ const service_name = {
   anthropic: "anthropic",
   groq: "groq",
   grok: "grok",
+  deepseek: "deepseek",
   open_router: "open_router",
   mistral: "mistral",
   gemini: "gemini",
   openai_completion: "openai_completion",
   deepgram: "deepgram",
-  neev_cloud: "neev_cloud"
+  neev_cloud: "neev_cloud",
+  moonshot: "moonshot"
 };
 
 const validateFallBack = (fall_back_data) => {

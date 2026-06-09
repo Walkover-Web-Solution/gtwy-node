@@ -52,7 +52,9 @@ const updateVersionSchema = Joi.object({
     detect_entities: Joi.alternatives().try(Joi.boolean(), Joi.string(), Joi.object()).optional(),
     model_option: Joi.alternatives().try(Joi.string().allow(""), Joi.object()).optional()
   }).optional(),
-  service: Joi.string().valid("openai", "anthropic", "groq", "open_router", "mistral", "gemini", "grok", "deepgram", "neev_cloud").optional(),
+  service: Joi.string()
+    .valid("openai", "anthropic", "groq", "open_router", "mistral", "gemini", "grok", "deepseek", "deepgram", "neev_cloud", "moonshot")
+    .optional(),
   apikey_object_id: Joi.object()
     .pattern(Joi.string(), Joi.string().pattern(/^[0-9a-fA-F]{24}$/))
     .optional(),
@@ -61,6 +63,7 @@ const updateVersionSchema = Joi.object({
   gpt_memory_context: Joi.string().allow("").optional(),
   doc_ids: Joi.array().items(Joi.object()).optional(),
   IsstarterQuestionEnable: Joi.boolean().optional(),
+  starterQuestion: Joi.array().items(Joi.string()).optional(),
   auto_model_select: Joi.object().allow(null).optional(),
   cache_on: Joi.boolean().optional(),
   pre_tools: Joi.array().optional(),
