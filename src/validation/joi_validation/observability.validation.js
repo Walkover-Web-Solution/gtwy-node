@@ -28,10 +28,18 @@ const getLogs = {
   // legacy unpaginated response in the controller.
   query: Joi.object()
     .keys({
-      search: Joi.string().trim().min(1).max(256).optional().messages({
-        "string.empty": "search cannot be empty",
-        "string.max": "search cannot exceed 256 characters"
-      }),
+      search: Joi.alternatives()
+        .try(
+          Joi.string().trim().min(1).max(256).messages({
+            "string.empty": "search cannot be empty",
+            "string.max": "search cannot exceed 256 characters"
+          }),
+          Joi.object().min(1).max(1).pattern(Joi.string().min(1).max(256), Joi.string().min(1).max(256)).messages({
+            "object.min": "search object must have exactly one key",
+            "object.max": "search object must have exactly one key"
+          })
+        )
+        .optional(),
       page: Joi.number().integer().min(1).optional(),
       pageSize: Joi.number().integer().min(1).max(100).optional().messages({
         "number.max": "pageSize cannot exceed 100"
