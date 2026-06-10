@@ -1,4 +1,5 @@
 import observabilityService from "../db_services/observability.service.js";
+import { findMatchedKeyPaths } from "../utils/observabilitySearch.utils.js";
 import logger from "../logger.js";
 
 const createLog = async (req, res, next) => {
@@ -18,13 +19,45 @@ const createLog = async (req, res, next) => {
   }
 };
 
+// GET /:log_id — all logs for a log id. Optional ?search= matches JSON key names
+// (any depth, case-insensitive substring) and adds matched_paths to each hit.
+// Supplying any of search/page/pageSize opts into pagination; a bare call keeps
+// the legacy unpaginated response shape.
 const getLogs = async (req, res, next) => {
   try {
     const { log_id } = req.params;
+    const { search, page: rawPage, pageSize: rawPageSize } = req.query;
+    const paginated = search !== undefined || rawPage !== undefined || rawPageSize !== undefined;
 
-    const logs = await observabilityService.getLogsByLogId(log_id);
+    if (!paginated) {
+      const logs = await observabilityService.getLogsByLogId(log_id);
 
-    res.locals = { success: true, log_id, count: logs.length, logs };
+      res.locals = { success: true, log_id, count: logs.length, logs };
+      req.statusCode = 200;
+      return next();
+    }
+
+    const page = rawPage ?? 1;
+    const pageSize = rawPageSize ?? 50;
+    const { total, rows } = await observabilityService.getLogsByLogIdPaginated({ log_id, search, page, pageSize });
+
+    let logs = rows;
+    if (search) {
+      const termLower = search.toLowerCase();
+      logs = rows.map((row) => ({ ...row, matched_paths: findMatchedKeyPaths(row.data, termLower) }));
+    }
+
+    res.locals = {
+      success: true,
+      log_id,
+      ...(search ? { search } : {}),
+      page,
+      pageSize,
+      total,
+      totalPages: Math.ceil(total / pageSize),
+      count: logs.length,
+      logs
+    };
     req.statusCode = 200;
     return next();
   } catch (error) {

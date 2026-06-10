@@ -23,6 +23,20 @@ const getLogs = {
         "any.required": "log_id is required"
       })
     })
+    .unknown(true),
+  // No defaults on page/pageSize: their absence (along with search) selects the
+  // legacy unpaginated response in the controller.
+  query: Joi.object()
+    .keys({
+      search: Joi.string().trim().min(1).max(256).optional().messages({
+        "string.empty": "search cannot be empty",
+        "string.max": "search cannot exceed 256 characters"
+      }),
+      page: Joi.number().integer().min(1).optional(),
+      pageSize: Joi.number().integer().min(1).max(100).optional().messages({
+        "number.max": "pageSize cannot exceed 100"
+      })
+    })
     .unknown(true)
 };
 
