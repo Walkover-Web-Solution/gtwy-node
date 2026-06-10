@@ -398,6 +398,53 @@ async function getSubThreadsWithActivity(org_id, thread_id, bridge_id, { version
   }
 }
 
+/**
+ * Bridge-wide sibling of getSubThreadsWithActivity: all distinct (thread_id,
+ * sub_thread_id) pairs for a bridge with their display name and latest activity,
+ * ordered most-recently-active first. Single PG query — threads now live in
+ * conversation_logs, so no Mongo lookup is needed.
+ */
+async function getBridgeSubThreadsWithActivity(org_id, bridge_id, { version_id, isError } = {}) {
+  try {
+    const whereClause = { org_id, bridge_id };
+
+    if (version_id) {
+      whereClause.version_id = version_id;
+    }
+
+    if (isError) {
+      whereClause.error = {
+        [models.pg.Sequelize.Op.and]: [{ [models.pg.Sequelize.Op.ne]: "" }, { [models.pg.Sequelize.Op.ne]: null }]
+      };
+    }
+
+    const result = await models.pg.conversation_logs.findAll({
+      attributes: [
+        "thread_id",
+        "sub_thread_id",
+        [
+          models.pg.Sequelize.fn(
+            "COALESCE",
+            models.pg.Sequelize.fn("MAX", models.pg.Sequelize.col("display_name")),
+            models.pg.Sequelize.col("sub_thread_id")
+          ),
+          "display_name"
+        ],
+        [models.pg.Sequelize.fn("MAX", models.pg.Sequelize.col("created_at")), "updated_at"]
+      ],
+      where: whereClause,
+      group: ["thread_id", "sub_thread_id"],
+      order: [[models.pg.Sequelize.fn("MAX", models.pg.Sequelize.col("created_at")), "DESC"]],
+      raw: true
+    });
+
+    return result;
+  } catch (error) {
+    console.error("getBridgeSubThreadsWithActivity error =>", error);
+    return [];
+  }
+}
+
 async function getUserUpdates(org_id, version_id, page = 1, pageSize = 10, users = [], filters = {}) {
   try {
     const offset = (page - 1) * pageSize;
@@ -553,6 +600,7 @@ export default {
   addThreadId,
   findThreadMessage,
   getSubThreadsWithActivity,
+  getBridgeSubThreadsWithActivity,
   getUserUpdates,
   addBulkUserEntries
 };
