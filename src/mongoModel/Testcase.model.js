@@ -5,6 +5,10 @@ const testcaseSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  name: {
+    type: String,
+    default: ""
+  },
   conversation: {
     type: Array,
     default: []

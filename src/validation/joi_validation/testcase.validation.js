@@ -4,6 +4,7 @@ const createTestcaseSchema = Joi.object({
   bridge_id: Joi.string().required().messages({
     "any.required": "bridge_id is required"
   }),
+  name: Joi.string().allow("").optional(),
   conversation: Joi.array().required().messages({
     "any.required": "conversation is required"
   }),
@@ -41,10 +42,14 @@ const getAllTestcasesQuerySchema = Joi.object({
     "number.integer": "limit must be an integer",
     "number.min": "limit must be at least 1",
     "number.max": "limit must be at most 100"
+  }),
+  keyword: Joi.string().allow("").optional().messages({
+    "string.base": "keyword must be a string"
   })
 }).unknown(true);
 
 const testcaseUpdateSchema = Joi.object({
+  name: Joi.string().allow("").optional(),
   conversation: Joi.array().required().messages({
     "any.required": "conversation is required"
   }),
