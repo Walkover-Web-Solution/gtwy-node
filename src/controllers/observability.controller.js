@@ -1,5 +1,4 @@
 import observabilityService from "../db_services/observability.service.js";
-import { findMatchedKeyPaths } from "../utils/observabilitySearch.utils.js";
 import logger from "../logger.js";
 
 const createLog = async (req, res, next) => {
@@ -26,7 +25,17 @@ const createLog = async (req, res, next) => {
 const getLogs = async (req, res, next) => {
   try {
     const { log_id } = req.params;
-    const { search, page: rawPage, pageSize: rawPageSize } = req.query;
+    let { search, page: rawPage, pageSize: rawPageSize } = req.query;
+
+    // Support search sent as a JSON-encoded string e.g. search={"type":"info"}
+    if (typeof search === "string" && search.trimStart().startsWith("{")) {
+      try {
+        search = JSON.parse(search);
+      } catch {
+        /* leave as string */
+      }
+    }
+
     const paginated = search !== undefined || rawPage !== undefined || rawPageSize !== undefined;
 
     if (!paginated) {
@@ -42,10 +51,6 @@ const getLogs = async (req, res, next) => {
     const { total, rows } = await observabilityService.getLogsByLogIdPaginated({ log_id, search, page, pageSize });
 
     let logs = rows;
-    if (search) {
-      const termLower = search.toLowerCase();
-      logs = rows.map((row) => ({ ...row, matched_paths: findMatchedKeyPaths(row.data, termLower) }));
-    }
 
     res.locals = {
       success: true,
