@@ -422,11 +422,16 @@ async function publish(org_id, version_id, user_id, generate_summary = false) {
   delete updatedConfiguration.apiCalls; // Remove looked-up data
 
   const publicAgentConfig = parentConfiguration.settings?.publicAgentConfig;
+  const editAccess = parentConfiguration.settings?.editAccess;
   const environment_config = parentConfiguration.settings?.environment_config;
 
   // Restore the settings.publicAgentConfig value from parent
   if (publicAgentConfig !== undefined) {
     updatedConfiguration.settings.publicAgentConfig = publicAgentConfig;
+  }
+  // Restore the editAccess value from parent
+  if (editAccess !== undefined) {
+    updatedConfiguration.settings.editAccess = editAccess;
   }
 
   // Restore the settings.environment_config value from parent

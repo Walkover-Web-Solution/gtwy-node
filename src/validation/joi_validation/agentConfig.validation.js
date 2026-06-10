@@ -33,6 +33,7 @@ const updateBridgeSchema = Joi.object({
     maximum_iterations: Joi.number().min(3).optional(),
     stateless_conversation: Joi.boolean().optional(),
     response_format: Joi.object().optional(),
+    editAccess: Joi.array().items(Joi.number()).optional(),
     fall_back: Joi.object({
       is_enable: Joi.boolean().optional(),
       service: Joi.string().optional(),
