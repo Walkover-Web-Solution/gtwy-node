@@ -1,6 +1,11 @@
 import Sequelize from "sequelize";
 import models from "../../models/index.js";
-import { buildKeySearchJsonpath } from "../utils/observabilitySearch.utils.js";
+import {
+  buildKeySearchJsonpath,
+  buildKeyOnlySearchJsonpath,
+  buildValueOnlySearchJsonpath,
+  buildKeyValueSearchJsonpath
+} from "../utils/observabilitySearch.utils.js";
 
 async function createLog({ log_id, data }) {
   return await models.pg.observability_logs.create({ log_id, data });
@@ -14,21 +19,27 @@ async function getLogsByLogId(log_id) {
   });
 }
 
-// Paginated variant of getLogsByLogId. When `search` is provided, only rows whose
-// JSON contains a key name (at any depth) matching it as a case-insensitive
-// substring are returned — values are not searched.
 async function getLogsByLogIdPaginated({ log_id, search, page = 1, pageSize = 50 }) {
   const where = { log_id };
 
   if (search) {
+    let jsonpath;
+    if (typeof search === "object") {
+      const [key, value] = Object.entries(search)[0];
+      const hasKey = key.trim() !== "";
+      const hasValue = value !== null && value !== undefined && String(value).trim() !== "";
+      if (hasKey && hasValue) {
+        jsonpath = buildKeyValueSearchJsonpath(key, String(value));
+      } else if (hasKey) {
+        jsonpath = buildKeyOnlySearchJsonpath(key);
+      } else {
+        jsonpath = buildValueOnlySearchJsonpath(String(value));
+      }
+    } else {
+      jsonpath = buildKeySearchJsonpath(search);
+    }
     where[Sequelize.Op.and] = Sequelize.where(
-      Sequelize.fn(
-        "jsonb_path_exists",
-        Sequelize.col("data"),
-        Sequelize.cast(buildKeySearchJsonpath(search), "jsonpath"),
-        Sequelize.cast("{}", "jsonb"),
-        true // silent: malformed structures evaluate to false instead of throwing
-      ),
+      Sequelize.fn("jsonb_path_exists", Sequelize.col("data"), Sequelize.cast(jsonpath, "jsonpath"), Sequelize.cast("{}", "jsonb"), true),
       Sequelize.Op.eq,
       true
     );
