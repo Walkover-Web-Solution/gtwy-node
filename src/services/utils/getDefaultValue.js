@@ -55,47 +55,127 @@ const getDefaultValuesController = async (service, model, current_configuration,
       const default_values = {};
       const config_items = config.configuration || {};
 
+      const isNewConfigFormat = Object.values(current_configuration).some((val) => typeof val === "object" && val !== null && "mode" in val);
+
+      const nonWrappedKeys = ["model", "type", "is_rich_text", "prompt", "fine_tune_model", "reasoning"];
+
       for (const [key, value] of Object.entries(config_items)) {
         const current_value = current_configuration[key];
 
-        if (current_value === "min") {
-          default_values[key] = "min";
-        } else if (current_value === "max") {
-          default_values[key] = "max";
-        } else if (current_value === "default") {
-          if (type === "embedding") {
-            default_values[key] = config_items[key].default;
-          } else {
-            default_values[key] = "default";
-          }
-        } else {
-          if (key in config_items) {
-            if (key === "model") {
-              default_values[key] = value.default || null;
-              continue;
+        if (key === "model") {
+          default_values[key] = value.default || null;
+          continue;
+        }
+
+        const is_mode_obj = typeof current_value === "object" && current_value !== null && "mode" in current_value;
+
+        if (is_mode_obj || (current_value === undefined && isNewConfigFormat && !nonWrappedKeys.includes(key))) {
+          // Process using { mode, value } structure
+          const mode = is_mode_obj ? current_value.mode : "default";
+          const val = is_mode_obj ? current_value.value : null;
+
+          if (mode === "min") {
+            default_values[key] = { mode: "min", value: null };
+          } else if (mode === "max") {
+            default_values[key] = { mode: "max", value: null };
+          } else if (mode === "default") {
+            if (type === "embedding") {
+              default_values[key] = { mode: "default", value: value.default };
+            } else {
+              default_values[key] = { mode: "default", value: null };
             }
+          } else if (mode === "custom") {
             if (key === "response_type") {
-              const current_type = typeof current_value === "object" ? current_value.type : null;
-              if (current_type && config_items[key].options.some((opt) => opt.type === current_type)) {
-                default_values[key] = current_value;
-                if (current_type === "json_schema") {
-                  default_values.response_type.json_schema = current_value.json_schema || null;
-                }
+              const current_type = typeof val === "object" && val !== null ? val.type : null;
+              if (current_type && value.options && value.options.some((opt) => opt.type === current_type)) {
+                default_values[key] = {
+                  mode: "custom",
+                  value: {
+                    ...val,
+                    json_schema: current_type === "json_schema" ? val.json_schema || null : undefined
+                  }
+                };
               } else {
-                if (typeof value.default === "object") {
+                if (typeof value.default === "object" && value.default !== null) {
                   const json_key = value.default.key;
-                  default_values[key] = { [json_key]: value.default[json_key] || null };
+                  default_values[key] = {
+                    mode: "custom",
+                    value: { [json_key]: value.default[json_key] || null }
+                  };
                 } else {
-                  default_values[key] = value.default || null;
+                  default_values[key] = {
+                    mode: "custom",
+                    value: value.default || null
+                  };
                 }
               }
-              continue;
+            } else {
+              const min_value = value.min;
+              const max_value = value.max;
+              if (min_value !== undefined && max_value !== undefined) {
+                if (val !== undefined && val !== null && !(min_value <= val && val <= max_value)) {
+                  default_values[key] = { mode: "custom", value: value.default || null };
+                } else {
+                  if (val === undefined || val === null) {
+                    default_values[key] = { mode: "default", value: null };
+                  } else {
+                    default_values[key] = { mode: "custom", value: val };
+                  }
+                }
+              } else {
+                if (val === undefined || val === null) {
+                  default_values[key] = { mode: "default", value: null };
+                } else {
+                  default_values[key] = { mode: "custom", value: val };
+                }
+              }
             }
-            const min_value = value.min;
-            const max_value = value.max;
-            if (min_value !== undefined && max_value !== undefined) {
-              if (current_value !== undefined && current_value !== null && !(min_value <= current_value && current_value <= max_value)) {
-                default_values[key] = value.default || null;
+          } else {
+            default_values[key] = current_value;
+          }
+        } else {
+          // Process using old/raw value format
+          if (current_value === "min") {
+            default_values[key] = "min";
+          } else if (current_value === "max") {
+            default_values[key] = "max";
+          } else if (current_value === "default") {
+            if (type === "embedding") {
+              default_values[key] = value.default;
+            } else {
+              default_values[key] = "default";
+            }
+          } else {
+            if (key in config_items) {
+              if (key === "response_type") {
+                const current_type = typeof current_value === "object" && current_value !== null ? current_value.type : null;
+                if (current_type && value.options && value.options.some((opt) => opt.type === current_type)) {
+                  default_values[key] = current_value;
+                  if (current_type === "json_schema") {
+                    default_values.response_type.json_schema = current_value.json_schema || null;
+                  }
+                } else {
+                  if (typeof value.default === "object" && value.default !== null) {
+                    const json_key = value.default.key;
+                    default_values[key] = { [json_key]: value.default[json_key] || null };
+                  } else {
+                    default_values[key] = value.default || null;
+                  }
+                }
+                continue;
+              }
+              const min_value = value.min;
+              const max_value = value.max;
+              if (min_value !== undefined && max_value !== undefined) {
+                if (current_value !== undefined && current_value !== null && !(min_value <= current_value && current_value <= max_value)) {
+                  default_values[key] = value.default || null;
+                } else {
+                  if (current_value === undefined || current_value === null) {
+                    default_values[key] = "default";
+                  } else {
+                    default_values[key] = current_value;
+                  }
+                }
               } else {
                 if (current_value === undefined || current_value === null) {
                   default_values[key] = "default";
@@ -104,23 +184,23 @@ const getDefaultValuesController = async (service, model, current_configuration,
                 }
               }
             } else {
-              if (current_value === undefined || current_value === null) {
-                default_values[key] = "default";
-              } else {
-                default_values[key] = current_value;
-              }
+              default_values[key] = type === "embedding" ? value.default || null : "default";
             }
-          } else {
-            default_values[key] = key === "model" || type === "embedding" ? value.default || null : "default";
           }
         }
       }
+
+      for (const [key, value] of Object.entries(current_configuration)) {
+        if (!(key in default_values)) {
+          default_values[key] = value;
+        }
+      }
+
       if (default_values.stream === undefined) default_values.stream = "default";
       return default_values;
     };
 
     if (!modelConfigDocument[service] || !modelConfigDocument[service][model]) {
-      // If service exists but model doesn't, or service doesn't exist
       if (!modelConfigDocument[service]) {
         throw new Error(`Service '${service}' not found.`);
       }
