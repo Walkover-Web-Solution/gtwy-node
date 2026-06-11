@@ -8,6 +8,7 @@ import models from "../../models/index.js";
 import jwt from "jsonwebtoken";
 import axios from "axios";
 import { ObjectId } from "mongodb";
+import folderService from "./folder.service.js";
 // import { getAgentData } from "../services/utils/getConfiguration.js";
 
 const cloneAgentToOrg = async (agent_id, to_shift_org_id, cloned_agents_map = null, depth = 0) => {
@@ -766,7 +767,8 @@ const getAgentsByUserId = async (orgId, userId, agent_id, folder_id) => {
           meta: 1,
           deletedAt: 1,
           createdAt: 1,
-          updatedAt: 1
+          updatedAt: 1,
+          folder_id: 1
         }
       }
     ]);
@@ -1196,10 +1198,11 @@ const getAgentsWithTools = async (agent_id, org_id, version_id = null) => {
 const getAllAgentsInOrg = async (org_id, folder_id, user_id, isEmbedUser) => {
   // First, get all bridge_ids and their last publishers from PostgreSQL
   const lastPublishersMap = await getAllAgentsWithLastPublishers(org_id);
+  const folderIds = await folderService.getFolderIdsByOrgAndType(org_id, "agent");
 
   // Build MongoDB query
   const query = { org_id: org_id };
-  if (folder_id) {
+  if (folder_id && isEmbedUser) {
     try {
       if (ObjectId.isValid(folder_id)) {
         query.folder_id = folder_id;
@@ -1210,8 +1213,7 @@ const getAllAgentsInOrg = async (org_id, folder_id, user_id, isEmbedUser) => {
       console.error("Error validating folder_id:", e);
     }
   } else {
-    // When folder_id is not provided, only get agents without a folder_id
-    query.folder_id = null;
+    query.folder_id = { $in: [null, ...folderIds, ""] };
   }
   if (user_id && isEmbedUser) query.user_id = user_id;
 
@@ -1252,7 +1254,8 @@ const getAllAgentsInOrg = async (org_id, folder_id, user_id, isEmbedUser) => {
       "ai_updates.prompt_enhancer_percentage": 1,
       "ai_updates.criteria_check": 1,
       settings: 1,
-      meta: 1
+      meta: 1,
+      folder_id: 1
     })
     .sort({ createdAt: -1 })
     .lean();

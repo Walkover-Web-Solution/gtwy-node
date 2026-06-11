@@ -2,40 +2,6 @@ import mongoose from "mongoose";
 import { cacheInvalidationPlugin } from "../cache_service/mongoosePlugin.js";
 import { tag_keys } from "../configs/tagKeys.js";
 
-const ConfigSchema = new mongoose.Schema(
-  {
-    showHomeButton: { type: Boolean, default: true },
-    showAgentTypeOnCreateAgent: { type: Boolean, default: false },
-    showHistory: { type: Boolean, default: false },
-    showConfigType: { type: Boolean, default: false },
-    showAdvancedParameters: { type: Boolean, default: true },
-    showCreateManuallyButton: { type: Boolean, default: true },
-    showAdvancedConfigurations: { type: Boolean, default: true },
-    showPreTool: { type: Boolean, default: true },
-    slide: { type: String, default: "right" },
-    defaultOpen: { type: Boolean, default: false },
-    showFullScreenButton: { type: Boolean, default: true },
-    showCloseButton: { type: Boolean, default: true },
-    showHeader: { type: Boolean, default: true },
-    addDefaultApiKeys: { type: Boolean, default: false },
-    showResponseType: { type: Boolean, default: false },
-    showVariables: { type: Boolean, default: false },
-    showAgentName: { type: Boolean, default: false },
-    themeMode: { type: String, default: "light" },
-    theme_config: { type: Object, default: {} },
-    showGuide: { type: Boolean, default: false },
-    configureGtwyRedirection: { type: String, default: "" },
-    embed_id: { type: String, default: "" },
-    tools_id: { type: [String], default: [] },
-    variables_path: { type: Object, default: {} },
-    pre_tool_id: { type: String, default: "" },
-    prompt: { type: Object, default: {} },
-    models: { type: Object, default: {} },
-    showPromptHelper: { type: Boolean, default: true }
-  },
-  { _id: false, strict: false }
-);
-
 const FolderSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -49,8 +15,8 @@ const FolderSchema = new mongoose.Schema({
     type: String
   },
   config: {
-    type: ConfigSchema,
-    default: {}
+    type: mongoose.Schema.Types.Mixed,
+    default: "agent"
   },
   apikey_object_id: {
     type: Object,
@@ -81,6 +47,45 @@ const FolderSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   }
+});
+
+FolderSchema.index({ org_id: 1, name: 1 }, { unique: true });
+
+FolderSchema.pre("save", function (next) {
+  if (this.type === "embed") {
+    const defaults = {
+      showHomeButton: true,
+      showAgentTypeOnCreateAgent: false,
+      showHistory: false,
+      showConfigType: false,
+      showAdvancedParameters: true,
+      showCreateManuallyButton: true,
+      showAdvancedConfigurations: true,
+      showPreTool: true,
+      slide: "right",
+      defaultOpen: false,
+      showFullScreenButton: true,
+      showCloseButton: true,
+      showHeader: true,
+      addDefaultApiKeys: false,
+      showResponseType: false,
+      showVariables: false,
+      showAgentName: false,
+      themeMode: "light",
+      theme_config: {},
+      showGuide: false,
+      configureGtwyRedirection: "",
+      embed_id: "",
+      tools_id: [],
+      variables_path: {},
+      pre_tool_id: "",
+      prompt: {},
+      models: {},
+      showPromptHelper: true
+    };
+    this.config = { ...defaults, ...(this.config || {}) };
+  }
+  next();
 });
 
 FolderSchema.plugin(cacheInvalidationPlugin, { tags: [tag_keys.folder] });
