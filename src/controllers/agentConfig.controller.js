@@ -17,7 +17,7 @@ const createAgentController = async (req, res, next) => {
     const purpose = agents.purpose;
     const agentType = agents.bridgeType || "api";
     const org_id = req.profile.org.id;
-    const folder_id = req.folder_id || null;
+    const folder_id = req.folder_id || req.body.folder_id || null;
     const folder_data = await folderDbService.getFolderData(folder_id);
     const user_id = req.profile.user.id;
 
@@ -275,7 +275,17 @@ const updateAgentController = async (req, res, next) => {
     const update_fields = {};
     const user_history = [];
 
-    const simpleAgentFields = ["name", "slugName", "meta", "bridge_summary", "bridge_status", "bridge_usage", "bridge_limit", "bridgeType"];
+    const simpleAgentFields = [
+      "name",
+      "slugName",
+      "meta",
+      "bridge_summary",
+      "bridge_status",
+      "bridge_usage",
+      "bridge_limit",
+      "bridgeType",
+      "folder_id"
+    ];
 
     for (const field of simpleAgentFields) {
       if (body[field] !== undefined) {

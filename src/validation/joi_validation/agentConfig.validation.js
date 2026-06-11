@@ -12,7 +12,8 @@ const createBridgeSchema = Joi.object({
   bridge_limit: Joi.number().min(0).optional(),
   bridge_usage: Joi.number().min(0).optional(),
   bridge_limit_reset_period: Joi.string().valid("monthly", "weekly", "daily").optional(),
-  bridge_limit_start_date: Joi.date().optional()
+  bridge_limit_start_date: Joi.date().optional(),
+  folder_id: Joi.string().allow(null).optional()
 }).unknown(true); // Allow additional fields that might be added dynamically
 
 const updateBridgeSchema = Joi.object({
@@ -26,6 +27,7 @@ const updateBridgeSchema = Joi.object({
   bridge_limit_reset_period: Joi.string().valid("monthly", "weekly", "daily").optional(),
   bridgeType: Joi.string().valid("api", "chatbot", "trigger").optional(),
   page_config: Joi.object().optional(),
+  folder_id: Joi.string().allow(null).optional(),
   connected_agent_details: Joi.object().optional(),
   settings: Joi.object({
     responseStyle: Joi.object().optional(),
