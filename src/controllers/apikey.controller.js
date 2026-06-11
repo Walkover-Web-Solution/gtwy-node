@@ -2,18 +2,13 @@ import apikeyService from "../db_services/apikey.service.js";
 import Helper from "../services/utils/helper.utils.js";
 import { findInCache, deleteInCache } from "../cache_service/index.js";
 import {
-  callOpenAIModelsApi,
-  callGroqApi,
+  validateBearerModelsList,
+  validateBearerChatCompletion,
   callAnthropicApi,
-  callOpenRouterApi,
-  callMistralApi,
   callGeminiApi,
-  callGrokApi,
-  callDeepseekApi,
-  callDeepgramApi,
-  callNeevCloudApi,
-  callMoonShotApi
+  callDeepgramApi
 } from "../services/utils/aiServices.js";
+import { getBaseUrl, getDefaultModel, client as serviceClient } from "../services/utils/loadServicesRegistry.js";
 import { redis_keys, cost_types, new_agent_service } from "../configs/constant.js";
 import { cleanupCache } from "../services/utils/redis.utils.js";
 
@@ -220,48 +215,43 @@ const deleteApikey = async (req, res, next) => {
   }
 };
 
-const checkApikey = async (apikey, service) => {
-  let check;
-  const model = new_agent_service[service].model;
+// Bearer (OpenAI-compatible) providers validated via an authenticated GET
+// (value = path under base_url); everything else (groq, mistral, neev_cloud,
+// + future openai_sdk services) via a tiny POST /chat/completions. The GET
+// path must require auth or it can't validate the key — open_router's /models
+// is public, so it uses OpenRouter's /key endpoint instead. GET-vs-POST
+// doesn't follow `client`, so it's an explicit hint here; base_url + model
+// come from the services registry.
+const BEARER_VALIDATION_GET_PATH = {
+  openai: "models",
+  open_router: "key",
+  grok: "models",
+  moonshot: "models"
+  // groq, mistral, neev_cloud, deepseek, + future openai_sdk services default to chat
+};
 
-  switch (service) {
-    case "openai":
-      check = await callOpenAIModelsApi(apikey);
-      break;
-    case "anthropic":
-      check = await callAnthropicApi(apikey, model);
-      break;
-    case "groq":
-      check = await callGroqApi(apikey, model);
-      break;
-    case "open_router":
-      check = await callOpenRouterApi(apikey);
-      break;
-    case "mistral":
-      check = await callMistralApi(apikey, model);
-      break;
-    case "gemini":
-      check = await callGeminiApi(apikey, model);
-      break;
-    case "grok":
-      check = await callGrokApi(apikey);
-      break;
-    case "deepseek":
-      check = await callDeepseekApi(apikey, model);
-      break;
-    case "deepgram":
-      check = await callDeepgramApi(apikey);
-      break;
-    case "neev_cloud":
-      check = await callNeevCloudApi(apikey, model);
-      break;
-    case "moonshot":
-      check = await callMoonShotApi(apikey);
-      break;
-    default:
-      const error = new Error("Invalid service provided");
-      error.statusCode = 400;
-      throw error;
+const checkApikey = async (apikey, service) => {
+  // Prefer the existing default model (parity) and fall back to the registry
+  // so a brand-new registered service still resolves a model with no code change.
+  const model = new_agent_service[service]?.model || getDefaultModel(service);
+  const baseUrl = getBaseUrl(service);
+  const svcClient = serviceClient(service);
+  let check;
+
+  if (svcClient === "anthropic_sdk") {
+    check = await callAnthropicApi(apikey, baseUrl);
+  } else if (svcClient === "gemini_sdk") {
+    check = await callGeminiApi(apikey, baseUrl);
+  } else if (svcClient === "deepgram_sdk") {
+    check = await callDeepgramApi(apikey, baseUrl);
+  } else if (svcClient) {
+    // OpenAI-compatible Bearer: openai_sdk / openai_completion_sdk / groq_sdk / grok_http / mistral_sdk
+    const getPath = BEARER_VALIDATION_GET_PATH[service];
+    check = getPath ? await validateBearerModelsList(apikey, baseUrl, getPath) : await validateBearerChatCompletion(apikey, baseUrl, model);
+  } else {
+    const error = new Error("Invalid service provided");
+    error.statusCode = 400;
+    throw error;
   }
 
   if (!check.success) {

@@ -107,6 +107,7 @@ app.use(notFoundMiddleware); // added at the last, so that it runs after all rou
 app.use(errorHandlerMiddleware);
 
 import { initModelConfiguration, backgroundListenForChanges } from "./services/utils/loadModelConfigs.js";
+import { initServicesRegistry, backgroundListenForServiceChanges } from "./services/utils/loadServicesRegistry.js";
 
 initializeMonthlyLatencyReport();
 initializeWeeklyLatencyReport();
@@ -115,6 +116,9 @@ initializeCleanupOrphanedThreadsCron();
 
 initModelConfiguration();
 backgroundListenForChanges();
+
+initServicesRegistry();
+backgroundListenForServiceChanges();
 
 const server = app.listen(PORT, () => {
   console.log(`Server is running on port:${PORT}`);
