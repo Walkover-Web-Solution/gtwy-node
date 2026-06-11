@@ -76,13 +76,14 @@ const getLogs = async (req, res, next) => {
 // GET / — returns all logs (paginated). Pass ?log_id=... to filter to one log id.
 const listLogs = async (req, res, next) => {
   try {
-    const { log_id, page, pageSize } = req.query;
+    const { log_id, search, page, pageSize } = req.query;
 
-    const { total, rows } = await observabilityService.getLogs({ log_id, page, pageSize });
+    const { total, rows } = await observabilityService.getLogs({ log_id, search, page, pageSize });
 
     res.locals = {
       success: true,
       ...(log_id ? { log_id } : {}),
+      ...(search ? { search } : {}),
       page,
       pageSize,
       total,
