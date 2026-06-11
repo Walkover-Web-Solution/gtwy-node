@@ -47,7 +47,7 @@ async function createFolder(folderData) {
 }
 
 async function updateFolder(folder_id, org_id, updateData) {
-  const { name, config, type } = updateData;
+  const { name, config } = updateData;
   const folder = await Folder.findOne({ _id: folder_id, org_id });
   if (!folder) throw new Error("Folder not found");
 
@@ -63,7 +63,6 @@ async function updateFolder(folder_id, org_id, updateData) {
     folder.name = name;
   }
   if (config !== undefined) folder.config = config;
-  if (type !== undefined) folder.type = type;
   await folder.save();
   return folder;
 }

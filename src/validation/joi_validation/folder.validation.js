@@ -24,8 +24,7 @@ const updateFolder = {
         "any.required": "folder_id is required"
       }),
     name: Joi.string().optional(),
-    config: Joi.object().optional(),
-    type: Joi.string().optional()
+    config: Joi.object().optional()
   })
 };
 

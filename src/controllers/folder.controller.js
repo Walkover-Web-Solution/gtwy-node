@@ -26,13 +26,12 @@ const getAllFoldersController = async (req, res, next) => {
 };
 
 const updateFolderController = async (req, res, next) => {
-  const { folder_id, name, config, type } = req.body;
+  const { folder_id, name, config } = req.body;
   const org_id = req.profile.org.id;
 
   const folder = await folderService.updateFolder(folder_id, org_id, {
     name,
-    config,
-    type
+    config
   });
 
   res.locals = { success: true, data: { ...folder.toObject(), folder_id: folder._id } };
