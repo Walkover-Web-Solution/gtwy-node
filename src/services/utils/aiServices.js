@@ -2,10 +2,12 @@
 // generic validators parameterized by base_url (sourced from the services
 // registry); anthropic / gemini / deepgram keep bespoke auth schemes.
 
-// Bearer + GET {baseUrl}/models  (openai, open_router, grok, moonshot, + future)
-async function validateBearerModelsList(apiKey, baseUrl) {
+// Bearer + GET {baseUrl}/{path}  (openai, grok, moonshot, + future)
+// path defaults to "models"; open_router passes "key" because its /models
+// endpoint is public (returns 200 without auth) and so cannot validate a key.
+async function validateBearerModelsList(apiKey, baseUrl, path = "models") {
   try {
-    const response = await fetch(`${baseUrl}/models`, {
+    const response = await fetch(`${baseUrl}/${path}`, {
       method: "GET",
       headers: { Authorization: `Bearer ${apiKey}` }
     });
@@ -45,19 +47,17 @@ async function validateBearerChatCompletion(apiKey, baseUrl, model) {
 }
 
 // --- Bespoke auth schemes --------------------------------------------------
-async function callAnthropicApi(apiKey, model = "claude-3-7-sonnet-20250219", baseUrl = "https://api.anthropic.com/v1") {
+// Key check via GET {baseUrl}/models — free and only tests the key. The old
+// POST /messages probe spent tokens on the customer's key and could fail for
+// non-key reasons (model deprecated, 529 overload), reporting a false
+// "invalid apikey".
+async function callAnthropicApi(apiKey, baseUrl = "https://api.anthropic.com/v1") {
   const headers = {
     "x-api-key": apiKey,
-    "anthropic-version": "2023-06-01",
-    "content-type": "application/json"
+    "anthropic-version": "2023-06-01"
   };
-  const body = JSON.stringify({
-    model,
-    max_tokens: 1,
-    messages: [{ role: "user", content: "Hello, world" }]
-  });
   try {
-    const response = await fetch(`${baseUrl}/messages`, { method: "POST", headers, body });
+    const response = await fetch(`${baseUrl}/models`, { method: "GET", headers });
     if (!response.ok) {
       throw new Error(`HTTP error! Status: ${response.status}`);
     }

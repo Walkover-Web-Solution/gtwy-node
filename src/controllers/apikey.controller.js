@@ -215,16 +215,19 @@ const deleteApikey = async (req, res, next) => {
   }
 };
 
-// Bearer (OpenAI-compatible) providers validated via GET /models; everything
-// else (groq, mistral, neev_cloud, + future openai_sdk services) via a tiny
-// POST /chat/completions. GET-vs-POST doesn't follow `client`, so it's an
-// explicit hint here; base_url + model come from the services registry.
-const BEARER_VALIDATION_METHOD = {
+// Bearer (OpenAI-compatible) providers validated via an authenticated GET
+// (value = path under base_url); everything else (groq, mistral, neev_cloud,
+// + future openai_sdk services) via a tiny POST /chat/completions. The GET
+// path must require auth or it can't validate the key — open_router's /models
+// is public, so it uses OpenRouter's /key endpoint instead. GET-vs-POST
+// doesn't follow `client`, so it's an explicit hint here; base_url + model
+// come from the services registry.
+const BEARER_VALIDATION_GET_PATH = {
   openai: "models",
-  open_router: "models",
+  open_router: "key",
   grok: "models",
   moonshot: "models"
-  // groq, mistral, neev_cloud, deepseek, + future openai_sdk services default to "chat"
+  // groq, mistral, neev_cloud, deepseek, + future openai_sdk services default to chat
 };
 
 const checkApikey = async (apikey, service) => {
@@ -236,15 +239,15 @@ const checkApikey = async (apikey, service) => {
   let check;
 
   if (svcClient === "anthropic_sdk") {
-    check = await callAnthropicApi(apikey, model, baseUrl);
+    check = await callAnthropicApi(apikey, baseUrl);
   } else if (svcClient === "gemini_sdk") {
     check = await callGeminiApi(apikey, baseUrl);
   } else if (svcClient === "deepgram_sdk") {
     check = await callDeepgramApi(apikey, baseUrl);
   } else if (svcClient) {
     // OpenAI-compatible Bearer: openai_sdk / openai_completion_sdk / groq_sdk / grok_http / mistral_sdk
-    const method = BEARER_VALIDATION_METHOD[service] || "chat";
-    check = method === "models" ? await validateBearerModelsList(apikey, baseUrl) : await validateBearerChatCompletion(apikey, baseUrl, model);
+    const getPath = BEARER_VALIDATION_GET_PATH[service];
+    check = getPath ? await validateBearerModelsList(apikey, baseUrl, getPath) : await validateBearerChatCompletion(apikey, baseUrl, model);
   } else {
     const error = new Error("Invalid service provided");
     error.statusCode = 400;
