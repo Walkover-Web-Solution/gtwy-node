@@ -415,18 +415,29 @@ async function publish(org_id, version_id, user_id, generate_summary = false) {
   const existingAgentVariables = getVersionData.agent_info?.agent_variables || parentConfiguration.agent_info?.agent_variables;
   const transformedAgentVariables = transformAgentVariableToToolCallFormat(agentVariables, existingAgentVariables);
 
+  const folder_id = parentConfiguration.folder_id;
+
   // Prepare updated configuration
   const updatedConfiguration = { ...parentConfiguration, ...getVersionData };
   delete updatedConfiguration._id;
   updatedConfiguration.published_version_id = publishedVersionId;
   delete updatedConfiguration.apiCalls; // Remove looked-up data
 
+  if (folder_id !== undefined) {
+    updatedConfiguration.folder_id = folder_id;
+  }
+
   const publicAgentConfig = parentConfiguration.settings?.publicAgentConfig;
+  const editAccess = parentConfiguration.settings?.editAccess;
   const environment_config = parentConfiguration.settings?.environment_config;
 
   // Restore the settings.publicAgentConfig value from parent
   if (publicAgentConfig !== undefined) {
     updatedConfiguration.settings.publicAgentConfig = publicAgentConfig;
+  }
+  // Restore the editAccess value from parent
+  if (editAccess !== undefined) {
+    updatedConfiguration.settings.editAccess = editAccess;
   }
 
   // Restore the settings.environment_config value from parent

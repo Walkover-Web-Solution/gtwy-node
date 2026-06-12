@@ -29,6 +29,7 @@ import testcaseRoutes from "./routes/testcase.routes.js";
 import reportRoute from "./routes/report.routes.js";
 import modelsRoutes from "./routes/modelConfig.routes.js";
 import embedRoutes from "./routes/embed.routes.js";
+import folderRoutes from "./routes/folder.routes.js";
 import historyRoutes from "./routes/history.routes.js";
 import apiCallRoutes from "./routes/apiCall.routes.js";
 import agentVersionRoutes from "./routes/agentVersion.routes.js";
@@ -75,6 +76,7 @@ app.use("/api/apikeys", apikeyRoutes);
 app.use("/api/service", serviceRoutes);
 app.use("/api/chatbot", chatbotRoutes);
 app.use("/api/embed", embedRoutes);
+app.use("/api/folder", folderRoutes);
 app.use("/api/user", clientAuthRoutes);
 app.use("/api/alerting", alertingRoutes);
 app.use("/api/thread", threadRoutes);
@@ -105,6 +107,7 @@ app.use(notFoundMiddleware); // added at the last, so that it runs after all rou
 app.use(errorHandlerMiddleware);
 
 import { initModelConfiguration, backgroundListenForChanges } from "./services/utils/loadModelConfigs.js";
+import { initServicesRegistry, backgroundListenForServiceChanges } from "./services/utils/loadServicesRegistry.js";
 
 initializeMonthlyLatencyReport();
 initializeWeeklyLatencyReport();
@@ -113,6 +116,9 @@ initializeCleanupOrphanedThreadsCron();
 
 initModelConfiguration();
 backgroundListenForChanges();
+
+initServicesRegistry();
+backgroundListenForServiceChanges();
 
 const server = app.listen(PORT, () => {
   console.log(`Server is running on port:${PORT}`);
