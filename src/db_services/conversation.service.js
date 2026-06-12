@@ -1,6 +1,5 @@
 import models from "../../models/index.js";
 import Sequelize from "sequelize";
-import Thread from "../mongoModel/Thread.model.js";
 import { findInCache, storeInCache } from "../cache_service/index.js";
 import { getUsers } from "../services/proxy.service.js";
 
@@ -352,29 +351,51 @@ async function findThreadMessage(org_id, thread_id, bridge_id, sub_thread_id, pa
   return { conversations };
 }
 
-const getSubThreads = async (org_id, thread_id, bridge_id) => {
-  return await Thread.find({ org_id, thread_id, bridge_id }).lean();
-};
+/**
+ * Single-query sub-thread listing: distinct sub-threads of a thread with their
+ * display name (COALESCE over conversation_logs.display_name, falling back to
+ * sub_thread_id) ordered by latest activity. Replaces the old Mongo `threads`
+ * lookup + separate PG activity-sort queries.
+ */
+async function getSubThreadsWithActivity(org_id, thread_id, bridge_id, { version_id, isError } = {}) {
+  try {
+    const whereClause = { org_id, thread_id, bridge_id };
 
-async function sortThreadsByHits(threads) {
-  const subThreadIds = [...new Set(threads.map((t) => t.sub_thread_id).filter(Boolean))];
+    if (version_id) {
+      whereClause.version_id = version_id;
+    }
 
-  const latestEntries = await models.pg.conversation_logs.findAll({
-    attributes: ["sub_thread_id", [models.pg.sequelize.fn("MAX", models.pg.sequelize.col("created_at")), "latestCreatedAt"]],
-    where: { sub_thread_id: subThreadIds },
-    group: ["sub_thread_id"],
-    raw: true
-  });
+    if (isError) {
+      whereClause.error = {
+        [models.pg.Sequelize.Op.and]: [{ [models.pg.Sequelize.Op.ne]: "" }, { [models.pg.Sequelize.Op.ne]: null }]
+      };
+    }
 
-  const latestSubThreadMap = new Map(latestEntries.map((entry) => [entry.sub_thread_id, new Date(entry.latestCreatedAt)]));
+    const result = await models.pg.conversation_logs.findAll({
+      attributes: [
+        "thread_id",
+        "sub_thread_id",
+        [
+          models.pg.Sequelize.fn(
+            "COALESCE",
+            models.pg.Sequelize.fn("MAX", models.pg.Sequelize.col("display_name")),
+            models.pg.Sequelize.col("sub_thread_id")
+          ),
+          "display_name"
+        ],
+        [models.pg.Sequelize.fn("MAX", models.pg.Sequelize.col("created_at")), "updated_at"]
+      ],
+      where: whereClause,
+      group: ["thread_id", "sub_thread_id"],
+      order: [[models.pg.Sequelize.fn("MAX", models.pg.Sequelize.col("created_at")), "DESC"]],
+      raw: true
+    });
 
-  threads.sort((a, b) => {
-    const dateA = latestSubThreadMap.get(a.sub_thread_id) || new Date(0);
-    const dateB = latestSubThreadMap.get(b.sub_thread_id) || new Date(0);
-    return dateB - dateA;
-  });
-
-  return threads;
+    return result;
+  } catch (error) {
+    console.error("getSubThreadsWithActivity error =>", error);
+    return [];
+  }
 }
 
 async function getUserUpdates(org_id, version_id, page = 1, pageSize = 10, users = [], filters = {}) {
@@ -504,93 +525,6 @@ async function getUserUpdates(org_id, version_id, page = 1, pageSize = 10, users
   }
 }
 
-async function getSubThreadsByError(org_id, thread_id, bridge_id, version_id, isError) {
-  try {
-    let whereClause = {
-      org_id,
-      thread_id,
-      bridge_id
-    };
-
-    // Apply version_id filter
-    if (version_id) {
-      whereClause.version_id = version_id;
-    }
-
-    if (isError) {
-      whereClause.error = {
-        [models.pg.Sequelize.Op.and]: [{ [models.pg.Sequelize.Op.ne]: "" }, { [models.pg.Sequelize.Op.ne]: null }]
-      };
-    }
-
-    const result = await models.pg.conversation_logs.findAll({
-      attributes: ["sub_thread_id", "version_id", [models.pg.Sequelize.fn("MAX", models.pg.Sequelize.col("created_at")), "latest_error"]],
-      where: whereClause,
-      group: ["sub_thread_id", "version_id"],
-      order: [[models.pg.Sequelize.literal("latest_error"), "DESC"]],
-      raw: true
-    });
-
-    return result.map((item) => item.sub_thread_id);
-  } catch (error) {
-    console.error("getSubThreadsByError error =>", error);
-    return [];
-  }
-}
-
-async function sortThreadsByLatestActivity(threads, org_id, bridge_id) {
-  try {
-    if (!threads || threads.length === 0) {
-      return threads;
-    }
-
-    // Extract thread_id and sub_thread_id from threads
-    const threadIds = threads.map((thread) => ({
-      thread_id: thread.thread_id,
-      sub_thread_id: thread.sub_thread_id
-    }));
-
-    // Query PostgreSQL to get latest conversation activity for each thread
-    const conversationActivity = await models.pg.conversation_logs.findAll({
-      attributes: ["thread_id", "sub_thread_id", [models.pg.Sequelize.fn("MAX", models.pg.Sequelize.col("created_at")), "latest_activity"]],
-      where: {
-        org_id,
-        bridge_id,
-        [models.pg.Sequelize.Op.or]: threadIds.map(({ thread_id, sub_thread_id }) => ({
-          thread_id,
-          sub_thread_id
-        }))
-      },
-      group: ["thread_id", "sub_thread_id"],
-      order: [[models.pg.Sequelize.literal("latest_activity"), "DESC"]],
-      raw: true
-    });
-
-    // Create a map for quick lookup of latest activity
-    const activityMap = new Map();
-    conversationActivity.forEach((item) => {
-      const key = `${item.thread_id}_${item.sub_thread_id}`;
-      activityMap.set(key, new Date(item.latest_activity));
-    });
-
-    // Sort threads based on latest activity (DESC - most recent first)
-    const sortedThreads = threads.sort((a, b) => {
-      const keyA = `${a.thread_id}_${a.sub_thread_id}`;
-      const keyB = `${b.thread_id}_${b.sub_thread_id}`;
-
-      const activityA = activityMap.get(keyA) || new Date(0); // Default to epoch if not found
-      const activityB = activityMap.get(keyB) || new Date(0);
-
-      return activityB - activityA; // DESC order
-    });
-
-    return sortedThreads;
-  } catch (error) {
-    console.error("sortThreadsByLatestActivity error =>", error);
-    return threads; // Return original threads if sorting fails
-  }
-}
-
 async function addBulkUserEntries(entries) {
   try {
     if (!entries || entries.length === 0) return { success: true, message: "No entries to add" };
@@ -618,10 +552,7 @@ export default {
   create,
   addThreadId,
   findThreadMessage,
-  getSubThreads,
+  getSubThreadsWithActivity,
   getUserUpdates,
-  sortThreadsByHits,
-  getSubThreadsByError,
-  sortThreadsByLatestActivity,
   addBulkUserEntries
 };

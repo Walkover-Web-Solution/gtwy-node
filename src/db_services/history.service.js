@@ -330,7 +330,7 @@ async function findRecentThreadsByBridgeId(
         if (distinctSubThreads.length > 0) {
           thread.sub_thread = distinctSubThreads.map((stId) => ({
             sub_thread_id: stId,
-            display_name: stId,
+            display_name: threadMessages.find((m) => m.sub_thread_id === stId && m.display_name)?.display_name || stId,
             messages: threadMessages
               .filter((m) => m.sub_thread_id === stId)
               .map((msg) => ({
@@ -654,6 +654,7 @@ async function createConversationLog(payload) {
       llm_message: payload.message || null,
       thread_id: payload.thread_id,
       sub_thread_id: payload.sub_thread_id || payload.thread_id,
+      display_name: payload.display_name || null,
       bridge_id: payload.bridge_id,
       version_id: payload.version_id || null,
       message_id: payload.message_id,

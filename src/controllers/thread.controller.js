@@ -1,11 +1,19 @@
 // controllers/threadController.js
-import { createThread, getThreads } from "../services/thread.service.js";
 import { ResponseSender } from "../services/utils/customResponse.utils.js";
 import { generateIdentifier } from "../services/utils/utility.service.js";
 import configurationService from "../db_services/configuration.service.js";
 import conversationDbService from "../db_services/conversation.service.js";
+import { storeInCache } from "../cache_service/index.js";
 
 const responseSender = new ResponseSender();
+const PENDING_NAME_TTL = 172800; // 2 days — consumed by saveSubThreadIdAndName on first message
+
+// Stash a chosen display name until the first message lands in conversation_logs.
+// The key has no bridge_id because these endpoints don't know it.
+async function storePendingDisplayName(org_id, thread_id, sub_thread_id, display_name) {
+  if (!display_name || display_name === sub_thread_id) return;
+  await storeInCache(`sub_thread_pending_${org_id}_${thread_id}_${sub_thread_id}`, display_name, PENDING_NAME_TTL);
+}
 
 // Create a new thread
 async function createSubThreadController(req, res, next) {
@@ -16,14 +24,17 @@ async function createSubThreadController(req, res, next) {
   if (!thread_id || !org_id || !sub_thread_id) {
     throw new Error("All fields are required");
   }
-  const thread = await createThread({
-    display_name: name || sub_thread_id,
-    thread_id,
-    org_id: org_id.toString(),
-    sub_thread_id
-  });
+  const display_name = name || sub_thread_id;
+  await storePendingDisplayName(org_id.toString(), thread_id, sub_thread_id, display_name);
+
   res.locals = {
-    thread,
+    thread: {
+      thread_id,
+      sub_thread_id,
+      display_name,
+      org_id: org_id.toString(),
+      created_at: new Date()
+    },
     success: true
   };
   req.statusCode = 201;
@@ -63,15 +74,17 @@ async function createSubThreadWithAiController(req, res, next) {
     });
   }
 
-  const thread = await createThread({
-    display_name: display_name || name || sub_thread_id,
-    thread_id,
-    org_id: org_id.toString(),
-    sub_thread_id,
-    created_at: Date.now()
-  });
+  const finalDisplayName = display_name || name || sub_thread_id;
+  await storePendingDisplayName(org_id.toString(), thread_id, sub_thread_id, finalDisplayName);
+
   res.locals = {
-    thread,
+    thread: {
+      thread_id,
+      sub_thread_id,
+      display_name: finalDisplayName,
+      org_id: org_id.toString(),
+      created_at: new Date()
+    },
     success: true
   };
   req.statusCode = 201;
@@ -87,12 +100,11 @@ async function getAllSubThreadController(req, res, next) {
   const data = await configurationService.getAgentIdBySlugname(org_id, slugName);
   const bridge_id = data?._id?.toString();
   const bridge_org_id = req?.chatBot?.ispublic ? data?.org_id : org_id;
-  const threads = await getThreads(bridge_org_id, thread_id, bridge_id);
 
-  // Sort threads by latest conversation activity from PostgreSQL
-  const sortedThreads = await conversationDbService.sortThreadsByLatestActivity(threads, bridge_org_id, bridge_id);
+  // Single PG query: sub-threads with display names, ordered by latest activity
+  const threads = await conversationDbService.getSubThreadsWithActivity(bridge_org_id, thread_id, bridge_id);
 
-  res.locals = { threads: sortedThreads, success: true };
+  res.locals = { threads, success: true };
   req.statusCode = 200;
   return next();
 }

@@ -19,7 +19,6 @@ import clientAuthRoutes from "./routes/userOrgLocal.routes.js";
 import initializeMonthlyLatencyReport from "./cron/monthlyLatencyReport.js";
 import initializeWeeklyLatencyReport from "./cron/weeklyLatencyReport.js";
 import initializeDailyUpdateCron from "./cron/initializeDailyUpdateCron.js";
-import initializeCleanupOrphanedThreadsCron from "./cron/cleanupOrphanedThreads.js";
 import authRouter from "./routes/auth.routes.js";
 import notFoundMiddleware from "./middlewares/notFound.js";
 import errorHandlerMiddleware from "./middlewares/errorHandler.js";
@@ -112,7 +111,6 @@ import { initServicesRegistry, backgroundListenForServiceChanges } from "./servi
 initializeMonthlyLatencyReport();
 initializeWeeklyLatencyReport();
 initializeDailyUpdateCron();
-initializeCleanupOrphanedThreadsCron();
 
 initModelConfiguration();
 backgroundListenForChanges();

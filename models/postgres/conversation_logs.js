@@ -71,6 +71,10 @@ export default (sequelize, DataTypes) => {
       thread_id: {
         type: DataTypes.STRING
       },
+      display_name: {
+        type: DataTypes.TEXT,
+        allowNull: true
+      },
       version_id: {
         type: DataTypes.STRING
       },
