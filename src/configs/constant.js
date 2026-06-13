@@ -43,6 +43,7 @@ const redis_keys = {
   conversation_: "cd_conversation_",
   last_transffered_agent_: "cd_last_transffered_agent_",
   // Protected — source of truth or cost accumulators
+  sub_thread_pending_: "nd_sub_thread_pending_",
   bridgeusedcost_: "nd_bridgeusedcost_",
   folderusedcost_: "nd_folderusedcost_",
   apikeyusedcost_: "nd_apikeyusedcost_",
