@@ -17,9 +17,11 @@ import {
 
 async function processLogQueueMessage(messages) {
   if (messages["save_history"]) {
+    // Insert first, then resolve + persist display_name via UPDATE (only when AI generates it)
+    await saveConversationHistory(messages["save_history"]);
     const conv = messages["save_history"]?.[0];
     if (conv?.sub_thread_id) {
-      const display_name = await saveSubThreadIdAndName({
+      await saveSubThreadIdAndName({
         org_id: conv.org_id,
         thread_id: conv.thread_id,
         sub_thread_id: conv.sub_thread_id,
@@ -28,9 +30,7 @@ async function processLogQueueMessage(messages) {
         thread_flag: conv.thread_flag,
         response_format: conv.response_format
       });
-      conv.display_name = display_name;
     }
-    await saveConversationHistory(messages["save_history"]);
   }
 
   if (messages["update_history"]) {
@@ -38,17 +38,18 @@ async function processLogQueueMessage(messages) {
   }
 
   if (messages["save_orchestrator_history"]) {
+    await saveOrchestratorHistory(messages["save_orchestrator_history"]);
     const orchestratorSubThreadData = messages["save_orchestrator_history"]?.sub_thread_data;
     if (orchestratorSubThreadData) {
       await saveSubThreadIdAndName(orchestratorSubThreadData);
     }
-    await saveOrchestratorHistory(messages["save_orchestrator_history"]);
   }
 
   if (messages["save_batch_history"]) {
+    await saveBatchHistory(messages["save_batch_history"]);
     const batchEntry = messages["save_batch_history"]?.[0];
     if (batchEntry?.sub_thread_id) {
-      const display_name = await saveSubThreadIdAndName({
+      await saveSubThreadIdAndName({
         org_id: batchEntry.org_id,
         thread_id: batchEntry.thread_id,
         sub_thread_id: batchEntry.sub_thread_id,
@@ -57,15 +58,7 @@ async function processLogQueueMessage(messages) {
         thread_flag: batchEntry.thread_flag,
         response_format: batchEntry.response_format
       });
-      if (display_name) {
-        for (const entry of messages["save_batch_history"]) {
-          if (entry?.sub_thread_id === batchEntry.sub_thread_id) {
-            entry.display_name = display_name;
-          }
-        }
-      }
     }
-    await saveBatchHistory(messages["save_batch_history"]);
   }
 
   if (messages["update_batch_history"]) {

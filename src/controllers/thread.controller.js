@@ -4,6 +4,7 @@ import { generateIdentifier } from "../services/utils/utility.service.js";
 import configurationService from "../db_services/configuration.service.js";
 import conversationDbService from "../db_services/conversation.service.js";
 import { storeInCache } from "../cache_service/index.js";
+import { redis_keys } from "../configs/constant.js";
 
 const responseSender = new ResponseSender();
 const PENDING_NAME_TTL = 172800; // 2 days — consumed by saveSubThreadIdAndName on first message
@@ -12,7 +13,7 @@ const PENDING_NAME_TTL = 172800; // 2 days — consumed by saveSubThreadIdAndNam
 // The key has no bridge_id because these endpoints don't know it.
 async function storePendingDisplayName(org_id, thread_id, sub_thread_id, display_name) {
   if (!display_name || display_name === sub_thread_id) return;
-  await storeInCache(`sub_thread_pending_${org_id}_${thread_id}_${sub_thread_id}`, display_name, PENDING_NAME_TTL);
+  await storeInCache(`${redis_keys.sub_thread_pending_}${org_id}_${thread_id}_${sub_thread_id}`, display_name, PENDING_NAME_TTL);
 }
 
 // Create a new thread
