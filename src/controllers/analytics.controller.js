@@ -10,11 +10,11 @@ const getAgentAnalytics = async (req, res, next) => {
   try {
     const { bridge_id } = req.params;
     const org_id = req.profile?.org?.id;
-    const { range, start_date, end_date } = req.query;
+    const { range, start_date, end_date, interval } = req.query;
     // RT channel is always org_id + "_" + bridge_id.
     const channel = `${org_id}_${bridge_id}`;
 
-    const window = analyticsService.computeWindow({ range, start_date, end_date });
+    const window = analyticsService.computeWindow({ range, start_date, end_date, interval });
 
     // 1) Single PG query: distinct sub-threads for the bridge, ordered by latest
     //    activity (MAX(created_at) per sub-thread) so most-recently-updated are on top.

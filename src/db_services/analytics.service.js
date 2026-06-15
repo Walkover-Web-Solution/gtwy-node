@@ -7,19 +7,57 @@ const responseSender = new ResponseSender();
 
 // Resolve the time window + bucket size from either a `range` (days) or a custom
 // start_date/end_date pair. Short windows are bucketed hourly, longer ones daily.
-function computeWindow({ range, start_date, end_date }) {
+function computeWindow({ range, start_date, end_date, interval }) {
   const end = end_date ? new Date(end_date) : new Date();
   let start;
-  let days;
+  let durationInHours = 0;
+
   if (start_date && end_date) {
     start = new Date(start_date);
-    days = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / 86400000));
+    durationInHours = Math.max(1, (end.getTime() - start.getTime()) / 3600000);
   } else {
-    days = Number(range) || 7;
-    start = new Date(end.getTime() - days * 86400000);
+    const r = range || "7d";
+    const isHours = r.toString().endsWith("h");
+    const val = Number(r.toString().replace(/[^0-9.]/g, "")) || 7;
+
+    if (isHours) {
+      durationInHours = val;
+    } else {
+      durationInHours = val * 24;
+    }
+    start = new Date(end.getTime() - durationInHours * 3600000);
   }
-  const bucket = days <= 2 ? "hour" : "day";
+
+  // Choose bucket size based on total duration to provide a nice chart curve
+  let bucket = "day";
+  if (durationInHours <= 72) {
+    bucket = "hour";
+  }
+  if (interval) {
+    bucket = interval;
+  }
+
   return { start, end, bucket };
+}
+
+function getBucketExpressionAndParams(bucketStr, params) {
+  let bucketSql = "date_trunc(:bucket, created_at)";
+  let finalParams = { ...params, bucket: bucketStr };
+
+  if (bucketStr && bucketStr.match(/^([0-9]+)h$/)) {
+    const hours = parseInt(bucketStr.match(/^([0-9]+)h$/)[1], 10);
+    if (hours === 24) {
+      finalParams.bucket = "day";
+    } else if (hours === 1) {
+      finalParams.bucket = "hour";
+    } else {
+      const seconds = hours * 3600;
+      bucketSql = `to_timestamp(floor(extract(epoch from created_at) / ${seconds}) * ${seconds}) AT TIME ZONE 'UTC'`;
+      delete finalParams.bucket;
+    }
+  }
+
+  return { bucketSql, finalParams };
 }
 
 const pgSelect = (query, replacements) => models.pg.sequelize.query(query, { type: Sequelize.QueryTypes.SELECT, replacements });
@@ -51,24 +89,26 @@ async function getSummary({ bridge_id, org_id, start, end }) {
 
 // Time-series for the "Requests Over Time" chart: success vs failed per bucket.
 async function getRequestsOverTime({ bridge_id, org_id, start, end, bucket }) {
+  const { bucketSql, finalParams } = getBucketExpressionAndParams(bucket, { bridge_id, org_id, start, end });
   const query = `
     SELECT
-      date_trunc(:bucket, created_at) AS t,
+      ${bucketSql} AS t,
       COUNT(*) FILTER (WHERE status = true)::int  AS success,
       COUNT(*) FILTER (WHERE status = false)::int AS failed
     FROM conversation_logs
     WHERE bridge_id = :bridge_id AND org_id = :org_id
       AND created_at BETWEEN :start AND :end
     GROUP BY 1 ORDER BY 1 ASC`;
-  return pgSelect(query, { bridge_id, org_id, start, end, bucket });
+  return pgSelect(query, finalParams);
 }
 
 // Time-series for the "Response Time" chart: p50 (typical) / p95 (slow) / p99 (worst)
 // of over_all_time per bucket.
 async function getResponseTime({ bridge_id, org_id, start, end, bucket }) {
+  const { bucketSql, finalParams } = getBucketExpressionAndParams(bucket, { bridge_id, org_id, start, end });
   const query = `
     SELECT
-      date_trunc(:bucket, created_at) AS t,
+      ${bucketSql} AS t,
       percentile_cont(0.5)  WITHIN GROUP (ORDER BY (latency->>'over_all_time')::float) AS typical,
       percentile_cont(0.95) WITHIN GROUP (ORDER BY (latency->>'over_all_time')::float) AS slow,
       percentile_cont(0.99) WITHIN GROUP (ORDER BY (latency->>'over_all_time')::float) AS worst
@@ -77,7 +117,7 @@ async function getResponseTime({ bridge_id, org_id, start, end, bucket }) {
       AND created_at BETWEEN :start AND :end
       AND (latency->>'over_all_time') IS NOT NULL
     GROUP BY 1 ORDER BY 1 ASC`;
-  return pgSelect(query, { bridge_id, org_id, start, end, bucket });
+  return pgSelect(query, finalParams);
 }
 
 async function pushAnalytics(channel, data) {

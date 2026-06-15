@@ -11,9 +11,19 @@ const getAgentAnalytics = {
     .unknown(true),
   query: Joi.object()
     .keys({
-      range: Joi.number().integer().min(1).max(365).optional().messages({
-        "number.max": "range cannot exceed 365 days"
-      }),
+      range: Joi.alternatives()
+        .try(Joi.number().integer().min(1).max(365), Joi.string().pattern(/^[0-9]+[hd]$/))
+        .optional()
+        .messages({
+          "number.max": "range cannot exceed 365 days",
+          "string.pattern.base": "range must be a valid format like '1h' or '24h'"
+        }),
+      interval: Joi.string()
+        .pattern(/^[0-9]+[hd]$/)
+        .optional()
+        .messages({
+          "string.pattern.base": "interval must be a valid format like '1h' or '24h'"
+        }),
       start_date: Joi.date().iso().optional(),
       end_date: Joi.date().iso().min(Joi.ref("start_date")).optional().messages({
         "date.min": "end_date must be after start_date"
