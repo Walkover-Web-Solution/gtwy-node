@@ -1,5 +1,3 @@
-import { validateOpenAISchema } from "./openaiSchemaValidator.utils.js";
-
 const validateJsonSchemaConfiguration = (configuration) => {
   if (!configuration || !configuration.response_type) {
     return { isValid: true, errorMessage: null };
@@ -34,9 +32,12 @@ const validateJsonSchemaConfiguration = (configuration) => {
         return { isValid: false, errorMessage: "json_schema should be a valid JSON object or string" };
       }
 
-      const { isValid, errors } = validateOpenAISchema(jsonSchema);
-      if (!isValid) {
-        return { isValid: false, errorMessage: errors.join("; ") };
+      // Only ensure the json_schema is a parsable, non-empty JSON object.
+      if (typeof jsonSchema !== "object" || jsonSchema === null || Array.isArray(jsonSchema)) {
+        return { isValid: false, errorMessage: "json_schema should be a valid JSON object" };
+      }
+      if (Object.keys(jsonSchema).length === 0) {
+        return { isValid: false, errorMessage: "json_schema should not be empty" };
       }
       return { isValid: true, errorMessage: null };
     } catch {
