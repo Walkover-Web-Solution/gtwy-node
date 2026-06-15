@@ -27,13 +27,22 @@ async function getTestcaseById(id) {
   return result ? { ...result, _id: result._id.toString() } : null;
 }
 
-async function getAllTestcasesByBridgeId(bridge_id, page = 1, limit = 30) {
+async function getAllTestcasesByBridgeId(bridge_id, page = 1, limit = 30, keyword = "") {
   const skip = (page - 1) * limit;
-  const testcases = await testcaseModel.find({ bridge_id }).skip(skip).limit(limit).lean();
+
+  // Build filter query
+  const filter = { bridge_id };
+
+  // Add keyword search if provided
+  if (keyword && keyword.trim() !== "") {
+    filter.$or = [{ name: { $regex: keyword, $options: "i" } }, { "conversation.content": { $regex: keyword, $options: "i" } }];
+  }
+
+  const testcases = await testcaseModel.find(filter).skip(skip).limit(limit).lean();
   const testcasesWithIds = testcases.map((tc) => ({ ...tc, _id: tc._id.toString() }));
 
   // Get total count
-  const totalCount = await testcaseModel.countDocuments({ bridge_id });
+  const totalCount = await testcaseModel.countDocuments(filter);
 
   // Fetch history for each testcase from PostgreSQL
   const testcaseIds = testcasesWithIds.map((tc) => tc._id);

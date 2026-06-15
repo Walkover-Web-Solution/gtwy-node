@@ -40,7 +40,8 @@ async function getAllTestcases(req, res, next) {
   const bridge_id = req.params.bridge_id;
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 30;
-  const result = await testcaseSevice.getAllTestcasesByBridgeId(bridge_id, page, limit);
+  const keyword = req.query.keyword || "";
+  const result = await testcaseSevice.getAllTestcasesByBridgeId(bridge_id, page, limit, keyword);
   res.locals = {
     success: true,
     data: result.data,
