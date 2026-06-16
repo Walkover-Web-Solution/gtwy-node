@@ -96,18 +96,10 @@ const getDefaultValuesController = async (service, model, current_configuration,
                   }
                 };
               } else {
-                if (typeof value.default === "object" && value.default !== null) {
-                  const json_key = value.default.key;
-                  default_values[key] = {
-                    mode: "custom",
-                    value: { [json_key]: value.default[json_key] || null }
-                  };
-                } else {
-                  default_values[key] = {
-                    mode: "custom",
-                    value: value.default || null
-                  };
-                }
+                default_values[key] = {
+                  mode: "default",
+                  value: null
+                };
               }
             } else {
               const min_value = value.min;
@@ -155,12 +147,7 @@ const getDefaultValuesController = async (service, model, current_configuration,
                     default_values.response_type.json_schema = current_value.json_schema || null;
                   }
                 } else {
-                  if (typeof value.default === "object" && value.default !== null) {
-                    const json_key = value.default.key;
-                    default_values[key] = { [json_key]: value.default[json_key] || null };
-                  } else {
-                    default_values[key] = value.default || null;
-                  }
+                  default_values[key] = "default";
                 }
                 continue;
               }
