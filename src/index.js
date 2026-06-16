@@ -19,7 +19,6 @@ import clientAuthRoutes from "./routes/userOrgLocal.routes.js";
 import initializeMonthlyLatencyReport from "./cron/monthlyLatencyReport.js";
 import initializeWeeklyLatencyReport from "./cron/weeklyLatencyReport.js";
 import initializeDailyUpdateCron from "./cron/initializeDailyUpdateCron.js";
-import initializeCleanupOrphanedThreadsCron from "./cron/cleanupOrphanedThreads.js";
 import authRouter from "./routes/auth.routes.js";
 import notFoundMiddleware from "./middlewares/notFound.js";
 import errorHandlerMiddleware from "./middlewares/errorHandler.js";
@@ -55,7 +54,8 @@ app.use(
     preflightContinue: true
   })
 );
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ limit: "10mb", extended: true }));
 // app.use(multer().array());
 try {
   mongoose.set("strictQuery", false);
@@ -112,7 +112,6 @@ import { initServicesRegistry, backgroundListenForServiceChanges } from "./servi
 initializeMonthlyLatencyReport();
 initializeWeeklyLatencyReport();
 initializeDailyUpdateCron();
-initializeCleanupOrphanedThreadsCron();
 
 initModelConfiguration();
 backgroundListenForChanges();
