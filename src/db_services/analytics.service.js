@@ -72,7 +72,7 @@ async function getSummary({ bridge_id, org_id, start, end }) {
       COUNT(*)::int AS total_requests,
       COUNT(*) FILTER (WHERE status = true)::int  AS success_count,
       COUNT(*) FILTER (WHERE status = false)::int AS failed_runs,
-      COALESCE(AVG((latency->>'over_all_time')::float), 0) AS avg_response,
+      COALESCE(AVG((latency->>'over_all_time')::float) FILTER (WHERE status = true), 0) AS avg_response,
       COALESCE(SUM(
         COALESCE((tokens->>'total_tokens')::float,
                  COALESCE((tokens->>'input_tokens')::float, 0) + COALESCE((tokens->>'output_tokens')::float, 0))
@@ -144,7 +144,7 @@ async function runAndPush({ bridge_id, org_id, channel, window }) {
       const summary = {
         total_requests: total,
         success_rate: total ? Number(((row.success_count / total) * 100).toFixed(1)) : 0,
-        avg_response_ms: Math.round(row.avg_response || 0),
+        avg_response: Math.round(row.avg_response || 0),
         failed_runs: row.failed_runs || 0,
         total_tokens: Math.round(row.total_tokens || 0),
         est_cost: Number(Number(row.est_cost || 0).toFixed(4)),
