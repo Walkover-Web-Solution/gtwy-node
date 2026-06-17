@@ -400,10 +400,7 @@ export const deleteResourceFromCollection = async (req, res, next) => {
         success: false,
         message: "Cannot delete resource as it is currently in use",
         isInUse: true,
-        usageDetails: {
-          agents: usageCheck.agents,
-          versions: usageCheck.versions
-        }
+        usage: usageCheck.usage
       };
       req.statusCode = 400;
       return next();
