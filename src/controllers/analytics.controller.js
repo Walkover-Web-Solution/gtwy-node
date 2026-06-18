@@ -10,19 +10,25 @@ const getAgentAnalytics = async (req, res, next) => {
   try {
     const { bridge_id } = req.params;
     const org_id = req.profile?.org?.id;
-    const { range, start_date, end_date, interval, tool_id, model, user_feedback } = req.query;
+    const { range, start_date, end_date, interval, tool_id, model, user_feedback, error, version_id, testcase_id, keyword, filter_by } = req.query;
     // RT channel is always org_id + "_" + bridge_id.
     const channel = `${org_id}_${bridge_id}`;
 
     const window = analyticsService.computeWindow({ range, start_date, end_date, interval });
 
-    // Optional filters: when omitted the API behaves exactly as before.
+    // Optional filters: when omitted the API behaves exactly as before. Mirrors
+    // the full threads-API filter set so the dashboard can slice the same way.
     // user_feedback: good->1 (thumbs up), bad->2 (thumbs down), all/undefined-> no filter.
     const feedbackMap = { good: 1, bad: 2 };
     const filters = {
       tool_id: tool_id || undefined,
       model: model || undefined,
-      user_feedback: feedbackMap[user_feedback]
+      user_feedback: feedbackMap[user_feedback],
+      error: error || undefined,
+      version_id: version_id || undefined,
+      testcase_id: testcase_id || undefined,
+      keyword: keyword || undefined,
+      filter_by: filter_by && typeof filter_by === "object" ? filter_by : undefined
     };
 
     // 1) Single PG query: distinct sub-threads for the bridge, ordered by latest
@@ -55,6 +61,33 @@ const getAgentAnalytics = async (req, res, next) => {
   }
 };
 
+// GET /api/analytics/agent/:bridge_id/filters
+// Returns the distinct tools (name -> id) and models (grouped by service) ever
+// used by the bridge, so the frontend can populate the filter dropdowns.
+const getAgentAnalyticsFilters = async (req, res, next) => {
+  try {
+    const { bridge_id } = req.params;
+    const org_id = req.profile?.org?.id;
+
+    const { tools_data, unique_model } = await analyticsService.getFilterOptions({ bridge_id, org_id });
+
+    res.locals = {
+      success: true,
+      bridge_id,
+      tools_data,
+      unique_model
+    };
+    req.statusCode = 200;
+    return next();
+  } catch (error) {
+    logger.error(`Error fetching agent analytics filters: ${error.message}`);
+    res.locals = { success: false, error: error.message };
+    req.statusCode = 500;
+    return next();
+  }
+};
+
 export default {
-  getAgentAnalytics
+  getAgentAnalytics,
+  getAgentAnalyticsFilters
 };

@@ -213,6 +213,7 @@ async function findRecentThreadsByBridgeId(
     if (filterBy && typeof filterBy === "object" && Object.keys(filterBy).length > 0) {
       const orConditions = [];
       for (const [col, keyword] of Object.entries(filterBy)) {
+        if (col === "variables_absent") continue; // AND facet, handled after this block
         if (col === "variables") {
           if (!keyword) continue;
           if (typeof keyword === "string" && keyword.trim() !== "") {
@@ -265,6 +266,21 @@ async function findRecentThreadsByBridgeId(
             Sequelize.literal(`"conversation_logs"."batch_data"->>'batch_id' ILIKE '%${escapedKeyword}%'`)
           ]
         }
+      ];
+    }
+
+    // variables_absent: match rows where NONE of the named variable keys exist.
+    // AND'd with the rest, so it appends to any existing Op.and (the OR group)
+    // rather than overwriting it.
+    const absentRaw = filters?.filter_by?.variables_absent;
+    const absent = (Array.isArray(absentRaw) ? absentRaw : absentRaw ? [absentRaw] : []).map((v) => String(v).trim()).filter(Boolean);
+    if (absent.length) {
+      const inList = absent.map((v) => `'${v.replace(/'/g, "''")}'`).join(", ");
+      whereConditions[Sequelize.Op.and] = [
+        ...(whereConditions[Sequelize.Op.and] || []),
+        Sequelize.literal(
+          `NOT EXISTS (SELECT 1 FROM jsonb_each_text(COALESCE("conversation_logs"."variables", '{}'::jsonb)) AS kv WHERE jsonb_typeof(COALESCE("conversation_logs"."variables", 'null'::jsonb)) = 'object' AND kv.key IN (${inList}))`
+        )
       ];
     }
 

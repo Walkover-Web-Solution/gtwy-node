@@ -9,4 +9,12 @@ const router = express.Router();
 // Agent analytics dashboard. Acks instantly; data is pushed over the RT layer.
 router.get("/agent/:bridge_id", middleware, validate(analyticsValidation.getAgentAnalytics), analyticsController.getAgentAnalytics);
 
+// Distinct filter options (tools + models) ever used by the bridge.
+router.get(
+  "/agent/:bridge_id/filters",
+  middleware,
+  validate(analyticsValidation.getAgentAnalyticsFilters),
+  analyticsController.getAgentAnalyticsFilters
+);
+
 export default router;
