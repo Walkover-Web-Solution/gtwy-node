@@ -1,6 +1,6 @@
 import jwt from "jsonwebtoken";
 import { getOrganizationById } from "../services/proxy.service.js";
-import { encryptString, reportLoginFailure } from "../services/utils/utility.service.js";
+import { encryptString, unknown_error_handler_alert } from "../services/utils/utility.service.js";
 import { createOrGetUser } from "../utils/proxy.utils.js";
 
 const GtwyEmbeddecodeToken = async (req, res, next) => {
@@ -11,7 +11,7 @@ const GtwyEmbeddecodeToken = async (req, res, next) => {
   try {
     const decodedToken = jwt.decode(token);
     if (!decodedToken.user_id || !decodedToken.folder_id || !decodedToken.org_id) {
-      reportLoginFailure("embed", token, "user id, folder id or org id not provided");
+      unknown_error_handler_alert("embed", token, "user id, folder id or org id not provided");
       return res.status(401).json({ message: "unauthorized user, user id, folder id or org id not provided" });
     }
     if (decodedToken) {
@@ -46,14 +46,14 @@ const GtwyEmbeddecodeToken = async (req, res, next) => {
           req.IsEmbedUser = true;
           return next();
         }
-        reportLoginFailure("embed", token, "token verification failed");
+        unknown_error_handler_alert("embed", token, "token verification failed");
         return res.status(404).json({ message: "unauthorized user" });
       }
     }
-    reportLoginFailure("embed", token, "invalid token");
+    unknown_error_handler_alert("embed", token, "invalid token");
     return res.status(401).json({ message: "unauthorized user " });
   } catch (err) {
-    reportLoginFailure("embed", token, err?.message || "token error");
+    unknown_error_handler_alert("embed", token, err?.message || "token error");
     return res.status(401).json({ message: "unauthorized user ", err });
   }
 };
