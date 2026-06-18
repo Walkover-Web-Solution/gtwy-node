@@ -27,7 +27,10 @@ const getAgentAnalytics = {
       start_date: Joi.date().iso().optional(),
       end_date: Joi.date().iso().min(Joi.ref("start_date")).optional().messages({
         "date.min": "end_date must be after start_date"
-      })
+      }),
+      tool_id: Joi.string().trim().min(1).optional(),
+      model: Joi.string().trim().min(1).optional(),
+      user_feedback: Joi.string().valid("good", "bad", "all").optional().default("all")
     })
     .unknown(true)
 };

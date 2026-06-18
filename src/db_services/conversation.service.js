@@ -404,7 +404,7 @@ async function getSubThreadsWithActivity(org_id, thread_id, bridge_id, { version
  * ordered most-recently-active first. Single PG query — threads now live in
  * conversation_logs, so no Mongo lookup is needed.
  */
-async function getBridgeSubThreadsWithActivity(org_id, bridge_id, { version_id, isError } = {}) {
+async function getBridgeSubThreadsWithActivity(org_id, bridge_id, { version_id, isError, tool_id, model, user_feedback } = {}) {
   try {
     const whereClause = { org_id, bridge_id };
 
@@ -416,6 +416,26 @@ async function getBridgeSubThreadsWithActivity(org_id, bridge_id, { version_id, 
       whereClause.error = {
         [models.pg.Sequelize.Op.and]: [{ [models.pg.Sequelize.Op.ne]: "" }, { [models.pg.Sequelize.Op.ne]: null }]
       };
+    }
+
+    // Optional dashboard filters — when omitted, behaviour is unchanged.
+    if (model) {
+      whereClause.model = model;
+    }
+
+    if (user_feedback) {
+      // already mapped to 1 (good) or 2 (bad) upstream.
+      whereClause.user_feedback = user_feedback;
+    }
+
+    if (tool_id) {
+      // tools_call_data is `[ { "fc_..": { "id": <tool_id>, ... } } ]`.
+      // jsonpath wildcard: array elem -> any key -> .id == tool_id. Null-safe.
+      const escaped = models.pg.sequelize.escape(tool_id);
+      whereClause[models.pg.Sequelize.Op.and] = [
+        ...(whereClause[models.pg.Sequelize.Op.and] || []),
+        models.pg.Sequelize.literal(`jsonb_path_exists(tools_call_data, '$[*].*.id ? (@ == $t)'::jsonpath, jsonb_build_object('t', ${escaped}))`)
+      ];
     }
 
     const result = await models.pg.conversation_logs.findAll({

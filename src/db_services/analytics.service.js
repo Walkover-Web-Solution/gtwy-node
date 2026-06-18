@@ -62,11 +62,36 @@ function getBucketExpressionAndParams(bucketStr, params) {
 
 const pgSelect = (query, replacements) => models.pg.sequelize.query(query, { type: Sequelize.QueryTypes.SELECT, replacements });
 
+// Optional dashboard filters (tool / model / feedback). Returns extra WHERE SQL
+// to append and the named replacements those binds need. When `filters` is empty
+// this returns an empty clause, so callers behave exactly as before.
+function buildFilterClause(filters = {}) {
+  let sql = "";
+  const params = {};
+  if (filters.model) {
+    sql += " AND model = :f_model";
+    params.f_model = filters.model;
+  }
+  if (filters.user_feedback) {
+    // already mapped to 1 (good) or 2 (bad) upstream.
+    sql += " AND user_feedback = :f_user_feedback";
+    params.f_user_feedback = filters.user_feedback;
+  }
+  if (filters.tool_id) {
+    // tools_call_data is `[ { "fc_..": { "id": <tool_id>, ... } } ]`.
+    // jsonpath wildcard: array elem -> any key -> .id == :f_tool_id. Null-safe.
+    sql += " AND jsonb_path_exists(tools_call_data, '$[*].*.id ? (@ == $t)'::jsonpath, jsonb_build_object('t', :f_tool_id))";
+    params.f_tool_id = filters.tool_id;
+  }
+  return { sql, params };
+}
+
 // Single-row aggregate for the dashboard cards. latency/tokens are JSONB so we
 // extract the numeric keys. Tokens store input_tokens/output_tokens/expected_cost
 // (total_tokens may be absent, so fall back to input + output). Cost comes from
 // the tokens.expected_cost key — entirely from conversation_logs, no Timescale.
-async function getSummary({ bridge_id, org_id, start, end }) {
+async function getSummary({ bridge_id, org_id, start, end, filters }) {
+  const { sql: filterSql, params: filterParams } = buildFilterClause(filters);
   const query = `
     SELECT
       COUNT(*)::int AS total_requests,
@@ -82,14 +107,15 @@ async function getSummary({ bridge_id, org_id, start, end }) {
       COUNT(*) FILTER (WHERE user_feedback = 2)::int AS negative_feedback
     FROM conversation_logs
     WHERE bridge_id = :bridge_id AND org_id = :org_id
-      AND created_at BETWEEN :start AND :end`;
-  const rows = await pgSelect(query, { bridge_id, org_id, start, end });
+      AND created_at BETWEEN :start AND :end ${filterSql}`;
+  const rows = await pgSelect(query, { bridge_id, org_id, start, end, ...filterParams });
   return rows[0] || {};
 }
 
 // Time-series for the "Requests Over Time" chart: success vs failed per bucket.
-async function getRequestsOverTime({ bridge_id, org_id, start, end, bucket }) {
+async function getRequestsOverTime({ bridge_id, org_id, start, end, bucket, filters }) {
   const { bucketSql, finalParams } = getBucketExpressionAndParams(bucket, { bridge_id, org_id, start, end });
+  const { sql: filterSql, params: filterParams } = buildFilterClause(filters);
   const query = `
     SELECT
       ${bucketSql} AS t,
@@ -97,15 +123,16 @@ async function getRequestsOverTime({ bridge_id, org_id, start, end, bucket }) {
       COUNT(*) FILTER (WHERE status = false)::int AS failed
     FROM conversation_logs
     WHERE bridge_id = :bridge_id AND org_id = :org_id
-      AND created_at BETWEEN :start AND :end
+      AND created_at BETWEEN :start AND :end ${filterSql}
     GROUP BY 1 ORDER BY 1 ASC`;
-  return pgSelect(query, finalParams);
+  return pgSelect(query, { ...finalParams, ...filterParams });
 }
 
 // Time-series for the "Response Time" chart: p50 (typical) / p95 (slow) / p99 (worst)
 // of over_all_time per bucket.
-async function getResponseTime({ bridge_id, org_id, start, end, bucket }) {
+async function getResponseTime({ bridge_id, org_id, start, end, bucket, filters }) {
   const { bucketSql, finalParams } = getBucketExpressionAndParams(bucket, { bridge_id, org_id, start, end });
+  const { sql: filterSql, params: filterParams } = buildFilterClause(filters);
   const query = `
     SELECT
       ${bucketSql} AS t,
@@ -114,10 +141,10 @@ async function getResponseTime({ bridge_id, org_id, start, end, bucket }) {
       percentile_cont(0.99) WITHIN GROUP (ORDER BY (latency->>'over_all_time')::float) AS worst
     FROM conversation_logs
     WHERE bridge_id = :bridge_id AND org_id = :org_id
-      AND created_at BETWEEN :start AND :end
+      AND created_at BETWEEN :start AND :end ${filterSql}
       AND (latency->>'over_all_time') IS NOT NULL
     GROUP BY 1 ORDER BY 1 ASC`;
-  return pgSelect(query, finalParams);
+  return pgSelect(query, { ...finalParams, ...filterParams });
 }
 
 async function pushAnalytics(channel, data) {
@@ -133,8 +160,8 @@ async function pushAnalytics(channel, data) {
 // RT layer the moment it is ready (progressive render). Each section fails
 // independently — a broken section pushes an error message instead of poisoning
 // the rest.
-async function runAndPush({ bridge_id, org_id, channel, window }) {
-  const ctx = { bridge_id, org_id, ...window };
+async function runAndPush({ bridge_id, org_id, channel, window, filters }) {
+  const ctx = { bridge_id, org_id, ...window, filters };
   const base = { bridge_id, range_start: window.start, range_end: window.end };
 
   const summaryTask = (async () => {

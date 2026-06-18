@@ -10,19 +10,28 @@ const getAgentAnalytics = async (req, res, next) => {
   try {
     const { bridge_id } = req.params;
     const org_id = req.profile?.org?.id;
-    const { range, start_date, end_date, interval } = req.query;
+    const { range, start_date, end_date, interval, tool_id, model, user_feedback } = req.query;
     // RT channel is always org_id + "_" + bridge_id.
     const channel = `${org_id}_${bridge_id}`;
 
     const window = analyticsService.computeWindow({ range, start_date, end_date, interval });
 
+    // Optional filters: when omitted the API behaves exactly as before.
+    // user_feedback: good->1 (thumbs up), bad->2 (thumbs down), all/undefined-> no filter.
+    const feedbackMap = { good: 1, bad: 2 };
+    const filters = {
+      tool_id: tool_id || undefined,
+      model: model || undefined,
+      user_feedback: feedbackMap[user_feedback]
+    };
+
     // 1) Single PG query: distinct sub-threads for the bridge, ordered by latest
     //    activity (MAX(created_at) per sub-thread) so most-recently-updated are on top.
-    const sortedThreads = await conversationDbService.getBridgeSubThreadsWithActivity(org_id, bridge_id);
+    const sortedThreads = await conversationDbService.getBridgeSubThreadsWithActivity(org_id, bridge_id, filters);
 
     // 2) Fire-and-forget PG analytics: do not await — delivered over the RT layer.
     analyticsService
-      .runAndPush({ bridge_id, org_id, channel, window })
+      .runAndPush({ bridge_id, org_id, channel, window, filters })
       .catch((error) => logger.error(`analytics runAndPush failed for ${bridge_id}: ${error.message}`));
 
     // 3) Return threads now; the analytics numbers arrive on `channel` shortly.
