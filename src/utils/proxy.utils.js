@@ -1,5 +1,5 @@
 import axios from "axios";
-import { generateIdentifier, reportLoginFailure } from "../services/utils/utility.service.js";
+import { generateIdentifier, unknown_error_handler_alert } from "../services/utils/utility.service.js";
 import { createOrFindUserAndCompany } from "../services/proxy.service.js";
 import { findInCache, storeInCache, deleteInCache } from "../cache_service/index.js";
 import { embed_cache } from "../configs/constant.js";
@@ -14,7 +14,7 @@ async function getallOrgs() {
     return response.data;
   } catch (error) {
     console.error("Error fetching organizations:", error.message);
-    reportLoginFailure("getallOrgs_api_failure", null, error.message);
+    unknown_error_handler_alert("getallOrgs_api_failure", null, error.message);
     return [];
   }
 }
@@ -53,7 +53,7 @@ const createOrGetUser = async (checkToken, decodedToken, orgTokenFromDb) => {
     proxyResponse = await createOrFindUserAndCompany(proxyObject); // proxy api call
   } catch (error) {
     console.error("Error in createOrFindUserAndCompany inside createOrGetUser:", error.message);
-    reportLoginFailure("createOrGetUser_api_failure", null, error.message);
+    unknown_error_handler_alert("createOrGetUser_api_failure", null, error.message);
     throw error;
   }
   const result = { proxyResponse, name: userDetails.name, email: userDetails.email };
