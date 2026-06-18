@@ -1,6 +1,6 @@
 import jwt from "jsonwebtoken";
 import { getOrganizationById } from "../services/proxy.service.js";
-import { reportLoginFailure } from "../services/utils/utility.service.js";
+import { unknown_error_handler_alert } from "../services/utils/utility.service.js";
 
 const chatBotTokenDecode = async (req, res, next) => {
   const token = req?.get("Authorization");
@@ -25,15 +25,15 @@ const chatBotTokenDecode = async (req, res, next) => {
           };
           return next();
         }
-        reportLoginFailure(failureType, token, "token verification failed");
+        unknown_error_handler_alert(failureType, token, "token verification failed");
         return res.status(404).json({ message: "unauthorized user" });
       }
     }
-    reportLoginFailure(failureType, token, "invalid token");
+    unknown_error_handler_alert(failureType, token, "invalid token");
     return res.status(401).json({ message: "unauthorized user 1", token });
   } catch (err) {
     console.error(err);
-    reportLoginFailure(failureType, token, err?.message || "token error");
+    unknown_error_handler_alert(failureType, token, err?.message || "token error");
     return res.status(401).json({ message: "unauthorized user ", token });
   }
 };

@@ -9,7 +9,7 @@ const CONSUMERS = [
   {
     queueName: process.env.LOG_QUEUE_NAME,
     process: logQueueProcessor,
-    batchSize: 1
+    batchSize: 10
   },
   {
     queueName: process.env.METRICS_QUEUE_NAME,
