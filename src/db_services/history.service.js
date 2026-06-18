@@ -199,7 +199,7 @@ async function findRecentThreadsByBridgeId(
     const whereConditions = { ...baseWhereConditions };
 
     if (user_feedback !== "all" && user_feedback !== "undefined") {
-      whereConditions.user_feedback = user_feedback === "all" ? 0 : user_feedback;
+      whereConditions.user_feedback = user_feedback;
     }
 
     if (error === "true" || error === true) {
