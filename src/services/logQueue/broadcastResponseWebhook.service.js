@@ -17,31 +17,30 @@ async function broadcastResponseWebhook({ bridge_id, org_id, response, user_ques
       bridges: ["all"]
     });
 
-    for (const entry of webhook_data) {
+    const eligible = webhook_data.filter((entry) => {
       const bridges = entry.bridges || [];
       const alert_types = entry.alertType || [];
-
-      if (!alert_types.includes(error_type)) continue;
-      if (!bridges.includes(bridge_id) && !bridges.includes("all")) continue;
-
-      const webhook_config = entry.webhookConfiguration;
-      const webhook_url = webhook_config?.url;
-      if (!webhook_url) {
+      if (!alert_types.includes(error_type)) return false;
+      if (!bridges.includes(bridge_id) && !bridges.includes("all")) return false;
+      if (!entry.webhookConfiguration?.url) {
         logger.warn(`Missing webhook URL for entry: ${entry.name || "unnamed"}`);
-        continue;
+        return false;
       }
-      const headers = webhook_config?.headers || {};
+      return true;
+    });
 
-      const response_format = { type: "webhook", cred: { url: webhook_url, headers } };
+    const broadcast_data = {
+      response: response || {},
+      user_question: user_question || "",
+      variables: variables || {}
+    };
 
-      const broadcast_data = {
-        response: response || {},
-        user_question: user_question || "",
-        variables: variables || {}
-      };
-
-      await sendResponse(response_format, broadcast_data, variables || {});
-    }
+    await Promise.all(
+      eligible.map((entry) => {
+        const { url, headers = {} } = entry.webhookConfiguration;
+        return sendResponse({ type: "webhook", cred: { url, headers } }, broadcast_data, variables || {});
+      })
+    );
   } catch (err) {
     logger.error(`Error in broadcastResponseWebhook: ${err.message}`);
   }

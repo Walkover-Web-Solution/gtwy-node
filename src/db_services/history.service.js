@@ -163,26 +163,21 @@ async function findRecentThreadsByBridgeId(
   try {
     const offset = (page - 1) * limit;
 
-    // Build where conditions
-    const whereConditions = {
+    // Base scoping conditions — shared by the thread list and the feedback totals.
+    // These are cheap, index-backed predicates (org + bridge + view scope) and
+    // deliberately exclude the facet filters (feedback/error) and the keyword
+    // search so the totals reflect all threads in the bridge.
+    const baseWhereConditions = {
       org_id: org_id,
       bridge_id: bridge_id
     };
 
-    if (user_feedback !== "all" && user_feedback !== "undefined") {
-      whereConditions.user_feedback = user_feedback === "all" ? 0 : user_feedback;
-    }
-
-    if (error === "true" || error === true) {
-      whereConditions.error = { [Sequelize.Op.ne]: null };
-    }
-
     if (version_id) {
-      whereConditions.version_id = version_id;
+      baseWhereConditions.version_id = version_id;
     }
 
     if (testcase_id) {
-      whereConditions.testcase_id = testcase_id;
+      baseWhereConditions.testcase_id = testcase_id;
     }
 
     // Add time range filter
@@ -195,8 +190,20 @@ async function findRecentThreadsByBridgeId(
         timeConditions[Sequelize.Op.lte] = new Date(filters.time_range.end);
       }
       if (timeConditions) {
-        whereConditions.created_at = timeConditions;
+        baseWhereConditions.created_at = timeConditions;
       }
+    }
+
+    // Thread-list conditions layer the facet filters and the keyword/filter_by
+    // search on top of the base scope.
+    const whereConditions = { ...baseWhereConditions };
+
+    if (user_feedback !== "all" && user_feedback !== "undefined") {
+      whereConditions.user_feedback = user_feedback;
+    }
+
+    if (error === "true" || error === true) {
+      whereConditions.error = { [Sequelize.Op.ne]: null };
     }
 
     // Add keyword search across recommended columns
@@ -342,14 +349,17 @@ async function findRecentThreadsByBridgeId(
       });
     }
 
-    // Get total count of all user_feedback values across all threads
+    // Get total count of all user_feedback values across all threads.
+    // Uses baseWhereConditions (org + bridge + view scope only) so the totals
+    // reflect the whole bridge and are not dragged through the keyword/JSONB
+    // search predicates that live on whereConditions.
     const totalFeedbackCount = await models.pg.conversation_logs.findOne({
       attributes: [
         [Sequelize.fn("COUNT", Sequelize.literal("CASE WHEN user_feedback = 0 THEN 1 END")), "total_feedback_0"],
         [Sequelize.fn("COUNT", Sequelize.literal("CASE WHEN user_feedback = 1 THEN 1 END")), "total_feedback_1"],
         [Sequelize.fn("COUNT", Sequelize.literal("CASE WHEN user_feedback = 2 THEN 1 END")), "total_feedback_2"]
       ],
-      where: whereConditions
+      where: baseWhereConditions
     });
 
     return {

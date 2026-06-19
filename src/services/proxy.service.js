@@ -1,6 +1,6 @@
 import axios from "axios";
 import { findInCache, storeInCache, deleteInCache } from "../cache_service/index.js";
-import { objectToQueryParams, reportLoginFailure } from "./utils/utility.service.js";
+import { objectToQueryParams, unknown_error_handler_alert } from "./utils/utility.service.js";
 import { embed_cache } from "../configs/constant.js";
 
 export async function getUserOrgMapping(userId, orgId) {
@@ -25,7 +25,7 @@ export async function getUserOrgMapping(userId, orgId) {
     return result;
   } catch (error) {
     console.error("Error fetching data:", error.message);
-    reportLoginFailure("proxy_service_getUserOrgMapping_failure", null, error.message);
+    unknown_error_handler_alert("proxy_service_getUserOrgMapping_failure", null, error.message);
     throw error; // Re-throw the error for the caller to handle
   }
 }
@@ -40,7 +40,7 @@ export const switchOrganization = async (data, proxyToken) => {
     return organization;
   } catch (error) {
     console.error("Error switching organization:", error.message);
-    reportLoginFailure("proxy_service_switchOrganization_failure", proxyToken, error.message);
+    unknown_error_handler_alert("proxy_service_switchOrganization_failure", proxyToken, error.message);
     throw error;
   }
 };
@@ -74,7 +74,7 @@ export async function getOrganizationById(orgId) {
     return data; // data.org kardena if giving undefined.
   } catch (error) {
     console.error("Error fetching data:", error.message);
-    reportLoginFailure("proxy_service_getOrganizationById_failure", null, error.message);
+    unknown_error_handler_alert("proxy_service_getOrganizationById_failure", null, error.message);
     throw error; // Re-throw the error for the caller to handle
   }
 }
@@ -92,7 +92,7 @@ export async function createOrFindUserAndCompany(userOrgObject) {
     return data;
   } catch (error) {
     console.error("Error leaving company:", error.message);
-    reportLoginFailure("proxy_service_createOrFindUserAndCompany_failure", null, error.message);
+    unknown_error_handler_alert("proxy_service_createOrFindUserAndCompany_failure", null, error.message);
     throw error; // Re-throw the error for the caller to handle
   }
 }
@@ -118,7 +118,7 @@ export async function updateOrganizationData(orgId, orgDetails) {
     return data;
   } catch (error) {
     console.error("Error fetching data:", error.message);
-    reportLoginFailure("proxy_service_updateOrganizationData_failure", null, error.message);
+    unknown_error_handler_alert("proxy_service_updateOrganizationData_failure", null, error.message);
     throw error; // Re-throw the error for the caller to handle
   }
 }
@@ -139,7 +139,7 @@ export async function createProxyToken(token_data) {
     return data?.data?.proxy_auth_token;
   } catch (error) {
     console.error("Error creating token:", error.message);
-    reportLoginFailure("proxy_service_createProxyToken_failure", null, error.message);
+    unknown_error_handler_alert("proxy_service_createProxyToken_failure", null, error.message);
     throw error; // Re-throw the error for the caller to handle
   }
 }
@@ -160,7 +160,7 @@ export async function getUsers(org_id, page = 1, pageSize = 10, exclude_role_ids
     return response?.data?.data;
   } catch (error) {
     console.error("Error fetching user updates:", error.message);
-    reportLoginFailure("proxy_service_getUsers_failure", null, error.message);
+    unknown_error_handler_alert("proxy_service_getUsers_failure", null, error.message);
     return [];
   }
 }
@@ -184,7 +184,7 @@ export async function validateCauthKey(pauthkey) {
     err.statusCode = error?.response?.status;
     err.data = error?.response?.data;
     console.error("Error validating cAuth key:", error.message);
-    reportLoginFailure("proxy_service_validateCauthKey_failure", pauthkey, error.message);
+    unknown_error_handler_alert("proxy_service_validateCauthKey_failure", pauthkey, error.message);
     throw err;
   }
 }
@@ -202,7 +202,7 @@ export async function updateProxyDetails(updateObject) {
     return response.data;
   } catch (error) {
     console.error("Error updating details:", error);
-    reportLoginFailure("proxy_service_updateProxyDetails_failure", null, error.message);
+    unknown_error_handler_alert("proxy_service_updateProxyDetails_failure", null, error.message);
     throw error;
   }
 }
@@ -218,7 +218,7 @@ export async function getProxyDetails(params) {
     return response.data;
   } catch (error) {
     console.error("Error fetching details:", error.message);
-    reportLoginFailure("proxy_service_getProxyDetails_failure", null, error.message);
+    unknown_error_handler_alert("proxy_service_getProxyDetails_failure", null, error.message);
     throw error;
   }
 }
@@ -238,7 +238,7 @@ export async function removeClientUser(userId, companyId, featureId) {
     return response.data;
   } catch (error) {
     console.error("Error removing client user:", error.message);
-    reportLoginFailure("proxy_service_removeClientUser_failure", null, error.message);
+    unknown_error_handler_alert("proxy_service_removeClientUser_failure", null, error.message);
     throw error;
   }
 }
@@ -256,7 +256,7 @@ export async function generateProxyAuthToken(req) {
     return response.data.data.jwt;
   } catch (error) {
     console.error("Error generating proxy auth token:", error.message);
-    reportLoginFailure("proxy_service_generateProxyAuthToken_failure", token, error.message);
+    unknown_error_handler_alert("proxy_service_generateProxyAuthToken_failure", token, error.message);
     throw error;
   }
 }
