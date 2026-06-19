@@ -19,18 +19,31 @@ async function createTestcase(req, res, next) {
 }
 
 async function deleteTestcase(req, res, next) {
-  const testcase_id = req.params.testcase_id || req.body.id;
-  const result = await testcaseSevice.deleteTestCaseById(testcase_id);
+  const testcase_id = req.params.testcase_id;
+  const ids = req.body.testCaseIds;
+
+  let result;
+
+  if (testcase_id) {
+    result = await testcaseSevice.deleteTestCaseById(testcase_id);
+  } else if (ids && Array.isArray(ids) && ids.length > 0) {
+    result = await testcaseSevice.deleteMultipleTestCases(ids);
+  } else {
+    res.locals = { success: false, error: "No testcase ID(s) provided" };
+    req.statusCode = 400;
+    return next();
+  }
 
   if (!result.success) {
-    res.locals = { success: false, error: "Testcase not found" };
+    res.locals = { success: false, error: "Testcase(s) not found" };
     req.statusCode = 404;
     return next();
   }
 
   res.locals = {
     success: true,
-    message: "Testcase deleted successfully"
+    message: result.message || "Testcase(s) deleted successfully",
+    deletedCount: result.deletedCount
   };
   req.statusCode = 200;
   return next();
