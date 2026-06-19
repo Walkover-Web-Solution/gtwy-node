@@ -63,21 +63,51 @@ const getAgentAnalytics = async (req, res, next) => {
     const page_size = Math.min(100, Math.max(1, parseInt(req.query.page_size, 10) || 20));
     const offset = (page - 1) * page_size;
 
-    // Search mode: a non-empty keyword OR message_id switches the endpoint to the
-    // threads-search response shape ({ data, total_user_feedback_count }). Analytics
-    // are skipped. message_id is matched via filter_by (scoped to the message_id column).
-    const hasKeyword = typeof keyword === "string" && keyword.trim().length > 0;
+    // Analytics aggregations (summary + 2 charts over RT) run ONLY when explicitly
+    // requested via `analytics=true`, and only on page 1. Orthogonal to the
+    // response format below. Uses the same filters so the RT payload reflects them.
+    const runAnalytics = req.query.analytics === true || req.query.analytics === "true";
+
+    // The new threads-search response shape ({ data, total_user_feedback_count })
+    // is used whenever ANY facet/search filter is present. The time window
+    // (range/start/end/interval) does NOT count. With no filters we keep the
+    // current { threads, pagination, ... } shape.
     const hasMessageId = typeof message_id === "string" && message_id.trim().length > 0;
-    if (hasKeyword || hasMessageId) {
-      const baseFilterBy = filter_by && typeof filter_by === "object" ? { ...filter_by } : undefined;
+    const hasAnyFilter = Boolean(
+      filters.tool_id ||
+      filters.model ||
+      filters.service ||
+      filters.user_feedback != null ||
+      filters.error === "true" ||
+      filters.version_id ||
+      filters.testcase_id ||
+      filters.keyword ||
+      hasMessageId ||
+      (filters.filter_by && Object.keys(filters.filter_by).length > 0)
+    );
+
+    if (runAnalytics && page === 1) {
+      analyticsService
+        .runAndPush({ bridge_id, org_id, channel, window, filters })
+        .catch((err) => logger.error(`analytics runAndPush failed for ${bridge_id}: ${err.message}`));
+    }
+
+    if (hasAnyFilter) {
+      // NEW format via findRecentThreadsByBridgeId. message_id is matched via
+      // filter_by (scoped to the message_id column). tool_id/model/service are
+      // honored by findRecentThreadsByBridgeId through the shared filter builder.
+      const baseFilterBy = filters.filter_by ? { ...filters.filter_by } : undefined;
       const mergedFilterBy = hasMessageId ? { ...(baseFilterBy || {}), message_id: message_id.trim() } : baseFilterBy;
       const searchFilters = {
-        keyword: hasKeyword ? keyword : undefined,
+        keyword: filters.keyword,
         filter_by: mergedFilterBy,
-        time_range: start_date || end_date ? { start: start_date, end: end_date } : undefined
+        time_range: start_date || end_date ? { start: start_date, end: end_date } : undefined,
+        tool_id: filters.tool_id,
+        model: filters.model,
+        service: filters.service
       };
       // findRecentThreadsByBridgeId expects the raw int (1/2) or "all".
-      const ufForSearch = feedbackMap[user_feedback] || "all";
+      const ufForSearch = filters.user_feedback || "all";
 
       const result = await findRecentThreadsByBridgeId(
         org_id,
@@ -92,12 +122,18 @@ const getAgentAnalytics = async (req, res, next) => {
       );
 
       res.locals = result.success
-        ? { data: result.data, total_user_feedback_count: result.total_user_feedback_count, success: true }
+        ? {
+            success: true,
+            data: result.data,
+            total_user_feedback_count: result.total_user_feedback_count,
+            ...(runAnalytics ? { channel } : {}) // channel only when analytics is pushing
+          }
         : { success: false, message: result.message };
       req.statusCode = result.success ? 200 : 500;
       return next();
     }
 
+    // CURRENT format (no filters).
     // 1) Distinct sub-threads for the bridge, ordered by latest activity
     //    (MAX(created_at) per sub-thread). Fetch one extra row to derive has_more.
     const rows = await conversationDbService.getBridgeSubThreadsWithActivity(org_id, bridge_id, filters, {
@@ -111,19 +147,14 @@ const getAgentAnalytics = async (req, res, next) => {
     let message = "Threads page returned";
 
     if (page === 1) {
-      // 2) First page only: fire-and-forget PG analytics (delivered over the RT
-      //    layer) and compute the total count for pagination metadata.
-      analyticsService
-        .runAndPush({ bridge_id, org_id, channel, window, filters })
-        .catch((error) => logger.error(`analytics runAndPush failed for ${bridge_id}: ${error.message}`));
-
+      // First page only: compute the total count for pagination metadata.
       const total = await conversationDbService.getBridgeSubThreadsCount(org_id, bridge_id, filters);
       pagination.total = total;
       pagination.total_pages = Math.ceil(total / page_size);
-      message = "Threads returned; analytics will be pushed over the RT layer";
+      message = runAnalytics ? "Threads returned; analytics will be pushed over the RT layer" : "Threads returned";
     }
 
-    // 3) Return this page of threads; on page 1 the analytics arrive on `channel`.
+    // Return this page of threads; on page 1 the analytics (if requested) arrive on `channel`.
     res.locals = {
       success: true,
       message,

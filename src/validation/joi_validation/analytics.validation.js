@@ -44,6 +44,7 @@ const getAgentAnalytics = {
       keyword: Joi.string().min(1).max(500).optional(),
       message_id: Joi.string().trim().min(1).optional(),
       filter_by: Joi.object().unknown(true).optional(),
+      analytics: Joi.boolean().truthy("true").falsy("false").optional().default(false),
       page: Joi.number().integer().min(1).optional().default(1),
       page_size: Joi.number().integer().min(1).max(100).optional().default(20)
     })

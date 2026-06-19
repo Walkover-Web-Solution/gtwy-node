@@ -1,5 +1,6 @@
 import models from "../../models/index.js";
 import Sequelize from "sequelize";
+import { buildConversationFilterSql } from "./conversationFilters.util.js";
 
 /**
  * Get conversation logs with pagination and filtering
@@ -282,6 +283,19 @@ async function findRecentThreadsByBridgeId(
           `NOT EXISTS (SELECT 1 FROM jsonb_each_text(COALESCE("conversation_logs"."variables", '{}'::jsonb)) AS kv WHERE jsonb_typeof(COALESCE("conversation_logs"."variables", 'null'::jsonb)) = 'object' AND kv.key IN (${inList}))`
         )
       ];
+    }
+
+    // Multi-select facets (tool_id / model / service) not covered by the legacy
+    // where-building above. Applied via the shared builder and AND'd with the
+    // existing Op.and (the keyword/filter_by OR-group). The history route never
+    // passes these, so its behaviour is unchanged.
+    const facetExpr = buildConversationFilterSql({
+      tool_id: filters?.tool_id,
+      model: filters?.model,
+      service: filters?.service
+    });
+    if (facetExpr) {
+      whereConditions[Sequelize.Op.and] = [...(whereConditions[Sequelize.Op.and] || []), Sequelize.literal(facetExpr)];
     }
 
     // Get recent threads with distinct thread_id, ordered by updated_at
