@@ -12,24 +12,42 @@
 const T = '"conversation_logs"';
 const lit = (v) => `'${String(v).replace(/'/g, "''")}'`;
 const like = (v) => `'%${String(v).replace(/'/g, "''")}%'`;
+const toArray = (v) => (Array.isArray(v) ? v : v == null || v === "" ? [] : [v]);
+const clean = (v) =>
+  toArray(v)
+    .map((x) => String(x).trim())
+    .filter(Boolean);
 const SEARCHABLE = ["message_id", "thread_id", "sub_thread_id", "llm_message", "user", "chatbot_message", "updated_llm_message"];
 const varsObj = `COALESCE(${T}."variables", '{}'::jsonb)`;
 const varsIsObj = `jsonb_typeof(COALESCE(${T}."variables", 'null'::jsonb)) = 'object'`;
 
 export function buildConversationFilterSql(filters = {}) {
-  const { model, user_feedback, tool_id, error, version_id, testcase_id, keyword } = filters;
+  const { user_feedback, error, version_id, testcase_id, keyword } = filters;
   const filter_by = filters.filter_by && typeof filters.filter_by === "object" ? filters.filter_by : null;
   const and = [];
 
+  // Multi-select facets: each accepts one or many values and matches ANY (IN-list).
+  const models = clean(filters.model);
+  const services = clean(filters.service);
+  const toolIds = clean(filters.tool_id);
+
   // ---- AND facets ----
-  if (model) and.push(`${T}."model" = ${lit(model)}`);
+  if (models.length) and.push(`${T}."model" IN (${models.map(lit).join(", ")})`);
+  if (services.length) and.push(`${T}."service" IN (${services.map(lit).join(", ")})`);
   if (user_feedback != null && user_feedback !== "all") and.push(`${T}."user_feedback" = ${Number(user_feedback)}`);
   if (version_id) and.push(`${T}."version_id" = ${lit(version_id)}`);
   if (testcase_id) and.push(`${T}."testcase_id" = ${lit(testcase_id)}`);
   if (error === "true" || error === true) and.push(`(${T}."error" IS NOT NULL AND ${T}."error" <> '')`);
-  if (tool_id) {
-    // tools_call_data is `[ { "fc_..": { "id": <tool_id>, ... } } ]`.
-    and.push(`jsonb_path_exists(${T}."tools_call_data", '$[*].*.id ? (@ == $t)'::jsonpath, jsonb_build_object('t', ${lit(tool_id)}))`);
+  if (toolIds.length) {
+    // tools_call_data is `[ { "fc_..": { "id": <tool_id>, ... } } ]`. Match rows
+    // where ANY of the requested tool ids was called. CASE guard avoids
+    // jsonb_array_elements erroring on non-array rows.
+    const idList = toolIds.map(lit).join(", ");
+    and.push(
+      `EXISTS (SELECT 1 FROM jsonb_array_elements(` +
+        `CASE WHEN jsonb_typeof(${T}."tools_call_data") = 'array' THEN ${T}."tools_call_data" ELSE '[]'::jsonb END` +
+        `) AS elem, jsonb_each(elem) AS kv WHERE kv.value->>'id' IN (${idList}))`
+    );
   }
 
   // variables_absent (sibling key under filter_by): match rows where NONE of the

@@ -190,27 +190,44 @@ async function runAndPush({ bridge_id, org_id, channel, window, filters }) {
 }
 
 // Distinct filter options for a bridge, used by the frontend to build the
-// tool/model dropdowns. Scans the whole bridge (no time window). Returns:
-//   tools_data:   { "<display tool name>": "<tool id>" }
-//   unique_model: { "<service>": ["<model>", ...] }
+// dropdowns. Scans the whole bridge (no time window). Returns:
+//   tools_data:        { "<display tool name>": "<tool id>" }  (function/MCP calls)
+//   knowledgebase_data:{ "<kb name>": "<id>" }                 (RAG calls)
+//   agent_data:        { "<agent name>": "<id>" }              (agent calls)
+//   unique_model:      { "<service>": ["<model>", ...] }
 async function getFilterOptions({ bridge_id, org_id }) {
-  // Tools: unnest the JSONB array, then each `{ "fc_..": {tool} }` object, and
-  // pull display name + id. Filter to array rows first so jsonb_array_elements
-  // never runs on a non-array value.
+  // Calls: unnest the JSONB array, then each `{ "fc_..": {entry} }` object, and
+  // pull the type discriminator (data.metadata.type), display name + id. Filter to
+  // array rows first so jsonb_array_elements never runs on a non-array value.
+  // One row per (type, id). Some records carry no display_tool_name/name
+  // (queued/in-progress or older rows), so we aggregate across all records and
+  // prefer a real name — only falling back to the id when no record ever stored a
+  // name (or only stored the id as the name).
   const toolsQuery = `
-    SELECT DISTINCT
-      COALESCE(kv.value->>'display_tool_name', kv.value->>'name') AS tool_name,
-      kv.value->>'id' AS tool_id
+    SELECT
+      call_type,
+      call_id,
+      COALESCE(
+        MAX(call_name) FILTER (WHERE call_name IS NOT NULL AND call_name <> call_id),
+        call_id
+      ) AS call_name
     FROM (
-      SELECT tools_call_data
-      FROM conversation_logs
-      WHERE bridge_id = :bridge_id AND org_id = :org_id
-        AND jsonb_typeof(tools_call_data) = 'array'
-        AND tools_call_data <> '[]'::jsonb
-    ) cl
-    CROSS JOIN LATERAL jsonb_array_elements(cl.tools_call_data) AS elem
-    CROSS JOIN LATERAL jsonb_each(elem) AS kv
-    WHERE kv.value->>'id' IS NOT NULL`;
+      SELECT
+        COALESCE(kv.value->'data'->'metadata'->>'type', 'function') AS call_type,
+        kv.value->>'id' AS call_id,
+        COALESCE(kv.value->>'display_tool_name', kv.value->>'name') AS call_name
+      FROM (
+        SELECT tools_call_data
+        FROM conversation_logs
+        WHERE bridge_id = :bridge_id AND org_id = :org_id
+          AND jsonb_typeof(tools_call_data) = 'array'
+          AND tools_call_data <> '[]'::jsonb
+      ) cl
+      CROSS JOIN LATERAL jsonb_array_elements(cl.tools_call_data) AS elem
+      CROSS JOIN LATERAL jsonb_each(elem) AS kv
+      WHERE kv.value->>'id' IS NOT NULL
+    ) t
+    GROUP BY call_type, call_id`;
 
   const modelsQuery = `
     SELECT DISTINCT service, model
@@ -220,10 +237,18 @@ async function getFilterOptions({ bridge_id, org_id }) {
 
   const [toolRows, modelRows] = await Promise.all([pgSelect(toolsQuery, { bridge_id, org_id }), pgSelect(modelsQuery, { bridge_id, org_id })]);
 
+  // Bucket each call by its type: agent -> agent_data, RAG -> knowledgebase_data,
+  // everything else (function / mcp / unknown) -> tools_data.
   const tools_data = {};
+  const knowledgebase_data = {};
+  const agent_data = {};
   for (const row of toolRows) {
-    const name = row.tool_name || row.tool_id;
-    if (name) tools_data[name] = row.tool_id;
+    const name = row.call_name || row.call_id;
+    if (!name) continue;
+    const type = (row.call_type || "function").toLowerCase();
+    if (type === "agent") agent_data[name] = row.call_id;
+    else if (type === "rag") knowledgebase_data[name] = row.call_id;
+    else tools_data[name] = row.call_id;
   }
 
   const unique_model = {};
@@ -233,7 +258,7 @@ async function getFilterOptions({ bridge_id, org_id }) {
     if (!unique_model[service].includes(row.model)) unique_model[service].push(row.model);
   }
 
-  return { tools_data, unique_model };
+  return { tools_data, knowledgebase_data, agent_data, unique_model };
 }
 
 export default {
