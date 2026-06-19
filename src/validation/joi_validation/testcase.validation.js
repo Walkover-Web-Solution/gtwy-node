@@ -65,9 +65,9 @@ const testcaseUpdateSchema = Joi.object({
 }).unknown(true);
 
 const bulkDeleteTestcaseSchema = Joi.object({
-  ids: Joi.array().items(Joi.string().required()).min(1).required().messages({
-    "array.min": "ids array must contain at least one testcase id",
-    "any.required": "ids array is required"
+  testCaseIds: Joi.array().items(Joi.string().required()).min(1).required().messages({
+    "array.min": "testCaseIds array must contain at least one testcase id",
+    "any.required": "testCaseIds array is required"
   })
 }).unknown(true);
 
