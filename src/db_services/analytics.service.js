@@ -1,6 +1,7 @@
 import Sequelize from "sequelize";
 import models from "../../models/index.js";
 import { ResponseSender } from "../services/utils/customResponse.utils.js";
+import { buildConversationFilterSql } from "./conversationFilters.util.js";
 import logger from "../logger.js";
 
 const responseSender = new ResponseSender();
@@ -62,11 +63,18 @@ function getBucketExpressionAndParams(bucketStr, params) {
 
 const pgSelect = (query, replacements) => models.pg.sequelize.query(query, { type: Sequelize.QueryTypes.SELECT, replacements });
 
+// Build the optional ` AND (<expr>)` clause from the shared filter builder.
+// Values are inline-escaped, so no extra bind params are needed.
+function filterClause(filters) {
+  const expr = buildConversationFilterSql(filters);
+  return expr ? ` AND (${expr})` : "";
+}
+
 // Single-row aggregate for the dashboard cards. latency/tokens are JSONB so we
 // extract the numeric keys. Tokens store input_tokens/output_tokens/expected_cost
 // (total_tokens may be absent, so fall back to input + output). Cost comes from
 // the tokens.expected_cost key — entirely from conversation_logs, no Timescale.
-async function getSummary({ bridge_id, org_id, start, end }) {
+async function getSummary({ bridge_id, org_id, start, end, filters }) {
   const query = `
     SELECT
       COUNT(*)::int AS total_requests,
@@ -82,13 +90,13 @@ async function getSummary({ bridge_id, org_id, start, end }) {
       COUNT(*) FILTER (WHERE user_feedback = 2)::int AS negative_feedback
     FROM conversation_logs
     WHERE bridge_id = :bridge_id AND org_id = :org_id
-      AND created_at BETWEEN :start AND :end`;
+      AND created_at BETWEEN :start AND :end ${filterClause(filters)}`;
   const rows = await pgSelect(query, { bridge_id, org_id, start, end });
   return rows[0] || {};
 }
 
 // Time-series for the "Requests Over Time" chart: success vs failed per bucket.
-async function getRequestsOverTime({ bridge_id, org_id, start, end, bucket }) {
+async function getRequestsOverTime({ bridge_id, org_id, start, end, bucket, filters }) {
   const { bucketSql, finalParams } = getBucketExpressionAndParams(bucket, { bridge_id, org_id, start, end });
   const query = `
     SELECT
@@ -97,14 +105,14 @@ async function getRequestsOverTime({ bridge_id, org_id, start, end, bucket }) {
       COUNT(*) FILTER (WHERE status = false)::int AS failed
     FROM conversation_logs
     WHERE bridge_id = :bridge_id AND org_id = :org_id
-      AND created_at BETWEEN :start AND :end
+      AND created_at BETWEEN :start AND :end ${filterClause(filters)}
     GROUP BY 1 ORDER BY 1 ASC`;
   return pgSelect(query, finalParams);
 }
 
 // Time-series for the "Response Time" chart: p50 (typical) / p95 (slow) / p99 (worst)
 // of over_all_time per bucket.
-async function getResponseTime({ bridge_id, org_id, start, end, bucket }) {
+async function getResponseTime({ bridge_id, org_id, start, end, bucket, filters }) {
   const { bucketSql, finalParams } = getBucketExpressionAndParams(bucket, { bridge_id, org_id, start, end });
   const query = `
     SELECT
@@ -114,7 +122,7 @@ async function getResponseTime({ bridge_id, org_id, start, end, bucket }) {
       percentile_cont(0.99) WITHIN GROUP (ORDER BY (latency->>'over_all_time')::float) AS worst
     FROM conversation_logs
     WHERE bridge_id = :bridge_id AND org_id = :org_id
-      AND created_at BETWEEN :start AND :end
+      AND created_at BETWEEN :start AND :end ${filterClause(filters)}
       AND (latency->>'over_all_time') IS NOT NULL
     GROUP BY 1 ORDER BY 1 ASC`;
   return pgSelect(query, finalParams);
@@ -133,8 +141,8 @@ async function pushAnalytics(channel, data) {
 // RT layer the moment it is ready (progressive render). Each section fails
 // independently — a broken section pushes an error message instead of poisoning
 // the rest.
-async function runAndPush({ bridge_id, org_id, channel, window }) {
-  const ctx = { bridge_id, org_id, ...window };
+async function runAndPush({ bridge_id, org_id, channel, window, filters }) {
+  const ctx = { bridge_id, org_id, ...window, filters };
   const base = { bridge_id, range_start: window.start, range_end: window.end };
 
   const summaryTask = (async () => {
@@ -181,7 +189,80 @@ async function runAndPush({ bridge_id, org_id, channel, window }) {
   await Promise.allSettled([summaryTask, requestsTask, responseTimeTask]);
 }
 
+// Distinct filter options for a bridge, used by the frontend to build the
+// dropdowns. Scans the whole bridge (no time window). Returns:
+//   tools_data:        { "<display tool name>": "<tool id>" }  (function/MCP calls)
+//   knowledgebase_data:{ "<kb name>": "<id>" }                 (RAG calls)
+//   agent_data:        { "<agent name>": "<id>" }              (agent calls)
+//   unique_model:      { "<service>": ["<model>", ...] }
+async function getFilterOptions({ bridge_id, org_id }) {
+  // Calls: unnest the JSONB array, then each `{ "fc_..": {entry} }` object, and
+  // pull the type discriminator (data.metadata.type), display name + id. Filter to
+  // array rows first so jsonb_array_elements never runs on a non-array value.
+  // One row per (type, id). Some records carry no display_tool_name/name
+  // (queued/in-progress or older rows), so we aggregate across all records and
+  // prefer a real name — only falling back to the id when no record ever stored a
+  // name (or only stored the id as the name).
+  const toolsQuery = `
+    SELECT
+      call_type,
+      call_id,
+      COALESCE(
+        MAX(call_name) FILTER (WHERE call_name IS NOT NULL AND call_name <> call_id),
+        call_id
+      ) AS call_name
+    FROM (
+      SELECT
+        COALESCE(kv.value->'data'->'metadata'->>'type', 'function') AS call_type,
+        kv.value->>'id' AS call_id,
+        COALESCE(kv.value->>'display_tool_name', kv.value->>'name') AS call_name
+      FROM (
+        SELECT tools_call_data
+        FROM conversation_logs
+        WHERE bridge_id = :bridge_id AND org_id = :org_id
+          AND jsonb_typeof(tools_call_data) = 'array'
+          AND tools_call_data <> '[]'::jsonb
+      ) cl
+      CROSS JOIN LATERAL jsonb_array_elements(cl.tools_call_data) AS elem
+      CROSS JOIN LATERAL jsonb_each(elem) AS kv
+      WHERE kv.value->>'id' IS NOT NULL
+    ) t
+    GROUP BY call_type, call_id`;
+
+  const modelsQuery = `
+    SELECT DISTINCT service, model
+    FROM conversation_logs
+    WHERE bridge_id = :bridge_id AND org_id = :org_id
+      AND model IS NOT NULL AND model <> ''`;
+
+  const [toolRows, modelRows] = await Promise.all([pgSelect(toolsQuery, { bridge_id, org_id }), pgSelect(modelsQuery, { bridge_id, org_id })]);
+
+  // Bucket each call by its type: agent -> agent_data, RAG -> knowledgebase_data,
+  // everything else (function / mcp / unknown) -> tools_data.
+  const tools_data = {};
+  const knowledgebase_data = {};
+  const agent_data = {};
+  for (const row of toolRows) {
+    const name = row.call_name || row.call_id;
+    if (!name) continue;
+    const type = (row.call_type || "function").toLowerCase();
+    if (type === "agent") agent_data[name] = row.call_id;
+    else if (type === "rag") knowledgebase_data[name] = row.call_id;
+    else tools_data[name] = row.call_id;
+  }
+
+  const unique_model = {};
+  for (const row of modelRows) {
+    const service = row.service || "other";
+    if (!unique_model[service]) unique_model[service] = [];
+    if (!unique_model[service].includes(row.model)) unique_model[service].push(row.model);
+  }
+
+  return { tools_data, knowledgebase_data, agent_data, unique_model };
+}
+
 export default {
   computeWindow,
-  runAndPush
+  runAndPush,
+  getFilterOptions
 };

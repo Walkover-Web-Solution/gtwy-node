@@ -2,6 +2,7 @@ import models from "../../models/index.js";
 import Sequelize from "sequelize";
 import { findInCache, storeInCache } from "../cache_service/index.js";
 import { getUsers } from "../services/proxy.service.js";
+import { buildConversationFilterSql } from "./conversationFilters.util.js";
 
 async function findMessage(org_id, thread_id, bridge_id, sub_thread_id, page, pageSize, user_feedback, version_id, isChatbot, error) {
   const offset = page && pageSize ? (page - 1) * pageSize : null;
@@ -404,18 +405,17 @@ async function getSubThreadsWithActivity(org_id, thread_id, bridge_id, { version
  * ordered most-recently-active first. Single PG query — threads now live in
  * conversation_logs, so no Mongo lookup is needed.
  */
-async function getBridgeSubThreadsWithActivity(org_id, bridge_id, { version_id, isError } = {}) {
+async function getBridgeSubThreadsWithActivity(org_id, bridge_id, filters = {}, { limit, offset } = {}) {
   try {
     const whereClause = { org_id, bridge_id };
 
-    if (version_id) {
-      whereClause.version_id = version_id;
-    }
-
-    if (isError) {
-      whereClause.error = {
-        [models.pg.Sequelize.Op.and]: [{ [models.pg.Sequelize.Op.ne]: "" }, { [models.pg.Sequelize.Op.ne]: null }]
-      };
+    // All optional filters (model / feedback / tool / error / version / testcase /
+    // keyword / filter_by incl. variables present + absent) are built by the
+    // shared SQL-expression builder so analytics threads and aggregations stay
+    // in lock-step. When nothing applies, behaviour is unchanged.
+    const expr = buildConversationFilterSql(filters);
+    if (expr) {
+      whereClause[models.pg.Sequelize.Op.and] = [models.pg.Sequelize.literal(expr)];
     }
 
     const result = await models.pg.conversation_logs.findAll({
@@ -435,6 +435,9 @@ async function getBridgeSubThreadsWithActivity(org_id, bridge_id, { version_id, 
       where: whereClause,
       group: ["thread_id", "sub_thread_id"],
       order: [[models.pg.Sequelize.fn("MAX", models.pg.Sequelize.col("created_at")), "DESC"]],
+      // LIMIT/OFFSET apply after the GROUP BY, i.e. to the distinct sub-thread rows.
+      ...(limit != null ? { limit } : {}),
+      ...(offset != null ? { offset } : {}),
       raw: true
     });
 
@@ -442,6 +445,30 @@ async function getBridgeSubThreadsWithActivity(org_id, bridge_id, { version_id, 
   } catch (error) {
     console.error("getBridgeSubThreadsWithActivity error =>", error);
     return [];
+  }
+}
+
+/**
+ * Total number of distinct (thread_id, sub_thread_id) groups for a bridge, with
+ * the SAME filters as getBridgeSubThreadsWithActivity. Used for pagination
+ * metadata. Raw SQL because Sequelize count() is unreliable with GROUP BY.
+ */
+async function getBridgeSubThreadsCount(org_id, bridge_id, filters = {}) {
+  try {
+    const expr = buildConversationFilterSql(filters);
+    const filterClause = expr ? ` AND (${expr})` : "";
+    const rows = await models.pg.sequelize.query(
+      `SELECT COUNT(*)::int AS total FROM (
+         SELECT 1 FROM conversation_logs
+         WHERE org_id = :org_id AND bridge_id = :bridge_id ${filterClause}
+         GROUP BY thread_id, sub_thread_id
+       ) s`,
+      { type: models.pg.Sequelize.QueryTypes.SELECT, replacements: { org_id, bridge_id } }
+    );
+    return rows[0]?.total || 0;
+  } catch (error) {
+    console.error("getBridgeSubThreadsCount error =>", error);
+    return 0;
   }
 }
 
@@ -601,6 +628,7 @@ export default {
   findThreadMessage,
   getSubThreadsWithActivity,
   getBridgeSubThreadsWithActivity,
+  getBridgeSubThreadsCount,
   getUserUpdates,
   addBulkUserEntries
 };

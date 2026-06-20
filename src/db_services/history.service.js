@@ -1,5 +1,6 @@
 import models from "../../models/index.js";
 import Sequelize from "sequelize";
+import { buildConversationFilterSql } from "./conversationFilters.util.js";
 
 /**
  * Get conversation logs with pagination and filtering
@@ -213,6 +214,7 @@ async function findRecentThreadsByBridgeId(
     if (filterBy && typeof filterBy === "object" && Object.keys(filterBy).length > 0) {
       const orConditions = [];
       for (const [col, keyword] of Object.entries(filterBy)) {
+        if (col === "variables_absent") continue; // AND facet, handled after this block
         if (col === "variables") {
           if (!keyword) continue;
           if (typeof keyword === "string" && keyword.trim() !== "") {
@@ -266,6 +268,34 @@ async function findRecentThreadsByBridgeId(
           ]
         }
       ];
+    }
+
+    // variables_absent: match rows where NONE of the named variable keys exist.
+    // AND'd with the rest, so it appends to any existing Op.and (the OR group)
+    // rather than overwriting it.
+    const absentRaw = filters?.filter_by?.variables_absent;
+    const absent = (Array.isArray(absentRaw) ? absentRaw : absentRaw ? [absentRaw] : []).map((v) => String(v).trim()).filter(Boolean);
+    if (absent.length) {
+      const inList = absent.map((v) => `'${v.replace(/'/g, "''")}'`).join(", ");
+      whereConditions[Sequelize.Op.and] = [
+        ...(whereConditions[Sequelize.Op.and] || []),
+        Sequelize.literal(
+          `NOT EXISTS (SELECT 1 FROM jsonb_each_text(COALESCE("conversation_logs"."variables", '{}'::jsonb)) AS kv WHERE jsonb_typeof(COALESCE("conversation_logs"."variables", 'null'::jsonb)) = 'object' AND kv.key IN (${inList}))`
+        )
+      ];
+    }
+
+    // Multi-select facets (tool_id / model / service) not covered by the legacy
+    // where-building above. Applied via the shared builder and AND'd with the
+    // existing Op.and (the keyword/filter_by OR-group). The history route never
+    // passes these, so its behaviour is unchanged.
+    const facetExpr = buildConversationFilterSql({
+      tool_id: filters?.tool_id,
+      model: filters?.model,
+      service: filters?.service
+    });
+    if (facetExpr) {
+      whereConditions[Sequelize.Op.and] = [...(whereConditions[Sequelize.Op.and] || []), Sequelize.literal(facetExpr)];
     }
 
     // Get recent threads with distinct thread_id, ordered by updated_at
