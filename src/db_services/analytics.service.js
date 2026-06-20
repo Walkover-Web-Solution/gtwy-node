@@ -192,7 +192,7 @@ async function runAndPush({ bridge_id, org_id, channel, window, filters }) {
 // Distinct filter options for a bridge, used by the frontend to build the
 // dropdowns. Scans the whole bridge (no time window). Returns:
 //   tools_data:        { "<display tool name>": "<tool id>" }  (function/MCP calls)
-//   knowledgebase_data:{ "<kb name>": "<id>" }                 (RAG calls)
+//   knowledgebase_data:{ "<resource_id>": "<resource_id>" }    (RAG calls)
 //   agent_data:        { "<agent name>": "<id>" }              (agent calls)
 //   unique_model:      { "<service>": ["<model>", ...] }
 async function getFilterOptions({ bridge_id, org_id }) {
@@ -214,7 +214,16 @@ async function getFilterOptions({ bridge_id, org_id }) {
     FROM (
       SELECT
         COALESCE(kv.value->'data'->'metadata'->>'type', 'function') AS call_type,
-        kv.value->>'id' AS call_id,
+        -- The usable identifier depends on the call type: functions/MCP have a
+        -- top-level id; RAG (knowledgebase) has a null id and lives in
+        -- args.resource_id; agent calls have a null id and live in
+        -- data.metadata.agent_id (the called agent's bridge id). Resolve in order.
+        COALESCE(
+          kv.value->>'id',
+          kv.value->'args'->>'resource_id',
+          kv.value->'data'->'metadata'->>'agent_id',
+          kv.value->>'bridge_id'
+        ) AS call_id,
         COALESCE(kv.value->>'display_tool_name', kv.value->>'name') AS call_name
       FROM (
         SELECT tools_call_data
@@ -225,7 +234,12 @@ async function getFilterOptions({ bridge_id, org_id }) {
       ) cl
       CROSS JOIN LATERAL jsonb_array_elements(cl.tools_call_data) AS elem
       CROSS JOIN LATERAL jsonb_each(elem) AS kv
-      WHERE kv.value->>'id' IS NOT NULL
+      WHERE COALESCE(
+        kv.value->>'id',
+        kv.value->'args'->>'resource_id',
+        kv.value->'data'->'metadata'->>'agent_id',
+        kv.value->>'bridge_id'
+      ) IS NOT NULL
     ) t
     GROUP BY call_type, call_id`;
 
@@ -247,7 +261,9 @@ async function getFilterOptions({ bridge_id, org_id }) {
     if (!name) continue;
     const type = (row.call_type || "function").toLowerCase();
     if (type === "agent") agent_data[name] = row.call_id;
-    else if (type === "rag") knowledgebase_data[name] = row.call_id;
+    // KB calls share a generic display name ("get_knowledge_base_data"), so key by
+    // the resource_id to keep each distinct knowledgebase as its own entry.
+    else if (type === "rag") knowledgebase_data[row.call_id] = row.call_id;
     else tools_data[name] = row.call_id;
   }
 
