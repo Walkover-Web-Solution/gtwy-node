@@ -48,6 +48,8 @@ import analyticsRoutes from "./routes/analytics.routes.js";
 const app = express();
 const PORT = process.env.PORT || 7072;
 
+let isShuttingDown = false;
+
 app.use(
   cors({
     origin: "*",
@@ -66,8 +68,13 @@ try {
   // logger.error('database connection error: ' + err.message);
 }
 
-app.get("/healthcheck", async (req, res) => {
-  res.status(200).send("OK running good...v1.1");
+app.get("/ready", (req, res) => {
+  if (isShuttingDown) return res.status(502).send("shutting down");
+  res.status(200).send("ok");
+});
+
+app.get("/healthcheck", (req, res) => {
+  res.status(200).send("OK running good...v1.1"); // always 200
 });
 app.use("/api/v1/config", converstaionRoutes);
 app.use("/api/agent", configRoutes);
@@ -157,7 +164,10 @@ const shutdown = async (signal, reason) => {
 
 // Handle different types of shutdown signals
 process.on("SIGINT", () => shutdown("SIGINT", "User initiated shutdown (Ctrl+C)"));
-process.on("SIGTERM", () => shutdown("SIGTERM", "System shutdown"));
+process.on("SIGTERM", () => {
+  isShuttingDown = true;
+  shutdown("SIGTERM", "System shutdown");
+});
 process.on("SIGQUIT", () => shutdown("SIGQUIT", "Quit signal"));
 process.on("uncaughtException", (error) => {
   console.error("Uncaught exception:", error);
