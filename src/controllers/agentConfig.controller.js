@@ -117,6 +117,16 @@ const createAgentController = async (req, res, next) => {
                 }, {}) || { role: "", goal: "", instruction: "" }
             : { role: "", goal: "", instruction: "" }
       };
+
+      // For embed users with addDefaultApiKeys enabled, pass available services so AI can pick a supported model
+      if (
+        folder_data?.type === "embed" &&
+        folder_data?.config?.addDefaultApiKeys === true &&
+        folder_data?.apikey_object_id &&
+        typeof folder_data.apikey_object_id === "object"
+      ) {
+        variables.services = Object.keys(folder_data.apikey_object_id);
+      }
       const user = "Generate Agent Configuration according to the given user purpose.";
       const res_data = await callAiMiddleware(user, bridge_ids["create_bridge_using_ai"], variables);
       // Use AI data as-is
