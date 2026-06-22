@@ -19,8 +19,11 @@ const getAgentAnalytics = async (req, res, next) => {
       tool_id,
       model,
       service,
+      agent_id,
+      knowledgebase_id,
       user_feedback,
       error,
+      review_failed,
       version_id,
       testcase_id,
       keyword,
@@ -49,8 +52,11 @@ const getAgentAnalytics = async (req, res, next) => {
       tool_id: toFilterArray(tool_id),
       model: toFilterArray(model),
       service: toFilterArray(service),
+      agent_id: toFilterArray(agent_id),
+      knowledgebase_id: toFilterArray(knowledgebase_id),
       user_feedback: feedbackMap[user_feedback],
       error: error || undefined,
+      review_failed: review_failed || undefined,
       version_id: version_id || undefined,
       testcase_id: testcase_id || undefined,
       keyword: keyword || undefined,
@@ -77,8 +83,11 @@ const getAgentAnalytics = async (req, res, next) => {
       filters.tool_id ||
       filters.model ||
       filters.service ||
+      filters.agent_id ||
+      filters.knowledgebase_id ||
       filters.user_feedback != null ||
       filters.error === "true" ||
+      filters.review_failed === "true" ||
       filters.version_id ||
       filters.testcase_id ||
       filters.keyword ||
@@ -104,7 +113,10 @@ const getAgentAnalytics = async (req, res, next) => {
         time_range: start_date || end_date ? { start: start_date, end: end_date } : undefined,
         tool_id: filters.tool_id,
         model: filters.model,
-        service: filters.service
+        service: filters.service,
+        agent_id: filters.agent_id,
+        knowledgebase_id: filters.knowledgebase_id,
+        review_failed: filters.review_failed
       };
       // findRecentThreadsByBridgeId expects the raw int (1/2) or "all".
       const ufForSearch = filters.user_feedback || "all";
