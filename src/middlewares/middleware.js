@@ -84,7 +84,6 @@ const makeDataIfProxyTokenGiven = async (req) => {
   }
 
   const responseData = response.data;
-  console.log(responseData);
   return {
     ip: "9.255.0.55",
     user: {
