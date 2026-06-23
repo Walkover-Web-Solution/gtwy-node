@@ -664,6 +664,51 @@ async function getLatestHistoryEntriesByTypes(org_id, version_id, types = []) {
   }
 }
 
+async function getDraftHistoryForPublish(org_id, bridge_id, version_id) {
+  try {
+    if (!org_id || !bridge_id || !version_id) return [];
+
+    const lastPublish = await models.pg.user_bridge_config_history.findOne({
+      where: { org_id, bridge_id, type: "Version published" },
+      order: [["time", "DESC"]],
+      attributes: ["time"],
+      raw: true
+    });
+
+    const replacements = { org_id, version_id };
+    let timeClause = "";
+    if (lastPublish?.time) {
+      timeClause = "AND time > :afterTime";
+      replacements.afterTime = lastPublish.time;
+    }
+
+    return await models.pg.sequelize.query(
+      `
+        SELECT DISTINCT ON (type)
+          id,
+          user_id,
+          type,
+          time,
+          previous_value,
+          current_value
+        FROM user_bridge_config_history
+        WHERE org_id = :org_id
+          AND version_id = :version_id
+          AND type NOT IN ('Version published', 'Version created', 'Agent created', 'configuration', 'agent_update')
+          ${timeClause}
+        ORDER BY type, time DESC
+      `,
+      {
+        replacements,
+        type: models.pg.sequelize.QueryTypes.SELECT
+      }
+    );
+  } catch (error) {
+    console.error("Error fetching draft history for publish:", error);
+    return [];
+  }
+}
+
 export default {
   findMessageByMessageId,
   deleteLastThread,
@@ -681,5 +726,6 @@ export default {
   getBridgeSubThreadsCount,
   getUserUpdates,
   addBulkUserEntries,
-  getLatestHistoryEntriesByTypes
+  getLatestHistoryEntriesByTypes,
+  getDraftHistoryForPublish
 };

@@ -190,8 +190,8 @@ const addPreTool = async (req, res, next) => {
           version_id: version_id ? String(version_id) : null,
           type: "pre_tools",
           time: new Date(),
-          previous_value: { pre_tools: current_pre_tools ?? [] },
-          current_value: { pre_tools: data_to_update["pre_tools"] ?? [] }
+          previous_value: current_pre_tools ?? [],
+          current_value: data_to_update["pre_tools"] ?? []
         }
       ]);
     } catch (historyError) {

@@ -1,7 +1,6 @@
 import isEqual from "lodash/isEqual.js";
 
-/** Keys excluded from per-field history tracking */
-const EXCLUDED_HISTORY_KEYS = new Set([
+const EXCLUDED_KEYS = new Set([
   "system_prompt_version_id",
   "variables_state",
   "functionData",
@@ -13,7 +12,14 @@ const EXCLUDED_HISTORY_KEYS = new Set([
   "is_drafted"
 ]);
 
-/** Top-level agent keys compared on publish (mirrors frontend KEYS_TO_COMPARE) */
+const CONFIG_EXCLUDED = new Set(["system_prompt_version_id"]);
+const MODEL_GROUP_CONFIG_KEYS = new Set(["model", "type"]);
+
+const TYPE_MAP = {
+  function_ids: "functionData",
+  connected_agents: "agents"
+};
+
 export const PUBLISH_COMPARE_KEYS = [
   "configuration",
   "service",
@@ -30,52 +36,88 @@ export const PUBLISH_COMPARE_KEYS = [
   "gpt_memory_context"
 ];
 
-const CONFIGURATION_EXCLUDED_KEYS = new Set(["system_prompt_version_id"]);
-
-/** Map request/body keys to history `type` values used by the frontend filter */
-const HISTORY_TYPE_MAP = {
-  function_ids: "functionData",
-  connected_agents: "agents",
-  configuration: "configuration"
-};
-
-const SYSTEM_HISTORY_TYPES = new Set(["Version published", "Version created", "Agent created"]);
-
-/**
- * Resolve the history type label for a changed field.
- */
-export function resolveHistoryType(key) {
-  return HISTORY_TYPE_MAP[key] || key;
+function historyType(key) {
+  return TYPE_MAP[key] || key;
 }
 
-/**
- * Normalize agent data for publish comparison (flatten configuration, normalize connected_agents).
- */
-export function normalizeAgentForPublishCompare(agent = {}) {
+function isModeValue(val) {
+  return typeof val === "object" && val !== null && !Array.isArray(val) && "mode" in val;
+}
+
+/** Treat "default" and { mode: "default" } as the same so we don't flag untouched params */
+function normalizeCompareValue(val) {
+  if (val === undefined || val === null || val === "default") return null;
+  if (isModeValue(val)) {
+    if (val.mode === "default") return null;
+    if (val.mode === "min") return "__min__";
+    if (val.mode === "max") return "__max__";
+    if (val.mode === "custom") return normalizeCompareValue(val.value);
+    return val;
+  }
+  return val;
+}
+
+function historyValuesEqual(before, after) {
+  return isEqual(normalizeCompareValue(before), normalizeCompareValue(after));
+}
+
+function historyEntry(base, type, previousVal, currentVal) {
+  return {
+    ...base,
+    type,
+    previous_value: previousVal ?? null,
+    current_value: currentVal ?? null
+  };
+}
+
+/** service + model + type in one request → single history row */
+function buildModelGroupEntry(base, body, version) {
+  const config = version?.configuration || {};
+  const configBody = body.configuration || {};
+  const hasService = body.service !== undefined;
+  const hasModel = configBody.model !== undefined;
+  const hasType = configBody.type !== undefined;
+
+  if (!hasService && !hasModel && !hasType) return null;
+
+  const before = {
+    service: version?.service ?? null,
+    model: config.model ?? null,
+    type: config.type ?? null
+  };
+  const after = {
+    service: hasService ? body.service : before.service,
+    model: hasModel ? configBody.model : before.model,
+    type: hasType ? configBody.type : before.type
+  };
+
+  if (isEqual(before, after)) return null;
+  return historyEntry(base, "model", before, after);
+}
+
+function normalizeForPublishCompare(agent = {}) {
   if (!agent || typeof agent !== "object") return {};
 
-  const connected_agents = agent.connected_agents || agent.page_config?.connected_agents || agent.configuration?.connected_agents || {};
-
-  const normalized = { ...agent, connected_agents };
+  const normalized = {
+    ...agent,
+    connected_agents:
+      agent.connected_agents || agent.page_config?.connected_agents || agent.configuration?.connected_agents || {}
+  };
 
   if (agent.configuration && typeof agent.configuration === "object") {
-    for (const [configKey, configValue] of Object.entries(agent.configuration)) {
-      if (!CONFIGURATION_EXCLUDED_KEYS.has(configKey)) {
-        normalized[configKey] = configValue;
-      }
+    for (const [k, v] of Object.entries(agent.configuration)) {
+      if (!CONFIG_EXCLUDED.has(k)) normalized[k] = v;
     }
   }
 
   return normalized;
 }
 
-/**
- * Compare published bridge data vs version being published; return changed field keys only.
- */
+/** Used by publish modal diff only — not for history snapshot */
 export function getPublishChangedKeys(publishedAgent = {}, versionAgent = {}) {
-  const oldData = normalizeAgentForPublishCompare(publishedAgent);
-  const newData = normalizeAgentForPublishCompare(versionAgent);
-  const changedKeys = new Set();
+  const oldData = normalizeForPublishCompare(publishedAgent);
+  const newData = normalizeForPublishCompare(versionAgent);
+  const changed = new Set();
 
   for (const topKey of PUBLISH_COMPARE_KEYS) {
     const oldVal = oldData[topKey];
@@ -84,93 +126,68 @@ export function getPublishChangedKeys(publishedAgent = {}, versionAgent = {}) {
     if (topKey === "configuration") {
       const oldConfig = oldVal && typeof oldVal === "object" ? oldVal : {};
       const newConfig = newVal && typeof newVal === "object" ? newVal : {};
-      const configKeys = new Set([...Object.keys(oldConfig), ...Object.keys(newConfig)]);
-
-      for (const configKey of configKeys) {
-        if (CONFIGURATION_EXCLUDED_KEYS.has(configKey)) continue;
-        if (!isEqual(oldConfig[configKey], newConfig[configKey])) {
-          changedKeys.add(resolveHistoryType(configKey));
-        }
+      for (const k of new Set([...Object.keys(oldConfig), ...Object.keys(newConfig)])) {
+        if (CONFIG_EXCLUDED.has(k)) continue;
+        if (!historyValuesEqual(oldConfig[k], newConfig[k])) changed.add(historyType(k));
       }
       continue;
     }
 
-    if (!isEqual(oldVal, newVal)) {
-      changedKeys.add(resolveHistoryType(topKey));
-    }
+    if (!isEqual(oldVal, newVal)) changed.add(historyType(topKey));
   }
 
-  return [...changedKeys];
+  return [...changed];
 }
 
-/**
- * Build per-key history rows for a version update request body.
- */
 export function buildVersionUpdateHistoryEntries({ user_id, org_id, bridge_id, version_id, body, version }) {
   if (!body || typeof body !== "object") return [];
 
   const entries = [];
-  const time = new Date();
-  const base = { user_id, org_id, bridge_id, version_id, time };
-  const current_configuration = version?.configuration || {};
+  const base = { user_id, org_id, bridge_id, version_id, time: new Date() };
+  const config = version?.configuration || {};
+  const skipConfigKeys = new Set();
+
+  const modelGroup = buildModelGroupEntry(base, body, version);
+  if (modelGroup) {
+    entries.push(modelGroup);
+    MODEL_GROUP_CONFIG_KEYS.forEach((k) => skipConfigKeys.add(k));
+  }
 
   for (const key of Object.keys(body)) {
+    if (key === "service") continue;
+
     if (key === "agents" && body.agents?.connected_agents) {
-      const previousVal = version?.connected_agents || version?.page_config?.connected_agents || version?.configuration?.connected_agents || null;
-      const currentVal = body.agents.connected_agents ?? null;
-      if (!isEqual(previousVal, currentVal)) {
-        entries.push({
-          ...base,
-          type: "agents",
-          previous_value: { connected_agents: previousVal },
-          current_value: { connected_agents: currentVal }
-        });
-      }
+      const before =
+        version?.connected_agents || version?.page_config?.connected_agents || version?.configuration?.connected_agents || null;
+      const after = body.agents.connected_agents ?? null;
+      if (!isEqual(before, after)) entries.push(historyEntry(base, "agents", before, after));
       continue;
     }
 
-    if (EXCLUDED_HISTORY_KEYS.has(key)) continue;
+    if (EXCLUDED_KEYS.has(key)) continue;
 
     if (key === "configuration" && body.configuration && typeof body.configuration === "object") {
       for (const configKey of Object.keys(body.configuration)) {
-        if (EXCLUDED_HISTORY_KEYS.has(configKey) || CONFIGURATION_EXCLUDED_KEYS.has(configKey)) continue;
-
-        const previousVal = current_configuration[configKey] ?? null;
-        const currentVal = body.configuration[configKey] ?? null;
-        if (isEqual(previousVal, currentVal)) continue;
-
-        entries.push({
-          ...base,
-          type: resolveHistoryType(configKey),
-          previous_value: { [configKey]: previousVal },
-          current_value: { [configKey]: currentVal }
-        });
+        if (EXCLUDED_KEYS.has(configKey) || CONFIG_EXCLUDED.has(configKey) || skipConfigKeys.has(configKey)) continue;
+        const before = config[configKey] ?? null;
+        const after = body.configuration[configKey] ?? null;
+        if (!isEqual(before, after)) entries.push(historyEntry(base, historyType(configKey), before, after));
       }
       continue;
     }
 
-    const previousVal = version?.[key] ?? null;
-    const currentVal = body[key] ?? null;
-    if (isEqual(previousVal, currentVal)) continue;
-
-    entries.push({
-      ...base,
-      type: resolveHistoryType(key),
-      previous_value: { [key]: previousVal },
-      current_value: { [key]: currentVal }
-    });
+    const before = version?.[key] ?? null;
+    const after = body[key] ?? null;
+    if (!isEqual(before, after)) entries.push(historyEntry(base, historyType(key), before, after));
   }
 
   return entries;
 }
 
-/**
- * Build per-key history rows for agent-level updates (replicated across all versions).
- */
 export function buildAgentUpdateHistoryEntries({ user_id, org_id, bridge_id, versionIds, body, agent }) {
-  if (!body || typeof body !== "object" || !Array.isArray(versionIds) || versionIds.length === 0) return [];
+  if (!body || !Array.isArray(versionIds) || versionIds.length === 0) return [];
 
-  const perVersionEntries = buildVersionUpdateHistoryEntries({
+  const rows = buildVersionUpdateHistoryEntries({
     user_id,
     org_id,
     bridge_id,
@@ -179,31 +196,20 @@ export function buildAgentUpdateHistoryEntries({ user_id, org_id, bridge_id, ver
     version: agent
   });
 
-  if (versionIds.length === 1) return perVersionEntries;
-
-  const replicated = [];
-  for (const version_id of versionIds) {
-    for (const entry of perVersionEntries) {
-      replicated.push({ ...entry, version_id: String(version_id) });
-    }
-  }
-  return replicated;
+  if (versionIds.length === 1) return rows;
+  return versionIds.flatMap((vid) => rows.map((row) => ({ ...row, version_id: String(vid) })));
 }
 
-/**
- * Build attribution snapshot for a publish event from latest per-key history rows.
- */
-export function buildPublishAttributionSnapshot(changedKeys, latestHistoryRows = []) {
+/** Snapshot from user history rows that represent a real edit */
+export function buildPublishAttributionSnapshot(historyRows = []) {
   const snapshot = {};
 
-  for (const key of changedKeys) {
-    const row = latestHistoryRows.find((entry) => entry.type === key);
-    if (!row) {
-      snapshot[key] = null;
-      continue;
-    }
+  for (const row of historyRows) {
+    if (!row?.type) continue;
+    if (row.type === "configuration" || row.type === "agent_update") continue;
+    if (historyValuesEqual(row.previous_value, row.current_value)) continue;
 
-    snapshot[key] = {
+    snapshot[row.type] = {
       history_id: row.id,
       user_id: row.user_id,
       time: row.time,
@@ -215,9 +221,6 @@ export function buildPublishAttributionSnapshot(changedKeys, latestHistoryRows =
   return snapshot;
 }
 
-/**
- * Build the publish history row including changed-key attribution snapshot.
- */
 export function buildPublishHistoryEntry({
   user_id,
   org_id,
@@ -225,9 +228,10 @@ export function buildPublishHistoryEntry({
   version_id,
   previousPublishedVersionId,
   publishedVersionId,
-  changedKeys,
   snapshot
 }) {
+  const changedKeys = Object.keys(snapshot || {});
+
   return {
     user_id,
     org_id,
@@ -244,8 +248,4 @@ export function buildPublishHistoryEntry({
       snapshot
     }
   };
-}
-
-export function isFieldHistoryType(type) {
-  return type && !SYSTEM_HISTORY_TYPES.has(type) && type !== "agent_update" && type !== "configuration";
 }
