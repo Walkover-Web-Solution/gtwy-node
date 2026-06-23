@@ -22,7 +22,7 @@ const varsObj = `COALESCE(${T}."variables", '{}'::jsonb)`;
 const varsIsObj = `jsonb_typeof(COALESCE(${T}."variables", 'null'::jsonb)) = 'object'`;
 
 export function buildConversationFilterSql(filters = {}) {
-  const { user_feedback, error, version_id, testcase_id, keyword } = filters;
+  const { user_feedback, error, version_id, testcase_id, keyword, review_failed } = filters;
   const filter_by = filters.filter_by && typeof filters.filter_by === "object" ? filters.filter_by : null;
   const and = [];
 
@@ -30,6 +30,8 @@ export function buildConversationFilterSql(filters = {}) {
   const models = clean(filters.model);
   const services = clean(filters.service);
   const toolIds = clean(filters.tool_id);
+  const agentIds = clean(filters.agent_id);
+  const knowledgebaseIds = clean(filters.knowledgebase_id);
 
   // ---- AND facets ----
   if (models.length) and.push(`${T}."model" IN (${models.map(lit).join(", ")})`);
@@ -38,6 +40,9 @@ export function buildConversationFilterSql(filters = {}) {
   if (version_id) and.push(`${T}."version_id" = ${lit(version_id)}`);
   if (testcase_id) and.push(`${T}."testcase_id" = ${lit(testcase_id)}`);
   if (error === "true" || error === true) and.push(`(${T}."error" IS NOT NULL AND ${T}."error" <> '')`);
+  if (review_failed === "true" || review_failed === true) {
+    and.push(`(jsonb_typeof(${T}."AiConfig") = 'object' AND ${T}."AiConfig"->'review_meta'->>'passed' = 'false')`);
+  }
   if (toolIds.length) {
     // tools_call_data is `[ { "fc_..": { "id": <tool_id>, ... } } ]`. Match rows
     // where ANY of the requested tool ids was called. CASE guard avoids
@@ -47,6 +52,24 @@ export function buildConversationFilterSql(filters = {}) {
       `EXISTS (SELECT 1 FROM jsonb_array_elements(` +
         `CASE WHEN jsonb_typeof(${T}."tools_call_data") = 'array' THEN ${T}."tools_call_data" ELSE '[]'::jsonb END` +
         `) AS elem, jsonb_each(elem) AS kv WHERE kv.value->>'id' IN (${idList}))`
+    );
+  }
+  if (agentIds.length) {
+    // agent_id lives inside tools_call_data at data.metadata.agent_id
+    const idList = agentIds.map(lit).join(", ");
+    and.push(
+      `EXISTS (SELECT 1 FROM jsonb_array_elements(` +
+        `CASE WHEN jsonb_typeof(${T}."tools_call_data") = 'array' THEN ${T}."tools_call_data" ELSE '[]'::jsonb END` +
+        `) AS elem, jsonb_each(elem) AS kv WHERE kv.value->'data'->'metadata'->>'agent_id' IN (${idList}))`
+    );
+  }
+  if (knowledgebaseIds.length) {
+    // knowledgebase_id (resource_id) lives inside tools_call_data at args.resource_id
+    const idList = knowledgebaseIds.map(lit).join(", ");
+    and.push(
+      `EXISTS (SELECT 1 FROM jsonb_array_elements(` +
+        `CASE WHEN jsonb_typeof(${T}."tools_call_data") = 'array' THEN ${T}."tools_call_data" ELSE '[]'::jsonb END` +
+        `) AS elem, jsonb_each(elem) AS kv WHERE kv.value->'args'->>'resource_id' IN (${idList}))`
     );
   }
 
