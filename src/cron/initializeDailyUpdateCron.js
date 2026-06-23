@@ -3,7 +3,7 @@ import moveDataRedisToMongodb from "../controllers/movedataRedistoMongodb.js";
 import { collectionNames, redis_keys } from "../configs/constant.js";
 
 const initializeDailyUpdateCron = () => {
-  cron.schedule("*/15 * * * *", async () => {
+  return cron.schedule("*/15 * * * *", async () => {
     // Every 15 minutes instead of every minute
     try {
       console.log("Running initializeDailyUpdateCron...");

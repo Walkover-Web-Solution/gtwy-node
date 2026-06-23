@@ -5,7 +5,7 @@ import "express-async-errors";
 import express from "express";
 import cors from "cors";
 import "./grafana.js";
-import "./consumers/index.js";
+import { stopConsumers } from "./consumers/index.js";
 import "./services/cache.service.js";
 import configRoutes from "./routes/config.routes.js";
 import apikeyRoutes from "./routes/apikey.routes.js";
@@ -48,7 +48,7 @@ import analyticsRoutes from "./routes/analytics.routes.js";
 const app = express();
 const PORT = process.env.PORT || 7072;
 
-let isShuttingDown = false;
+let isReady = true;
 
 app.use(
   cors({
@@ -69,7 +69,7 @@ try {
 }
 
 app.get("/ready", (req, res) => {
-  if (isShuttingDown) return res.status(502).send("shutting down");
+  if (!isReady) return res.status(502).send("shutting down");
   res.status(200).send("ok");
 });
 
@@ -118,9 +118,7 @@ app.use(errorHandlerMiddleware);
 import { initModelConfiguration, backgroundListenForChanges } from "./services/utils/loadModelConfigs.js";
 import { initServicesRegistry, backgroundListenForServiceChanges } from "./services/utils/loadServicesRegistry.js";
 
-initializeMonthlyLatencyReport();
-initializeWeeklyLatencyReport();
-initializeDailyUpdateCron();
+const cronTasks = [initializeMonthlyLatencyReport(), initializeWeeklyLatencyReport(), initializeDailyUpdateCron()];
 
 initModelConfiguration();
 backgroundListenForChanges();
@@ -128,7 +126,7 @@ backgroundListenForChanges();
 initServicesRegistry();
 backgroundListenForServiceChanges();
 
-const server = app.listen(PORT, () => {
+app.listen(PORT, () => {
   console.log(`Server is running on port:${PORT}`);
 });
 
@@ -137,25 +135,14 @@ const shutdown = async (signal, reason) => {
   console.log(`\nReceived ${signal} signal, starting graceful shutdown...`);
   console.log(`Reason: ${reason}`);
 
+  isReady = false;
+
   try {
-    // Close database connection
-    await mongoose.connection.close();
-    console.log("Database connection closed successfully");
+    cronTasks.forEach((task) => task?.stop());
+    console.log("Cron jobs stopped");
 
-    // Close server
-    await new Promise((resolve, reject) => {
-      server.close((err) => {
-        if (err) {
-          reject(err);
-          return;
-        }
-        resolve();
-      });
-    });
-    console.log("Server closed successfully");
-
-    // Exit process
-    process.exit(0);
+    await stopConsumers();
+    console.log("Queue consumers stopped");
   } catch (error) {
     console.error("Error during shutdown:", error);
     process.exit(1);
@@ -164,10 +151,7 @@ const shutdown = async (signal, reason) => {
 
 // Handle different types of shutdown signals
 process.on("SIGINT", () => shutdown("SIGINT", "User initiated shutdown (Ctrl+C)"));
-process.on("SIGTERM", () => {
-  isShuttingDown = true;
-  shutdown("SIGTERM", "System shutdown");
-});
+process.on("SIGTERM", () => shutdown("SIGTERM", "System shutdown"));
 process.on("SIGQUIT", () => shutdown("SIGQUIT", "Quit signal"));
 process.on("uncaughtException", (error) => {
   console.error("Uncaught exception:", error);
