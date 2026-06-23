@@ -292,7 +292,10 @@ async function findRecentThreadsByBridgeId(
     const facetExpr = buildConversationFilterSql({
       tool_id: filters?.tool_id,
       model: filters?.model,
-      service: filters?.service
+      service: filters?.service,
+      agent_id: filters?.agent_id,
+      knowledgebase_id: filters?.knowledgebase_id,
+      review_failed: filters?.review_failed
     });
     if (facetExpr) {
       whereConditions[Sequelize.Op.and] = [...(whereConditions[Sequelize.Op.and] || []), Sequelize.literal(facetExpr)];
