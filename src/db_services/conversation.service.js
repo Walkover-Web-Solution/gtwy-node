@@ -544,7 +544,7 @@ async function getUserUpdates(org_id, version_id, page = 1, pageSize = 10, users
 
       const { count: total, rows: history } = await models.pg.user_bridge_config_history.findAndCountAll({
         where: whereConditions,
-        attributes: ["id", "user_id", "org_id", "bridge_id", "type", "time", "version_id"],
+        attributes: ["id", "user_id", "org_id", "bridge_id", "type", "time", "version_id", "previous_value", "current_value"],
         order: [["time", "DESC"]],
         offset: offset,
         limit: pageSize
@@ -556,10 +556,26 @@ async function getUserUpdates(org_id, version_id, page = 1, pageSize = 10, users
 
       const updatedHistory = history?.map((entry) => {
         const user = Array.isArray(userData) ? userData.find((user) => user?.id === entry?.dataValues?.user_id) : null;
-        return {
-          ...entry?.dataValues,
-          user_name: user ? user?.name : "Unknown"
-        };
+        const dataValues = { ...entry?.dataValues, user_name: user ? user?.name : "Unknown" };
+
+        if (dataValues.type === "Version published" && dataValues.current_value?.snapshot) {
+          const snapshot = { ...dataValues.current_value.snapshot };
+          for (const key of Object.keys(snapshot)) {
+            const snapshotEntry = snapshot[key];
+            if (!snapshotEntry?.user_id) continue;
+            const snapshotUser = Array.isArray(userData) ? userData.find((item) => item?.id === snapshotEntry.user_id) : null;
+            snapshot[key] = {
+              ...snapshotEntry,
+              user_name: snapshotUser ? snapshotUser.name : "Unknown"
+            };
+          }
+          dataValues.current_value = {
+            ...dataValues.current_value,
+            snapshot
+          };
+        }
+
+        return dataValues;
       });
 
       return {
@@ -614,6 +630,40 @@ async function addBulkUserEntries(entries) {
   }
 }
 
+async function getLatestHistoryEntriesByTypes(org_id, version_id, types = []) {
+  try {
+    if (!org_id || !version_id || !Array.isArray(types) || types.length === 0) {
+      return [];
+    }
+
+    const rows = await models.pg.sequelize.query(
+      `
+        SELECT DISTINCT ON (type)
+          id,
+          user_id,
+          type,
+          time,
+          previous_value,
+          current_value
+        FROM user_bridge_config_history
+        WHERE org_id = :org_id
+          AND version_id = :version_id
+          AND type IN (:types)
+        ORDER BY type, time DESC
+      `,
+      {
+        replacements: { org_id, version_id, types },
+        type: models.pg.sequelize.QueryTypes.SELECT
+      }
+    );
+
+    return rows;
+  } catch (error) {
+    console.error("Error fetching latest history entries by types:", error);
+    return [];
+  }
+}
+
 export default {
   findMessageByMessageId,
   deleteLastThread,
@@ -630,5 +680,6 @@ export default {
   getBridgeSubThreadsWithActivity,
   getBridgeSubThreadsCount,
   getUserUpdates,
-  addBulkUserEntries
+  addBulkUserEntries,
+  getLatestHistoryEntriesByTypes
 };

@@ -9,6 +9,7 @@ import { getDefaultValuesController } from "../services/utils/getDefaultValue.js
 import { purgeAgentCache } from "../services/utils/redis.utils.js";
 import { validateJsonSchemaConfiguration } from "../services/utils/common.utils.js";
 import { convertPromptToString } from "../utils/promptWrapper.utils.js";
+import { buildVersionUpdateHistoryEntries } from "../services/utils/userConfigHistory.utils.js";
 
 const { storeSystemPrompt, addBulkUserEntries } = conversationDbService;
 
@@ -42,7 +43,9 @@ const createVersion = async (req, res, next) => {
       bridge_id: parent_id,
       version_id: create_new_version,
       type: "Version created",
-      time: new Date()
+      time: new Date(),
+      previous_value: {},
+      current_value: {}
     }
   ]);
 
@@ -76,8 +79,6 @@ const updateVersionController = async (req, res, next) => {
     let function_ids = version.function_ids || [];
 
     const update_fields = {};
-    const user_history = [];
-
     let new_configuration = body.configuration;
     const service = body.service;
 
@@ -237,24 +238,14 @@ const updateVersionController = async (req, res, next) => {
       update_fields.version_description = body.version_description;
     }
 
-    for (const key in body) {
-      const value = body[key];
-      const history_entry = {
-        user_id,
-        org_id,
-        bridge_id: parent_id || "",
-        version_id,
-        time: new Date()
-      };
-
-      if (key === "configuration") {
-        for (const config_key in value) {
-          user_history.push({ ...history_entry, type: config_key });
-        }
-      } else {
-        user_history.push({ ...history_entry, type: key });
-      }
-    }
+    const user_history = buildVersionUpdateHistoryEntries({
+      user_id,
+      org_id,
+      bridge_id: parent_id || "",
+      version_id,
+      body,
+      version
+    });
 
     update_fields.updatedAt = new Date();
     const updatedVersionData = await ConfigurationServices.updateAgent(parent_id || version_id, update_fields, version_id);

@@ -7,6 +7,7 @@ import Helper from "../services/utils/helper.utils.js";
 import conversationDbService from "../db_services/conversation.service.js";
 const { addBulkUserEntries } = conversationDbService;
 import { purgeAgentCache } from "../services/utils/redis.utils.js";
+import { buildAgentUpdateHistoryEntries } from "../services/utils/userConfigHistory.utils.js";
 import { ensureChatbotPreview } from "../services/utility.service.js";
 import { modelConfigDocument } from "../services/utils/loadModelConfigs.js";
 import { sendAgentCreatedWebhook } from "../services/utils/agentWebhook.utils.js";
@@ -234,7 +235,9 @@ const createAgentController = async (req, res, next) => {
         bridge_id: result.bridge._id.toString(),
         version_id: create_version._id.toString(),
         type: "Version created",
-        time: new Date()
+        time: new Date(),
+        previous_value: {},
+        current_value: {}
       },
       {
         user_id: user_id,
@@ -242,7 +245,9 @@ const createAgentController = async (req, res, next) => {
         bridge_id: result.bridge._id.toString(),
         version_id: create_version._id.toString(),
         type: "Agent created",
-        time: new Date()
+        time: new Date(),
+        previous_value: {},
+        current_value: {}
       }
     ]);
 
@@ -283,7 +288,6 @@ const updateAgentController = async (req, res, next) => {
 
     const agent = agentData.bridges;
     const update_fields = {};
-    const user_history = [];
 
     const simpleAgentFields = [
       "name",
@@ -319,24 +323,15 @@ const updateAgentController = async (req, res, next) => {
     update_fields.updatedAt = new Date();
     await ConfigurationServices.updateAgent(agent_id, update_fields);
 
-    const historyBase = {
+    const agentVersions = Array.isArray(agent.versions) ? agent.versions : [];
+    const user_history = buildAgentUpdateHistoryEntries({
       user_id,
       org_id,
       bridge_id: agent_id,
-      version_id: null,
-      time: new Date()
-    };
-
-    const agentVersions = Array.isArray(agent.versions) ? agent.versions : [];
-    for (const key of Object.keys(body)) {
-      for (const version of agentVersions) {
-        user_history.push({
-          ...historyBase,
-          version_id: String(version),
-          type: key === "settings" ? "editAccess" : key
-        });
-      }
-    }
+      versionIds: agentVersions.map((version) => String(version)),
+      body,
+      agent
+    });
 
     if (user_history.length > 0) {
       await addBulkUserEntries(user_history);

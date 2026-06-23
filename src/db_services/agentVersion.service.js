@@ -12,6 +12,7 @@ import { redis_keys, bridge_ids, AI_OPERATION_CONFIG } from "../configs/constant
 import { getReqOptVariablesInPrompt, transformAgentVariableToToolCallFormat } from "../utils/agentVariables.js";
 import { convertPromptToString } from "../utils/promptWrapper.utils.js";
 import { executeAiOperation } from "../services/utils/utility.service.js";
+import { buildPublishAttributionSnapshot, buildPublishHistoryEntry, getPublishChangedKeys } from "../services/utils/userConfigHistory.utils.js";
 const ObjectId = mongoose.Types.ObjectId;
 
 async function getVersion(version_id) {
@@ -503,14 +504,21 @@ async function publish(org_id, version_id, user_id, generate_summary = false) {
   }
   await purgeAgentCache({ org_id, bridge_id: parentId, agent_config: parentConfiguration });
 
+  const changedKeys = getPublishChangedKeys(parentConfiguration, getVersionData);
+  const latestHistoryRows = await conversationDbService.getLatestHistoryEntriesByTypes(org_id, version_id, changedKeys);
+  const snapshot = buildPublishAttributionSnapshot(changedKeys, latestHistoryRows);
+
   await conversationDbService.addBulkUserEntries([
-    {
+    buildPublishHistoryEntry({
       user_id,
       org_id,
-      bridge_id: parentId, // Database column name, keeping as bridge_id for compatibility
+      bridge_id: parentId,
       version_id,
-      type: "Version published"
-    }
+      previousPublishedVersionId,
+      publishedVersionId,
+      changedKeys,
+      snapshot
+    })
   ]);
 
   return { success: true, message: "Version published successfully" };
