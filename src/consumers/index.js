@@ -47,19 +47,26 @@ class Consumer {
   }
 
   start() {
+    this.inFlight = 0;
     this.channel
       .consume(
         this.queueName,
         async (message) => {
           if (!message) return this.setup(); // message is null means the queue is closed or deleted.
+          this.inFlight++;
           try {
             await this.processor(message, this.channel);
           } catch (error) {
             logger.error(`${this.queueName} Error in consuming`, error);
+          } finally {
+            this.inFlight--;
           }
         },
         { noAck: false }
       )
+      .then(({ consumerTag }) => {
+        this.consumerTag = consumerTag;
+      })
       .catch((error) => {
         logger.error(`${this.queueName} Failed to start consumer:`, error);
       });
@@ -76,10 +83,39 @@ class Consumer {
     });
   }
 }
+const activeConsumers = [];
+
 function init() {
   CONSUMERS.forEach((consumer) => {
-    new Consumer(consumer);
+    activeConsumers.push(new Consumer(consumer));
   });
+}
+
+export async function stopConsumers() {
+  await Promise.all(
+    activeConsumers.map(async (c) => {
+      try {
+        // Cancel delivery of new messages without closing the channel
+        if (c.channel && c.consumerTag) {
+          await c.channel.cancel(c.consumerTag);
+        }
+
+        // Wait for in-flight messages to finish acking (up to 30s)
+        const deadline = Date.now() + 30_000;
+        while (c.inFlight > 0 && Date.now() < deadline) {
+          await new Promise((r) => setTimeout(r, 100));
+        }
+        if (c.inFlight > 0) {
+          logger.warn(`[CONSUMER] ${c.queueName} - ${c.inFlight} messages still in-flight after timeout`);
+        }
+
+        if (c.channel) await c.channel.close();
+        if (c.connection) await c.connection.close();
+      } catch (err) {
+        logger.error(`[CONSUMER] Error stopping ${c.queueName}:`, err);
+      }
+    })
+  );
 }
 
 init();
