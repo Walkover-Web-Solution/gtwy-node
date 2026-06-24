@@ -31,6 +31,5 @@ router.delete(
 router.patch("/models/status", middleware, InternalAuth, validate({ body: setModelStatusAdminBodySchema }), utilsController.setModelStatus);
 router.post("/models/bulk-update", middleware, validate({ body: bulkUpdateUserModelConfigurationBodySchema }), bulkUpdateUserModelConfigurations);
 router.get("/models/status/:status", middleware, utilsController.getModelsByStatus);
-router.post("/latency-check", middleware, validate(utilsValidation.checkLatency), utilsController.checkLatency);
 
 export default router;
