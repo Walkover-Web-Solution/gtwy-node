@@ -44,6 +44,7 @@ import richUiTemplateRoutes from "./routes/richUiTemplate.routes.js";
 import lagoRoutes from "./routes/lago.routes.js";
 import batchHistoryRoutes from "./routes/batchHistory.routes.js";
 import observabilityRoutes from "./routes/observability.routes.js";
+import analyticsRoutes from "./routes/analytics.routes.js";
 const app = express();
 const PORT = process.env.PORT || 7072;
 
@@ -105,6 +106,7 @@ app.use("/api/internal", internalRoutes);
 app.use("/api/rich_ui_templates", richUiTemplateRoutes);
 app.use("/api/lago", lagoRoutes);
 app.use("/api/observability", observabilityRoutes);
+app.use("/api/analytics", analyticsRoutes);
 
 //Metrics
 // app.use('/api/v1/metrics', metrisRoutes);
@@ -124,9 +126,11 @@ backgroundListenForChanges();
 initServicesRegistry();
 backgroundListenForServiceChanges();
 
-app.listen(PORT, () => {
+let server = app.listen(PORT, () => {
   console.log(`Server is running on port:${PORT}`);
 });
+
+server.keepAliveTimeout = 10 * 60 * 1000 + 30000; // 10 minutes + 5 Seconds extra than load balancer timeout
 
 // Graceful shutdown handler
 const shutdown = async (signal, reason) => {

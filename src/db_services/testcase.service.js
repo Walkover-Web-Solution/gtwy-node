@@ -17,6 +17,15 @@ async function deleteTestCaseById(id) {
   };
 }
 
+async function deleteMultipleTestCases(ids) {
+  const result = await testcaseModel.deleteMany({ _id: { $in: ids } });
+  return {
+    success: result.deletedCount > 0,
+    deletedCount: result.deletedCount,
+    message: result.deletedCount > 0 ? `${result.deletedCount} testcase(s) deleted successfully` : "No testcases found to delete"
+  };
+}
+
 async function updateTestCaseById(id, updateData) {
   const result = await testcaseModel.findOneAndUpdate({ _id: id }, { $set: updateData }, { returnDocument: "after" });
   return result ? { ...result.toObject(), _id: result._id.toString() } : null;
@@ -38,7 +47,7 @@ async function getAllTestcasesByBridgeId(bridge_id, page = 1, limit = 30, keywor
     filter.$or = [{ name: { $regex: keyword, $options: "i" } }, { "conversation.content": { $regex: keyword, $options: "i" } }];
   }
 
-  const testcases = await testcaseModel.find(filter).skip(skip).limit(limit).lean();
+  const testcases = await testcaseModel.find(filter).sort({ createdAt: -1, _id: -1 }).skip(skip).limit(limit).lean();
   const testcasesWithIds = testcases.map((tc) => ({ ...tc, _id: tc._id.toString() }));
 
   // Get total count
@@ -145,6 +154,7 @@ async function parseAndSaveTestcases(testcasesData, bridge_id) {
 export default {
   saveTestCase,
   deleteTestCaseById,
+  deleteMultipleTestCases,
   updateTestCaseById,
   getTestcaseById,
   getAllTestcasesByBridgeId,

@@ -108,7 +108,19 @@ const getCollectionByResourceId = async (resourceId) => {
 };
 
 /**
- * Check if a resource is being used in any agent or version
+ * Check if a resource is being used in any agent or version.
+ *
+ * Returns a `usage` object keyed by agent (bridge) name. Each value holds the
+ * bridge_id and the list of version ids of that bridge which reference the
+ * resource:
+ *   {
+ *     "My Agent": { bridge_id: "<configuration _id>", versions: ["<version _id>", ...] },
+ *     ...
+ *   }
+ *
+ * Matching is done on the exact `resource_id`, so even if multiple bots have a
+ * doc with the same title, only the bots/versions referencing this specific
+ * resource are returned.
  */
 const checkResourceUsage = async (resourceId, org_id) => {
   try {
@@ -119,26 +131,42 @@ const checkResourceUsage = async (resourceId, org_id) => {
     };
 
     const [agentsUsingResource, versionsUsingResource] = await Promise.all([
-      configurationModel.find(query, { _id: 1, name: 1, slugName: 1 }).limit(1).lean(),
-      versionModel.find(query, { _id: 1, parent_id: 1 }).limit(1).lean()
+      configurationModel.find(query, { _id: 1, name: 1 }).lean(),
+      versionModel.find(query, { _id: 1, parent_id: 1 }).lean()
     ]);
 
-    const usageDetails = {
-      isInUse: agentsUsingResource.length > 0 || versionsUsingResource.length > 0,
-      agents: agentsUsingResource.map((agent) => ({
-        id: agent._id,
-        name: agent.name,
-        slugName: agent.slugName
-      })),
-      versions: versionsUsingResource.map((version) => ({
-        id: version._id,
-        parent_id: version.parent_id
-      }))
+    // Resolve parent bridge names for the versions referencing the resource.
+    const parentIds = [...new Set(versionsUsingResource.map((v) => v.parent_id).filter(Boolean))];
+    const parentBridges = parentIds.length ? await configurationModel.find({ _id: { $in: parentIds } }, { _id: 1, name: 1 }).lean() : [];
+    const parentNameById = new Map(parentBridges.map((b) => [String(b._id), b.name]));
+
+    const usage = {};
+
+    const ensureEntry = (name, bridgeId) => {
+      if (!usage[name]) {
+        usage[name] = { versions: [], bridge_id: bridgeId ? String(bridgeId) : null };
+      } else if (!usage[name].bridge_id && bridgeId) {
+        usage[name].bridge_id = String(bridgeId);
+      }
+      return usage[name];
     };
+
+    // Bridges that reference the resource on the published/base configuration.
+    agentsUsingResource.forEach((agent) => {
+      ensureEntry(agent.name || String(agent._id), agent._id);
+    });
+
+    // Versions that reference the resource, grouped under their parent bridge.
+    versionsUsingResource.forEach((version) => {
+      const bridgeName = parentNameById.get(String(version.parent_id)) || String(version.parent_id);
+      const entry = ensureEntry(bridgeName, version.parent_id);
+      entry.versions.push(String(version._id));
+    });
 
     return {
       success: true,
-      ...usageDetails
+      isInUse: Object.keys(usage).length > 0,
+      usage
     };
   } catch (error) {
     console.error("Error checking resource usage:", error);

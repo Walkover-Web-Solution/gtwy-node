@@ -7,7 +7,8 @@ import {
   testcaseIdSchema,
   bridgeIdSchema,
   testcaseUpdateSchema,
-  getAllTestcasesQuerySchema
+  getAllTestcasesQuerySchema,
+  bulkDeleteTestcaseSchema
 } from "../validation/joi_validation/testcase.validation.js";
 
 const router = express.Router();
@@ -15,7 +16,10 @@ const router = express.Router();
 // Create a new testcase
 router.post("/create", middleware, validate({ body: createTestcaseSchema }), testcaseController.createTestcase);
 
-// Delete a testcase by _id
+// Bulk delete testcases by ids array (body)
+router.delete("/", middleware, validate({ body: bulkDeleteTestcaseSchema }), testcaseController.deleteTestcase);
+
+// Delete a single testcase by _id (param)
 router.delete("/:testcase_id", middleware, validate({ params: testcaseIdSchema }), testcaseController.deleteTestcase);
 
 // Get all testcases by bridge_id

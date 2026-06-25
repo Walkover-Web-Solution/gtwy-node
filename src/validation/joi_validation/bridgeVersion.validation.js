@@ -50,7 +50,8 @@ const updateVersionSchema = Joi.object({
     punctuate: Joi.alternatives().try(Joi.boolean(), Joi.string(), Joi.object()).optional(),
     numerals: Joi.alternatives().try(Joi.boolean(), Joi.string(), Joi.object()).optional(),
     detect_entities: Joi.alternatives().try(Joi.boolean(), Joi.string(), Joi.object()).optional(),
-    model_option: Joi.alternatives().try(Joi.string().allow(""), Joi.object()).optional()
+    model_option: Joi.alternatives().try(Joi.string().allow(""), Joi.object()).optional(),
+    size: Joi.alternatives().try(Joi.string(), Joi.object()).optional()
   }).optional(),
   service: Joi.string()
     .valid("openai", "anthropic", "groq", "open_router", "mistral", "gemini", "grok", "deepseek", "deepgram", "neev_cloud", "moonshot")

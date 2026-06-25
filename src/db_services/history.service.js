@@ -1,5 +1,6 @@
 import models from "../../models/index.js";
 import Sequelize from "sequelize";
+import { buildConversationFilterSql } from "./conversationFilters.util.js";
 
 /**
  * Get conversation logs with pagination and filtering
@@ -163,26 +164,21 @@ async function findRecentThreadsByBridgeId(
   try {
     const offset = (page - 1) * limit;
 
-    // Build where conditions
-    const whereConditions = {
+    // Base scoping conditions — shared by the thread list and the feedback totals.
+    // These are cheap, index-backed predicates (org + bridge + view scope) and
+    // deliberately exclude the facet filters (feedback/error) and the keyword
+    // search so the totals reflect all threads in the bridge.
+    const baseWhereConditions = {
       org_id: org_id,
       bridge_id: bridge_id
     };
 
-    if (user_feedback !== "all" && user_feedback !== "undefined") {
-      whereConditions.user_feedback = user_feedback === "all" ? 0 : user_feedback;
-    }
-
-    if (error === "true" || error === true) {
-      whereConditions.error = { [Sequelize.Op.ne]: null };
-    }
-
     if (version_id) {
-      whereConditions.version_id = version_id;
+      baseWhereConditions.version_id = version_id;
     }
 
     if (testcase_id) {
-      whereConditions.testcase_id = testcase_id;
+      baseWhereConditions.testcase_id = testcase_id;
     }
 
     // Add time range filter
@@ -195,8 +191,20 @@ async function findRecentThreadsByBridgeId(
         timeConditions[Sequelize.Op.lte] = new Date(filters.time_range.end);
       }
       if (timeConditions) {
-        whereConditions.created_at = timeConditions;
+        baseWhereConditions.created_at = timeConditions;
       }
+    }
+
+    // Thread-list conditions layer the facet filters and the keyword/filter_by
+    // search on top of the base scope.
+    const whereConditions = { ...baseWhereConditions };
+
+    if (user_feedback !== "all" && user_feedback !== "undefined") {
+      whereConditions.user_feedback = user_feedback;
+    }
+
+    if (error === "true" || error === true) {
+      whereConditions.error = { [Sequelize.Op.ne]: null };
     }
 
     // Add keyword search across recommended columns
@@ -206,6 +214,7 @@ async function findRecentThreadsByBridgeId(
     if (filterBy && typeof filterBy === "object" && Object.keys(filterBy).length > 0) {
       const orConditions = [];
       for (const [col, keyword] of Object.entries(filterBy)) {
+        if (col === "variables_absent") continue; // AND facet, handled after this block
         if (col === "variables") {
           if (!keyword) continue;
           if (typeof keyword === "string" && keyword.trim() !== "") {
@@ -259,6 +268,37 @@ async function findRecentThreadsByBridgeId(
           ]
         }
       ];
+    }
+
+    // variables_absent: match rows where NONE of the named variable keys exist.
+    // AND'd with the rest, so it appends to any existing Op.and (the OR group)
+    // rather than overwriting it.
+    const absentRaw = filters?.filter_by?.variables_absent;
+    const absent = (Array.isArray(absentRaw) ? absentRaw : absentRaw ? [absentRaw] : []).map((v) => String(v).trim()).filter(Boolean);
+    if (absent.length) {
+      const inList = absent.map((v) => `'${v.replace(/'/g, "''")}'`).join(", ");
+      whereConditions[Sequelize.Op.and] = [
+        ...(whereConditions[Sequelize.Op.and] || []),
+        Sequelize.literal(
+          `NOT EXISTS (SELECT 1 FROM jsonb_each_text(COALESCE("conversation_logs"."variables", '{}'::jsonb)) AS kv WHERE jsonb_typeof(COALESCE("conversation_logs"."variables", 'null'::jsonb)) = 'object' AND kv.key IN (${inList}))`
+        )
+      ];
+    }
+
+    // Multi-select facets (tool_id / model / service) not covered by the legacy
+    // where-building above. Applied via the shared builder and AND'd with the
+    // existing Op.and (the keyword/filter_by OR-group). The history route never
+    // passes these, so its behaviour is unchanged.
+    const facetExpr = buildConversationFilterSql({
+      tool_id: filters?.tool_id,
+      model: filters?.model,
+      service: filters?.service,
+      agent_id: filters?.agent_id,
+      knowledgebase_id: filters?.knowledgebase_id,
+      review_failed: filters?.review_failed
+    });
+    if (facetExpr) {
+      whereConditions[Sequelize.Op.and] = [...(whereConditions[Sequelize.Op.and] || []), Sequelize.literal(facetExpr)];
     }
 
     // Get recent threads with distinct thread_id, ordered by updated_at
@@ -342,14 +382,17 @@ async function findRecentThreadsByBridgeId(
       });
     }
 
-    // Get total count of all user_feedback values across all threads
+    // Get total count of all user_feedback values across all threads.
+    // Uses baseWhereConditions (org + bridge + view scope only) so the totals
+    // reflect the whole bridge and are not dragged through the keyword/JSONB
+    // search predicates that live on whereConditions.
     const totalFeedbackCount = await models.pg.conversation_logs.findOne({
       attributes: [
         [Sequelize.fn("COUNT", Sequelize.literal("CASE WHEN user_feedback = 0 THEN 1 END")), "total_feedback_0"],
         [Sequelize.fn("COUNT", Sequelize.literal("CASE WHEN user_feedback = 1 THEN 1 END")), "total_feedback_1"],
         [Sequelize.fn("COUNT", Sequelize.literal("CASE WHEN user_feedback = 2 THEN 1 END")), "total_feedback_2"]
       ],
-      where: whereConditions
+      where: baseWhereConditions
     });
 
     return {

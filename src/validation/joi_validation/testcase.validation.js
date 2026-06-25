@@ -64,4 +64,11 @@ const testcaseUpdateSchema = Joi.object({
   })
 }).unknown(true);
 
-export { createTestcaseSchema, testcaseIdSchema, bridgeIdSchema, testcaseUpdateSchema, getAllTestcasesQuerySchema };
+const bulkDeleteTestcaseSchema = Joi.object({
+  testCaseIds: Joi.array().items(Joi.string().required()).min(1).required().messages({
+    "array.min": "testCaseIds array must contain at least one testcase id",
+    "any.required": "testCaseIds array is required"
+  })
+}).unknown(true);
+
+export { createTestcaseSchema, testcaseIdSchema, bridgeIdSchema, testcaseUpdateSchema, getAllTestcasesQuerySchema, bulkDeleteTestcaseSchema };

@@ -398,6 +398,13 @@ async function getSubThreadsWithActivity(org_id, thread_id, bridge_id, { version
   }
 }
 
+/**
+ * Bridge-wide sibling of getSubThreadsWithActivity: all distinct (thread_id,
+ * sub_thread_id) pairs for a bridge with their display name and latest activity,
+ * ordered most-recently-active first. Single PG query — threads now live in
+ * conversation_logs, so no Mongo lookup is needed.
+ */
+
 async function getUserUpdates(org_id, version_id, page = 1, pageSize = 10, users = [], filters = {}) {
   try {
     const offset = (page - 1) * pageSize;
