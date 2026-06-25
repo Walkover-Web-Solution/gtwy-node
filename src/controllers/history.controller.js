@@ -18,9 +18,11 @@ const getBatchConversationLogs = async (req, res, next) => {
   const pageNum = req.query.page || 1;
   const limitNum = req.query.limit || 30;
   const filter = req.query.filter;
+  const thread_id = req.query.thread_id;
+  const sub_thread_id = req.query.sub_thread_id;
 
   // Get conversation logs
-  const result = await findBatchConversationLogsByAgentId(org_id, agent_id, filter, pageNum, limitNum);
+  const result = await findBatchConversationLogsByAgentId(org_id, agent_id, filter, pageNum, limitNum, null, thread_id, sub_thread_id);
 
   if (result.success) {
     res.locals = {
