@@ -126,9 +126,11 @@ backgroundListenForChanges();
 initServicesRegistry();
 backgroundListenForServiceChanges();
 
-app.listen(PORT, () => {
+let server = app.listen(PORT, () => {
   console.log(`Server is running on port:${PORT}`);
 });
+
+server.keepAliveTimeout = 10 * 60 * 1000 + 30000; // 10 minutes + 5 Seconds extra than load balancer timeout
 
 // Graceful shutdown handler
 const shutdown = async (signal, reason) => {
