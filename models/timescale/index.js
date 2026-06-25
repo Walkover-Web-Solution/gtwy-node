@@ -22,7 +22,7 @@ try {
         rejectUnauthorized: false
       }
     },
-    logging: true
+    logging: false
   });
 
   const dbservice = async () => {

@@ -5,6 +5,7 @@
   "main": "src/index.js",
   "type": "module",
   "scripts": {
+    "build": "tsc",
     "dev": "nodemon src/index.js",
     "migrate:up": "sequelize-cli db:migrate --config config/config.js --migrations-path migrations/pg && sequelize-cli db:migrate --config config/timescale_config.js --migrations-path migrations/timescale",
     "migrate:undo": "sequelize-cli db:migrate:undo --config config/config.js --migrations-path migrations/pg && sequelize-cli db:migrate:undo --config config/timescale_config.js --migrations-path migrations/timescale",
@@ -18,7 +19,7 @@
     "migrateMongo:down": "migrate-mongo down -f ./config/mongo_config.js",
     "migrateMongo:status": "migrate-mongo status -f ./config/mongo_config.js",
     "create:migrationMongo": "migrate-mongo create -f ./config/mongo_config.js",
-    "dockerStart": "sequelize-cli db:migrate --config config/config.js --migrations-path migrations/pg && sequelize-cli db:migrate --config config/timescale_config.js --migrations-path migrations/timescale && echo 'Starting Mongo Migrations...' && migrate-mongo up -f ./config/mongo_config.js && echo 'ended Mongo Migrations...' && node src/index.js",
+    "dockerStart": "sequelize-cli db:migrate --config config/config.js --migrations-path migrations/pg && sequelize-cli db:migrate --config config/timescale_config.js --migrations-path migrations/timescale && echo 'Starting Mongo Migrations...' && migrate-mongo up -f ./config/mongo_config.js && echo 'ended Mongo Migrations...' && exec node dist/index.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "lint": "npx eslint .",
     "lint:fix": "eslint . --fix",
