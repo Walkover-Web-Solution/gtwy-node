@@ -92,7 +92,7 @@ const getDefaultValuesController = async (service, model, current_configuration,
                   mode: "custom",
                   value: {
                     ...val,
-                    json_schema: current_type === "json_schema" ? val.json_schema || null : undefined
+                    ...(current_type === "json_schema" ? { json_schema: val.json_schema || null } : {})
                   }
                 };
               } else {
