@@ -18,7 +18,7 @@
     "migrateMongo:down": "migrate-mongo down -f ./config/mongo_config.js",
     "migrateMongo:status": "migrate-mongo status -f ./config/mongo_config.js",
     "create:migrationMongo": "migrate-mongo create -f ./config/mongo_config.js",
-    "dockerStart": "sequelize-cli db:migrate --config config/config.js --migrations-path migrations/pg && sequelize-cli db:migrate --config config/timescale_config.js --migrations-path migrations/timescale && echo 'Starting Mongo Migrations...' && migrate-mongo up -f ./config/mongo_config.js && echo 'ended Mongo Migrations...' && node src/index.js",
+    "dockerStart": "sequelize-cli db:migrate --config config/config.js --migrations-path migrations/pg && sequelize-cli db:migrate --config config/timescale_config.js --migrations-path migrations/timescale && echo 'Starting Mongo Migrations...' && migrate-mongo up -f ./config/mongo_config.js && echo 'ended Mongo Migrations...' && exec node src/index.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "lint": "npx eslint .",
     "lint:fix": "eslint . --fix",
