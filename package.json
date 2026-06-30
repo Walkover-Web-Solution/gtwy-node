@@ -5,7 +5,7 @@
   "main": "src/index.js",
   "type": "module",
   "scripts": {
-    "build": "tsc",
+    "build": "cp -r src dist",
     "dev": "nodemon src/index.js",
     "migrate:up": "sequelize-cli db:migrate --config config/config.js --migrations-path migrations/pg && sequelize-cli db:migrate --config config/timescale_config.js --migrations-path migrations/timescale",
     "migrate:undo": "sequelize-cli db:migrate:undo --config config/config.js --migrations-path migrations/pg && sequelize-cli db:migrate:undo --config config/timescale_config.js --migrations-path migrations/timescale",
