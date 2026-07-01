@@ -56,23 +56,57 @@ async function getFunctionById(function_id) {
 }
 
 async function deleteFunctionFromApicallsDb(org_id, script_id) {
-  const bridgeData = await apiCallModel.findOne({ org_id: org_id, script_id: script_id }, { bridge_ids: 1, version_ids: 1, _id: 1 });
+  const functionData = await apiCallModel.findOne({ org_id: org_id, script_id: script_id }, { _id: 1 });
 
-  if (!bridgeData) {
+  if (!functionData) {
     throw new Error("No matching function found to delete.");
   }
 
-  const bridge_ids = bridgeData.bridge_ids || [];
-  const version_ids = bridgeData.version_ids || [];
-  const function_id = bridgeData._id;
+  const function_id_str = functionData._id.toString();
 
+  // Find all versions that have this function_id in either function_ids or pre_tools
+  const versionsWithFunction = await versionModel
+    .find(
+      {
+        org_id: org_id,
+        $or: [{ function_ids: { $in: [function_id_str] } }, { "pre_tools.config.function_id": { $in: [function_id_str] } }]
+      },
+      { parent_id: 1 }
+    )
+    .lean();
+
+  // Get unique bridge_ids from those versions
+  const bridge_ids = [...new Set(versionsWithFunction.map((v) => v.parent_id).filter(Boolean))];
+  const version_ids = versionsWithFunction.map((v) => v._id);
+
+  // Prepare all update operations
+  const updateOperations = [];
+
+  // Remove function_id from function_ids in agents (bridges)
   if (bridge_ids.length > 0) {
-    await versionModel.updateMany({ _id: { $in: bridge_ids } }, { $pull: { function_ids: function_id } });
+    updateOperations.push(configurationModel.updateMany({ _id: { $in: bridge_ids } }, { $pull: { function_ids: function_id_str } }));
+  }
+
+  // Remove function_id from function_ids in versions
+  if (version_ids.length > 0) {
+    updateOperations.push(versionModel.updateMany({ _id: { $in: version_ids } }, { $pull: { function_ids: function_id_str } }));
+  }
+
+  // Remove pre_tools that reference this function from agents and versions that have it
+  if (bridge_ids.length > 0) {
+    updateOperations.push(
+      configurationModel.updateMany({ _id: { $in: bridge_ids } }, { $pull: { pre_tools: { "config.function_id": function_id_str } } })
+    );
   }
 
   if (version_ids.length > 0) {
-    await versionModel.updateMany({ _id: { $in: version_ids } }, { $pull: { function_ids: function_id } });
+    updateOperations.push(
+      versionModel.updateMany({ _id: { $in: version_ids } }, { $pull: { pre_tools: { "config.function_id": function_id_str } } })
+    );
   }
+
+  // Execute all update operations in parallel
+  await Promise.all(updateOperations);
 
   const result = await apiCallModel.deleteOne({
     org_id: org_id,
