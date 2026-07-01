@@ -261,10 +261,54 @@ const checkApikey = async (apikey, service) => {
   }
   return check.data;
 };
+const getApikeyByAgentId = async (req, res, next) => {
+  const { agent_id } = req.params;
+  const org_id = req.profile?.org?.id;
+
+  const result = await apikeyService.findApikeyByAgentId(agent_id, org_id);
+
+  if (!result.apikeys || result.apikeys.length === 0) {
+    res.locals = {
+      success: false,
+      message: "Apikey not found for this agent"
+    };
+    req.statusCode = 404;
+    return next();
+  }
+
+  // Build version_ids map: { version_id: [services] }
+  // Only include services for versions that belong to this agent
+  const versionServicesMap = {};
+  result.apikeys.forEach((apikey) => {
+    const versions = apikey.version_ids || [];
+    versions.forEach((version_id) => {
+      // Only add if this version_id belongs to the agent
+      if (result.agentVersionIds.includes(version_id.toString())) {
+        if (!versionServicesMap[version_id]) {
+          versionServicesMap[version_id] = [];
+        }
+        versionServicesMap[version_id].push(apikey.service);
+      }
+    });
+  });
+
+  const responseData = {
+    agent_id,
+    version_ids: versionServicesMap
+  };
+
+  res.locals = {
+    success: true,
+    data: responseData
+  };
+  req.statusCode = 200;
+  return next();
+};
 
 export default {
   saveApikey,
   getAllApikeys,
   deleteApikey,
-  updateApikey
+  updateApikey,
+  getApikeyByAgentId
 };

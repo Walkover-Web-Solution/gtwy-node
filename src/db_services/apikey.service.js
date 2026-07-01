@@ -301,6 +301,30 @@ async function checkApikeyUsage(apikey_object_id, org_id, service) {
   };
 }
 
+async function findApikeyByAgentId(agent_id, org_id) {
+  const versions = await versionModel
+    .find(
+      {
+        parent_id: agent_id,
+        org_id: org_id
+      },
+      { _id: 1 }
+    )
+    .lean();
+
+  const versionIds = versions.map((v) => v._id.toString());
+
+  const apikeys = await ApikeyCredential.find({
+    org_id: org_id,
+    version_ids: { $in: versionIds }
+  }).lean();
+
+  return {
+    apikeys,
+    agentVersionIds: versionIds
+  };
+}
+
 export default {
   saveApikeyRecord,
   findApikeyByName,
@@ -310,5 +334,6 @@ export default {
   findApikeyById,
   findVersionsByIds,
   removeApikeyFromEmbeds,
-  checkApikeyUsage
+  checkApikeyUsage,
+  findApikeyByAgentId
 };
