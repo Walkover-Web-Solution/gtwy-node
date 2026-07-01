@@ -276,7 +276,7 @@ const getApikeyByAgentId = async (req, res, next) => {
     return next();
   }
 
-  // Build version_ids map: { version_id: [services] }
+  // Build version_ids map: { version_id: { services: [...], model: ... } }
   // Only include services for versions that belong to this agent
   const versionServicesMap = {};
   result.apikeys.forEach((apikey) => {
@@ -285,11 +285,22 @@ const getApikeyByAgentId = async (req, res, next) => {
       // Only add if this version_id belongs to the agent
       if (result.agentVersionIds.includes(version_id.toString())) {
         if (!versionServicesMap[version_id]) {
-          versionServicesMap[version_id] = [];
+          versionServicesMap[version_id] = {
+            services: [],
+            model: null
+          };
         }
-        versionServicesMap[version_id].push(apikey.service);
+        versionServicesMap[version_id].services.push(apikey.service);
       }
     });
+  });
+
+  // Add model information from versions
+  result.versions.forEach((version) => {
+    const versionIdStr = version._id.toString();
+    if (versionServicesMap[versionIdStr]) {
+      versionServicesMap[versionIdStr].model = version.model;
+    }
   });
 
   const responseData = {

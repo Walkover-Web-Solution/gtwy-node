@@ -308,7 +308,7 @@ async function findApikeyByAgentId(agent_id, org_id) {
         parent_id: agent_id,
         org_id: org_id
       },
-      { _id: 1 }
+      { _id: 1, parent_id: 1, configuration: 1 }
     )
     .lean();
 
@@ -321,7 +321,12 @@ async function findApikeyByAgentId(agent_id, org_id) {
 
   return {
     apikeys,
-    agentVersionIds: versionIds
+    agentVersionIds: versionIds,
+    versions: versions.map((v) => ({
+      _id: v._id,
+      parent_id: v.parent_id,
+      model: v.configuration?.model || null
+    }))
   };
 }
 
