@@ -204,7 +204,7 @@ const updateVersionController = async (req, res, next) => {
     }
 
     if (Array.isArray(body.function_ids)) {
-      update_fields.function_ids = body.function_ids.filter((id) => ObjectId.isValid(id)).map((id) => new ObjectId(id));
+      update_fields.function_ids = body.function_ids.filter((id) => ObjectId.isValid(id)).map((id) => id.toString());
       function_ids = [...body.function_ids];
     }
 
@@ -216,7 +216,7 @@ const updateVersionController = async (req, res, next) => {
         if (op === 1) {
           if (!function_ids.includes(function_id)) {
             function_ids.push(function_id);
-            update_fields.function_ids = function_ids.map((fid) => new ObjectId(fid));
+            update_fields.function_ids = function_ids.map((fid) => fid.toString());
           }
         } else {
           if (script_id && current_variables_path[script_id]) {
@@ -225,7 +225,7 @@ const updateVersionController = async (req, res, next) => {
           }
           if (function_ids.includes(function_id)) {
             function_ids = function_ids.filter((fid) => fid.toString() !== function_id);
-            update_fields.function_ids = function_ids.map((fid) => new ObjectId(fid));
+            update_fields.function_ids = function_ids.map((fid) => fid.toString());
           }
         }
       }
