@@ -64,54 +64,36 @@ async function deleteFunctionFromApicallsDb(org_id, script_id) {
 
   const function_id_str = functionData._id.toString();
 
-  // Find all versions that have this function_id in either function_ids or pre_tools
-  const versionsWithFunction = await versionModel
-    .find(
+  const [, , result] = await Promise.all([
+    configurationModel.collection.updateMany(
       {
         org_id: org_id,
         $or: [{ function_ids: function_id_str }, { "pre_tools.config.function_id": function_id_str }]
       },
-      { parent_id: 1 }
-    )
-    .lean();
-
-  // Get unique bridge_ids from those versions
-  const bridge_ids = [...new Set(versionsWithFunction.map((v) => v.parent_id).filter(Boolean))];
-  const version_ids = versionsWithFunction.map((v) => v._id);
-
-  // Prepare all update operations
-  const updateOperations = [];
-
-  // Use raw collection driver to bypass mongoose casting so string filters match stored string values
-  const bridge_id_objs = bridge_ids.map((id) => new mongoose.Types.ObjectId(id));
-
-  if (bridge_ids.length > 0) {
-    updateOperations.push(configurationModel.collection.updateMany({ _id: { $in: bridge_id_objs } }, { $pull: { function_ids: function_id_str } }));
-  }
-
-  if (version_ids.length > 0) {
-    updateOperations.push(versionModel.collection.updateMany({ _id: { $in: version_ids } }, { $pull: { function_ids: function_id_str } }));
-  }
-
-  if (bridge_ids.length > 0) {
-    updateOperations.push(
-      configurationModel.collection.updateMany({ _id: { $in: bridge_id_objs } }, { $pull: { pre_tools: { "config.function_id": function_id_str } } })
-    );
-  }
-
-  if (version_ids.length > 0) {
-    updateOperations.push(
-      versionModel.collection.updateMany({ _id: { $in: version_ids } }, { $pull: { pre_tools: { "config.function_id": function_id_str } } })
-    );
-  }
-
-  // Execute all update operations in parallel
-  await Promise.all(updateOperations);
-
-  const result = await apiCallModel.deleteOne({
-    org_id: org_id,
-    script_id: script_id
-  });
+      {
+        $pull: {
+          function_ids: function_id_str,
+          pre_tools: { "config.function_id": function_id_str }
+        }
+      }
+    ),
+    versionModel.collection.updateMany(
+      {
+        org_id: org_id,
+        $or: [{ function_ids: function_id_str }, { "pre_tools.config.function_id": function_id_str }]
+      },
+      {
+        $pull: {
+          function_ids: function_id_str,
+          pre_tools: { "config.function_id": function_id_str }
+        }
+      }
+    ),
+    apiCallModel.deleteOne({
+      org_id: org_id,
+      script_id: script_id
+    })
+  ]);
 
   if (result.deletedCount > 0) {
     return {
