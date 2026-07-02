@@ -446,7 +446,7 @@ async function publish(org_id, version_id, user_id, generate_summary = false) {
   }
 
   if (updatedConfiguration.function_ids) {
-    updatedConfiguration.function_ids = updatedConfiguration.function_ids.map((fid) => new ObjectId(fid));
+    updatedConfiguration.function_ids = updatedConfiguration.function_ids.map((fid) => fid.toString());
   }
 
   // Update agent_info with agent_variables (flattened structure)
