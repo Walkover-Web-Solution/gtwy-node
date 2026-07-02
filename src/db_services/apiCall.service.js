@@ -69,7 +69,7 @@ async function deleteFunctionFromApicallsDb(org_id, script_id) {
     .find(
       {
         org_id: org_id,
-        $or: [{ function_ids: { $in: [function_id_str] } }, { "pre_tools.config.function_id": { $in: [function_id_str] } }]
+        $or: [{ function_ids: function_id_str }, { "pre_tools.config.function_id": function_id_str }]
       },
       { parent_id: 1 }
     )
@@ -82,26 +82,26 @@ async function deleteFunctionFromApicallsDb(org_id, script_id) {
   // Prepare all update operations
   const updateOperations = [];
 
-  // Remove function_id from function_ids in agents (bridges)
+  // Use raw collection driver to bypass mongoose casting so string filters match stored string values
+  const bridge_id_objs = bridge_ids.map((id) => new mongoose.Types.ObjectId(id));
+
   if (bridge_ids.length > 0) {
-    updateOperations.push(configurationModel.updateMany({ _id: { $in: bridge_ids } }, { $pull: { function_ids: function_id_str } }));
+    updateOperations.push(configurationModel.collection.updateMany({ _id: { $in: bridge_id_objs } }, { $pull: { function_ids: function_id_str } }));
   }
 
-  // Remove function_id from function_ids in versions
   if (version_ids.length > 0) {
-    updateOperations.push(versionModel.updateMany({ _id: { $in: version_ids } }, { $pull: { function_ids: function_id_str } }));
+    updateOperations.push(versionModel.collection.updateMany({ _id: { $in: version_ids } }, { $pull: { function_ids: function_id_str } }));
   }
 
-  // Remove pre_tools that reference this function from agents and versions that have it
   if (bridge_ids.length > 0) {
     updateOperations.push(
-      configurationModel.updateMany({ _id: { $in: bridge_ids } }, { $pull: { pre_tools: { "config.function_id": function_id_str } } })
+      configurationModel.collection.updateMany({ _id: { $in: bridge_id_objs } }, { $pull: { pre_tools: { "config.function_id": function_id_str } } })
     );
   }
 
   if (version_ids.length > 0) {
     updateOperations.push(
-      versionModel.updateMany({ _id: { $in: version_ids } }, { $pull: { pre_tools: { "config.function_id": function_id_str } } })
+      versionModel.collection.updateMany({ _id: { $in: version_ids } }, { $pull: { pre_tools: { "config.function_id": function_id_str } } })
     );
   }
 
