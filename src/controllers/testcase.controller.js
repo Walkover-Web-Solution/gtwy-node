@@ -49,6 +49,26 @@ async function deleteTestcase(req, res, next) {
   return next();
 }
 
+async function deleteAllTestcasesByAgentId(req, res, next) {
+  const bridge_id = req.params.bridge_id;
+
+  const result = await testcaseSevice.deleteTestCasesByBridgeId(bridge_id);
+
+  if (!result.success) {
+    res.locals = { success: false, error: "No testcases found for this agent" };
+    req.statusCode = 404;
+    return next();
+  }
+
+  res.locals = {
+    success: true,
+    message: result.message,
+    deletedCount: result.deletedCount
+  };
+  req.statusCode = 200;
+  return next();
+}
+
 async function getAllTestcases(req, res, next) {
   const bridge_id = req.params.bridge_id;
   const page = parseInt(req.query.page) || 1;
@@ -81,6 +101,7 @@ async function updateTestcases(req, res, next) {
 export default {
   createTestcase,
   deleteTestcase,
+  deleteAllTestcasesByAgentId,
   getAllTestcases,
   updateTestcases
 };

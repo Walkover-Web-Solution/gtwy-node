@@ -19,6 +19,9 @@ router.post("/create", middleware, validate({ body: createTestcaseSchema }), tes
 // Bulk delete testcases by ids array (body)
 router.delete("/", middleware, validate({ body: bulkDeleteTestcaseSchema }), testcaseController.deleteTestcase);
 
+// Delete all testcases for an agent (bridge_id)
+router.delete("/agent/:bridge_id", middleware, validate({ params: bridgeIdSchema }), testcaseController.deleteAllTestcasesByAgentId);
+
 // Delete a single testcase by _id (param)
 router.delete("/:testcase_id", middleware, validate({ params: testcaseIdSchema }), testcaseController.deleteTestcase);
 
