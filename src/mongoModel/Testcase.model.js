@@ -31,6 +31,10 @@ const testcaseSchema = new mongoose.Schema({
     type: Object,
     default: {}
   },
+  user_urls: {
+    type: Array,
+    default: []
+  },
   execution: {
     lastExecutedAt: {
       type: Date,
