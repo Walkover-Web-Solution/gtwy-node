@@ -5,9 +5,7 @@ const createTestcaseSchema = Joi.object({
     "any.required": "bridge_id is required"
   }),
   name: Joi.string().allow("").optional(),
-  conversation: Joi.array().required().messages({
-    "any.required": "conversation is required"
-  }),
+  conversation: Joi.array().optional(),
   type: Joi.string().required().messages({
     "any.required": "type is required"
   }),
@@ -50,9 +48,7 @@ const getAllTestcasesQuerySchema = Joi.object({
 
 const testcaseUpdateSchema = Joi.object({
   name: Joi.string().allow("").optional(),
-  conversation: Joi.array().required().messages({
-    "any.required": "conversation is required"
-  }),
+  conversation: Joi.array().optional(),
   type: Joi.string().required().messages({
     "any.required": "type is required"
   }),

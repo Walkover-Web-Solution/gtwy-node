@@ -1,9 +1,20 @@
 import testcaseSevice from "../db_services/testcase.service.js";
+import { normalizeAiConfig } from "../services/utils/aiConfigNormalizer.util.js";
 
 async function createTestcase(req, res, next) {
-  const body = req.body;
-
-  // Validation is now handled by middleware
+  const body = { ...req.body };
+  const rawAiConfig = body.ai_config;
+  if (rawAiConfig) {
+    const normalized = normalizeAiConfig(rawAiConfig, body.service);
+    const ts = Date.now();
+    body.conversation = (normalized.messages || [])
+      .filter((m) => (m.role === "user" || m.role === "assistant") && m.content)
+      .map((m, idx) => ({
+        id: `msg-config-${idx}-${ts}-${Math.random()}`,
+        role: m.role,
+        content: m.content
+      }));
+  }
 
   const result = await testcaseSevice.saveTestCase(body);
 
