@@ -507,9 +507,11 @@ async function publish(org_id, version_id, user_id, generate_summary = false) {
     {
       user_id,
       org_id,
-      bridge_id: parentId, // Database column name, keeping as bridge_id for compatibility
-      version_id,
-      type: "Version published"
+      bridge_id: parentId.toString(),
+      version_id: version_id.toString(),
+      type: "Version published",
+      previous_value: previousPublishedVersionId ? String(previousPublishedVersionId) : null,
+      current_value: publishedVersionId
     }
   ]);
 

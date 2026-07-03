@@ -10,7 +10,7 @@ async function createTestcase(req, res, next) {
   res.locals = {
     success: true,
     data: {
-      _id: result.id,
+      id: result.id,
       message: "Testcase created successfully"
     }
   };
