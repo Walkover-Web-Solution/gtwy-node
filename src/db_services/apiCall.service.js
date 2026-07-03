@@ -56,28 +56,44 @@ async function getFunctionById(function_id) {
 }
 
 async function deleteFunctionFromApicallsDb(org_id, script_id) {
-  const bridgeData = await apiCallModel.findOne({ org_id: org_id, script_id: script_id }, { bridge_ids: 1, version_ids: 1, _id: 1 });
+  const functionData = await apiCallModel.findOne({ org_id: org_id, script_id: script_id }, { _id: 1 });
 
-  if (!bridgeData) {
+  if (!functionData) {
     throw new Error("No matching function found to delete.");
   }
 
-  const bridge_ids = bridgeData.bridge_ids || [];
-  const version_ids = bridgeData.version_ids || [];
-  const function_id = bridgeData._id;
+  const function_id_str = functionData._id.toString();
 
-  if (bridge_ids.length > 0) {
-    await versionModel.updateMany({ _id: { $in: bridge_ids } }, { $pull: { function_ids: function_id } });
-  }
-
-  if (version_ids.length > 0) {
-    await versionModel.updateMany({ _id: { $in: version_ids } }, { $pull: { function_ids: function_id } });
-  }
-
-  const result = await apiCallModel.deleteOne({
-    org_id: org_id,
-    script_id: script_id
-  });
+  const [, , result] = await Promise.all([
+    configurationModel.collection.updateMany(
+      {
+        org_id: org_id,
+        $or: [{ function_ids: function_id_str }, { "pre_tools.config.function_id": function_id_str }]
+      },
+      {
+        $pull: {
+          function_ids: function_id_str,
+          pre_tools: { "config.function_id": function_id_str }
+        }
+      }
+    ),
+    versionModel.collection.updateMany(
+      {
+        org_id: org_id,
+        $or: [{ function_ids: function_id_str }, { "pre_tools.config.function_id": function_id_str }]
+      },
+      {
+        $pull: {
+          function_ids: function_id_str,
+          pre_tools: { "config.function_id": function_id_str }
+        }
+      }
+    ),
+    apiCallModel.deleteOne({
+      org_id: org_id,
+      script_id: script_id
+    })
+  ]);
 
   if (result.deletedCount > 0) {
     return {

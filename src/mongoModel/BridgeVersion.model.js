@@ -101,7 +101,7 @@ const version = new mongoose.Schema({
     })
   },
   function_ids: {
-    type: [mongoose.Schema.Types.ObjectId],
+    type: [String],
     default: []
   },
   variables_path: {
