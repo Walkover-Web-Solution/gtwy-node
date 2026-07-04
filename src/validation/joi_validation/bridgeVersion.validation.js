@@ -132,7 +132,8 @@ const updateVersionSchema = Joi.object({
     function_operation: Joi.string().valid("0", "1").optional(),
     script_id: Joi.string().optional()
   }).optional(),
-  version_description: Joi.string().allow("").optional()
+  version_description: Joi.string().allow("").optional(),
+  reverted_from_id: Joi.number().integer().optional()
 });
 
 const createVersion = {

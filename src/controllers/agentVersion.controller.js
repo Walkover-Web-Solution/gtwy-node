@@ -9,6 +9,7 @@ import { getDefaultValuesController } from "../services/utils/getDefaultValue.js
 import { purgeAgentCache } from "../services/utils/redis.utils.js";
 import { validateJsonSchemaConfiguration } from "../services/utils/common.utils.js";
 import { convertPromptToString } from "../utils/promptWrapper.utils.js";
+import { appendVersionUpdateHistory } from "../utils/versionHistory.utils.js";
 
 const { storeSystemPrompt, addBulkUserEntries } = conversationDbService;
 
@@ -58,7 +59,7 @@ const createVersion = async (req, res, next) => {
 const updateVersionController = async (req, res, next) => {
   try {
     const { version_id } = req.params;
-    const body = req.body;
+    const { reverted_from_id, ...body } = req.body;
     const org_id = String(req.profile.org.id);
     const user_id = String(req.profile.user.id);
 
@@ -237,24 +238,14 @@ const updateVersionController = async (req, res, next) => {
       update_fields.version_description = body.version_description;
     }
 
-    for (const key in body) {
-      const value = body[key];
-      const history_entry = {
-        user_id,
-        org_id,
-        bridge_id: parent_id || "",
-        version_id,
-        time: new Date()
-      };
-
-      if (key === "configuration") {
-        for (const config_key in value) {
-          user_history.push({ ...history_entry, type: config_key });
-        }
-      } else {
-        user_history.push({ ...history_entry, type: key });
-      }
-    }
+    appendVersionUpdateHistory(user_history, {
+      base: { user_id, org_id, bridge_id: parent_id || "", version_id, time: new Date() },
+      body,
+      version,
+      update_fields,
+      cur: current_configuration,
+      reverted_from_id
+    });
 
     update_fields.updatedAt = new Date();
     const updatedVersionData = await ConfigurationServices.updateAgent(parent_id || version_id, update_fields, version_id);

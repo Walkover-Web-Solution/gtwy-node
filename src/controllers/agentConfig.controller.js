@@ -10,6 +10,7 @@ import { purgeAgentCache } from "../services/utils/redis.utils.js";
 import { ensureChatbotPreview } from "../services/utility.service.js";
 import { modelConfigDocument } from "../services/utils/loadModelConfigs.js";
 import { sendAgentCreatedWebhook } from "../services/utils/agentWebhook.utils.js";
+import isEqual from "lodash/isEqual.js";
 
 const createAgentController = async (req, res, next) => {
   try {
@@ -329,11 +330,16 @@ const updateAgentController = async (req, res, next) => {
 
     const agentVersions = Array.isArray(agent.versions) ? agent.versions : [];
     for (const key of Object.keys(body)) {
+      const before = agent[key];
+      const after = update_fields[key] ?? body[key];
+      if (isEqual(before, after)) continue;
       for (const version of agentVersions) {
         user_history.push({
           ...historyBase,
           version_id: String(version),
-          type: key === "settings" ? "editAccess" : key
+          type: key === "settings" ? "editAccess" : key,
+          previous_value: before ?? null,
+          current_value: after ?? null
         });
       }
     }
