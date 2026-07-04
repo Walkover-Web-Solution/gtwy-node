@@ -240,6 +240,10 @@ const version = new mongoose.Schema({
   updatedAt: {
     type: Date,
     default: Date.now
+  },
+  embed_override: {
+    type: Object,
+    default: {}
   }
 });
 

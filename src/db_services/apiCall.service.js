@@ -4,15 +4,44 @@ import configurationModel from "../mongoModel/Configuration.model.js";
 import mongoose from "mongoose";
 import { deleteInCache } from "../cache_service/index.js";
 import agentVersionService from "../db_services/agentVersion.service.js";
+import folderService from "./folder.service.js";
 
 async function getAllApiCallsByOrgId(org_id, folder_id, user_id, isEmbedUser) {
   let query = { org_id: org_id };
+  let folder_tools_id = [];
+  let isEmbedFolder = false;
+
   if (folder_id) {
-    query.folder_id = folder_id;
-  } else {
-    query.folder_id = { $in: [null, ""] };
+    const folderData = await folderService.getFolderData(folder_id);
+    if (folderData?.type === "embed") {
+      isEmbedFolder = true;
+      folder_tools_id = folderData.config?.tools_id || folderData.tools_ids || folderData.tools_id || [];
+    }
   }
-  if (user_id && isEmbedUser) query.user_id = user_id.toString();
+
+  const userCondition = user_id && isEmbedUser ? { user_id: user_id.toString() } : {};
+  if (isEmbedFolder && folder_tools_id.length > 0) {
+    const objectIds = folder_tools_id.map((id) => (mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : id));
+
+    query.$or = [
+      {
+        folder_id: folder_id,
+        ...userCondition
+      },
+      {
+        _id: { $in: objectIds }
+      }
+    ];
+  } else {
+    if (folder_id) {
+      query.folder_id = folder_id;
+    } else {
+      query.folder_id = { $in: [null, ""] };
+    }
+    if (user_id && isEmbedUser) {
+      query.user_id = user_id.toString();
+    }
+  }
 
   let apiCalls = await apiCallModel.find(query).lean();
   return apiCalls || [];

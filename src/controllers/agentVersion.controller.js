@@ -140,6 +140,13 @@ const updateVersionController = async (req, res, next) => {
       }
     }
 
+    if (body.embed_override !== undefined) {
+      for (const key in body.embed_override) {
+        const currentKeyData = version.embed_override?.[key];
+        update_fields[`embed_override.${key}`] = { ...currentKeyData, ...body.embed_override[key] };
+      }
+    }
+
     if (body.settings !== undefined) {
       const current_settings = version.settings || {};
       update_fields.settings = { ...current_settings, ...body.settings };
