@@ -1,8 +1,8 @@
 import Joi from "joi";
 
 const createTestcaseSchema = Joi.object({
-  agent_id: Joi.string().required().messages({
-    "any.required": "agent_id is required"
+  bridge_id: Joi.string().required().messages({
+    "any.required": "bridge_id is required"
   }),
   name: Joi.string().allow("").optional(),
   conversation: Joi.array().optional(),
