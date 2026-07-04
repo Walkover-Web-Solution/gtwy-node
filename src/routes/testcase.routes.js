@@ -5,7 +5,7 @@ import validate from "../middlewares/validate.middleware.js";
 import {
   createTestcaseSchema,
   testcaseIdSchema,
-  bridgeIdSchema,
+  agentIdSchema,
   testcaseUpdateSchema,
   getAllTestcasesQuerySchema,
   bulkDeleteTestcaseSchema
@@ -19,11 +19,14 @@ router.post("/create", middleware, validate({ body: createTestcaseSchema }), tes
 // Bulk delete testcases by ids array (body)
 router.delete("/", middleware, validate({ body: bulkDeleteTestcaseSchema }), testcaseController.deleteTestcase);
 
+// Delete all testcases for an agent
+router.delete("/agent/:agent_id", middleware, validate({ params: agentIdSchema }), testcaseController.deleteAllTestcasesByAgentId);
+
 // Delete a single testcase by _id (param)
 router.delete("/:testcase_id", middleware, validate({ params: testcaseIdSchema }), testcaseController.deleteTestcase);
 
-// Get all testcases by bridge_id
-router.get("/:bridge_id", middleware, validate({ params: bridgeIdSchema, query: getAllTestcasesQuerySchema }), testcaseController.getAllTestcases);
+// Get all testcases by agent_id
+router.get("/:agent_id", middleware, validate({ params: agentIdSchema, query: getAllTestcasesQuerySchema }), testcaseController.getAllTestcases);
 
 // Update a testcase by _id
 router.put("/:testcase_id", middleware, validate({ params: testcaseIdSchema, body: testcaseUpdateSchema }), testcaseController.updateTestcases);

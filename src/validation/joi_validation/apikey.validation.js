@@ -61,9 +61,20 @@ const deleteApikey = {
     .unknown(true)
 };
 
+const getApikeyByAgentId = {
+  params: Joi.object()
+    .keys({
+      agent_id: Joi.string().required().messages({
+        "any.required": "agent_id is required"
+      })
+    })
+    .unknown(true)
+};
+
 export default {
   saveApikey,
   getAllApikeys,
   updateApikey,
-  deleteApikey
+  deleteApikey,
+  getApikeyByAgentId
 };

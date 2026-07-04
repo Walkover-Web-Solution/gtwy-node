@@ -301,6 +301,33 @@ async function checkApikeyUsage(apikey_object_id, org_id, service) {
   };
 }
 
+async function findApikeyByAgentId(agent_id, org_id) {
+  const versions = await versionModel
+    .find(
+      {
+        parent_id: agent_id,
+        org_id: org_id
+      },
+      { _id: 1, parent_id: 1, configuration: 1, apikey_object_id: 1 }
+    )
+    .lean();
+
+  // Build version_ids object with services array and model
+  const versionIdsData = {};
+  versions.forEach((v) => {
+    const services = v.apikey_object_id ? Object.keys(v.apikey_object_id) : [];
+    versionIdsData[v._id.toString()] = {
+      services,
+      model: v.configuration?.model || null
+    };
+  });
+
+  return {
+    agent_id,
+    version_ids: versionIdsData
+  };
+}
+
 export default {
   saveApikeyRecord,
   findApikeyByName,
@@ -310,5 +337,6 @@ export default {
   findApikeyById,
   findVersionsByIds,
   removeApikeyFromEmbeds,
-  checkApikeyUsage
+  checkApikeyUsage,
+  findApikeyByAgentId
 };
