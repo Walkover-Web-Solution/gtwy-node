@@ -261,10 +261,33 @@ const checkApikey = async (apikey, service) => {
   }
   return check.data;
 };
+const getApikeyByAgentId = async (req, res, next) => {
+  const { agent_id } = req.params;
+  const org_id = req.profile?.org?.id;
+
+  const result = await apikeyService.findApikeyByAgentId(agent_id, org_id);
+
+  if (!result.version_ids || Object.keys(result.version_ids).length === 0) {
+    res.locals = {
+      success: false,
+      message: "Apikey not found for this agent"
+    };
+    req.statusCode = 404;
+    return next();
+  }
+
+  res.locals = {
+    success: true,
+    data: result
+  };
+  req.statusCode = 200;
+  return next();
+};
 
 export default {
   saveApikey,
   getAllApikeys,
   deleteApikey,
-  updateApikey
+  updateApikey,
+  getApikeyByAgentId
 };

@@ -1,13 +1,12 @@
 import Joi from "joi";
 
 const createTestcaseSchema = Joi.object({
-  bridge_id: Joi.string().required().messages({
-    "any.required": "bridge_id is required"
+  agent_id: Joi.string().required().messages({
+    "any.required": "agent_id is required"
   }),
   name: Joi.string().allow("").optional(),
-  conversation: Joi.array().required().messages({
-    "any.required": "conversation is required"
-  }),
+  conversation: Joi.array().optional(),
+  message_id: Joi.string().optional(),
   type: Joi.string().required().messages({
     "any.required": "type is required"
   }),
@@ -25,9 +24,9 @@ const testcaseIdSchema = Joi.object({
   })
 }).unknown(true);
 
-const bridgeIdSchema = Joi.object({
-  bridge_id: Joi.string().required().messages({
-    "any.required": "bridge_id is required"
+const agentIdSchema = Joi.object({
+  agent_id: Joi.string().required().messages({
+    "any.required": "agent_id is required"
   })
 }).unknown(true);
 
@@ -50,9 +49,7 @@ const getAllTestcasesQuerySchema = Joi.object({
 
 const testcaseUpdateSchema = Joi.object({
   name: Joi.string().allow("").optional(),
-  conversation: Joi.array().required().messages({
-    "any.required": "conversation is required"
-  }),
+  conversation: Joi.array().optional(),
   type: Joi.string().required().messages({
     "any.required": "type is required"
   }),
@@ -71,4 +68,4 @@ const bulkDeleteTestcaseSchema = Joi.object({
   })
 }).unknown(true);
 
-export { createTestcaseSchema, testcaseIdSchema, bridgeIdSchema, testcaseUpdateSchema, getAllTestcasesQuerySchema, bulkDeleteTestcaseSchema };
+export { createTestcaseSchema, testcaseIdSchema, agentIdSchema, testcaseUpdateSchema, getAllTestcasesQuerySchema, bulkDeleteTestcaseSchema };

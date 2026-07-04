@@ -236,6 +236,28 @@ const getRecursiveAgentHistory = async (req, res, next) => {
   }
 };
 
+const getHistoryByMessageId = async (req, res, next) => {
+  try {
+    const record = await findHistoryByMessageId(req.params.message_id);
+
+    if (!record) {
+      res.locals = { success: false, message: "Message not found" };
+      req.statusCode = 404;
+      return next();
+    }
+
+    const message = record?.toJSON ? record.toJSON() : record;
+    res.locals = { success: true, data: message };
+    req.statusCode = 200;
+    return next();
+  } catch (error) {
+    console.error("getHistoryByMessageId error:", error);
+    res.locals = { success: false, message: "Failed to fetch history", error: error.message };
+    req.statusCode = 500;
+    return next();
+  }
+};
+
 const getChatbotThreadHistory = async (req, res, next) => {
   const page = parseInt(req.query.pageNo) || 1;
   const pageSize = parseInt(req.query.limit) || 30;
@@ -275,6 +297,7 @@ export default {
   getConversationLogs,
   getRecentThreads,
   getRecursiveAgentHistory,
+  getHistoryByMessageId,
   getChatbotThreadHistory,
   getBatchConversationLogs,
   getBatchConversationLogsCount
