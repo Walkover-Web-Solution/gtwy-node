@@ -1,7 +1,7 @@
 import models from "../../models/index.js";
 import Sequelize from "sequelize";
 import { findInCache, storeInCache } from "../cache_service/index.js";
-import { getUsers } from "../services/proxy.service.js";
+import { getUsers, getUsersByIds } from "../services/proxy.service.js";
 
 async function findMessage(org_id, thread_id, bridge_id, sub_thread_id, page, pageSize, user_feedback, version_id, isChatbot, error) {
   const offset = page && pageSize ? (page - 1) * pageSize : null;
@@ -475,38 +475,40 @@ async function getUserUpdates(org_id, version_id, page = 1, pageSize = 10, users
         whereConditions.time = timeCondition;
       }
 
+      const lastPublishRow = await models.pg.user_bridge_config_history.findOne({
+        where: { org_id, version_id, type: "Version published" },
+        attributes: ["time"],
+        order: [["time", "DESC"]]
+      });
+      const lastPublishedAt = lastPublishRow?.time ?? null;
+
       const { count: total, rows: history } = await models.pg.user_bridge_config_history.findAndCountAll({
         where: whereConditions,
-        attributes: ["id", "user_id", "org_id", "bridge_id", "type", "time", "version_id"],
+        attributes: ["id", "user_id", "org_id", "bridge_id", "type", "time", "version_id", "previous_value", "current_value"],
         order: [["time", "DESC"]],
         offset: offset,
         limit: pageSize
       });
 
       if (history.length === 0) {
-        return { success: false, message: "No updates found" };
+        return { success: false, message: "No updates found", lastPublishedAt };
       }
 
-      const updatedHistory = history?.map((entry) => {
-        const user = Array.isArray(userData) ? userData.find((user) => user?.id === entry?.dataValues?.user_id) : null;
-        return {
-          ...entry?.dataValues,
-          user_name: user ? user?.name : "Unknown"
-        };
-      });
+      const orgUsers = Array.isArray(userData) ? userData : [];
+      const knownIds = new Set(orgUsers.map((u) => u.id));
+      const missingIds = [...new Set(history.map((e) => e.dataValues.user_id))].filter((id) => id && !knownIds.has(id));
+      const formerUsers = missingIds.length ? await getUsersByIds(missingIds) : [];
+      const userMap = new Map([...orgUsers, ...formerUsers].map((u) => [u.id, u]));
 
       return {
         success: true,
-        updates: updatedHistory,
+        updates: history.map((e) => ({
+          ...e.dataValues,
+          user_name: userMap.get(e.dataValues.user_id)?.name ?? "Unknown"
+        })),
         total,
-        users: Array.isArray(userData)
-          ? userData
-              .filter((user) => user?.meta?.type !== "embed")
-              .map((user) => ({
-                id: user.id,
-                name: user.name
-              }))
-          : []
+        lastPublishedAt,
+        users: [...userMap.values()].filter((u) => u?.meta?.type !== "embed").map(({ id, name }) => ({ id, name }))
       };
     } else {
       let filteredUsers = [];
@@ -524,11 +526,11 @@ async function getUserUpdates(org_id, version_id, page = 1, pageSize = 10, users
         email: user.email
       }));
 
-      return { success: true, users: mappedUsers };
+      return { success: true, users: mappedUsers, lastPublishedAt: null };
     }
   } catch (error) {
     console.error("Error fetching user updates:", error);
-    return { success: false, message: "Error fetching updates" };
+    return { success: false, message: "Error fetching updates", lastPublishedAt: null };
   }
 }
 
