@@ -274,8 +274,8 @@ const getAllSubThreadsController = async (req, res, next) => {
 const getAllUserUpdates = async (req, res, next) => {
   const { version_id } = req.params;
   const org_id = req?.profile?.org?.id || req?.profile?.org_id;
-  let page = parseInt(req.query.page) || null;
-  let pageSize = parseInt(req.query.limit) || null;
+  let page = parseInt(req.query.page) || 1;
+  let pageSize = parseInt(req.query.limit) || 30;
 
   // Extract filter parameters
   const filters = {
