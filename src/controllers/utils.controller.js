@@ -171,7 +171,7 @@ const getAffiliateEmbedToken = async (req, res, next) => {
 };
 
 const setModelStatus = async (req, res, next) => {
-  const { model_name, service, status: parsedStatus } = req.body;
+  const { model_name, service, status: parsedStatus, update_to } = req.body;
 
   const existing = await modelConfigDbService.getModelConfigsByNameAndService(model_name, service);
 
@@ -188,7 +188,7 @@ const setModelStatus = async (req, res, next) => {
     return next();
   }
 
-  const result = await modelConfigDbService.setModelStatusAdmin(model_name, service, parsedStatus);
+  const result = await modelConfigDbService.setModelStatusAdmin(model_name, service, parsedStatus, update_to);
 
   const action = parsedStatus === 0 ? "disabled" : "enabled";
   const response = {
@@ -203,7 +203,8 @@ const setModelStatus = async (req, res, next) => {
     }
     response.updatedVersions = result.updatedVersions;
     if (result.updatedVersions && result.updatedVersions.length > 0) {
-      response.message += ` Updated ${result.updatedVersions.length} agent version(s) to use default model.`;
+      const targetModel = update_to || "default_model";
+      response.message += ` Updated ${result.updatedVersions.length} agent version(s) to use ${targetModel}.`;
     }
   }
 
