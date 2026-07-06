@@ -69,7 +69,7 @@ async function deleteTestcase(req, res, next) {
 async function deleteAllTestcasesByAgentId(req, res, next) {
   const agent_id = req.params.agent_id;
 
-  const result = await testcaseSevice.deleteTestCasesByAgentId(agent_id);
+  const result = await testcaseSevice.deleteTestCasesByBridgeId(agent_id);
 
   if (!result.success) {
     res.locals = { success: false, error: "No testcases found for this agent" };

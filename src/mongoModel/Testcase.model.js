@@ -32,7 +32,7 @@ const testcaseSchema = new mongoose.Schema({
     default: {}
   },
   user_urls: {
-    type: [String],
+    type: [],
     default: []
   },
   execution: {
