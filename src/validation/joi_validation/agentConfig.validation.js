@@ -42,7 +42,10 @@ const updateBridgeSchema = Joi.object({
       model: Joi.string().optional()
     }).optional(),
     guardrails: Joi.object().optional(),
-    reviewer_agent: Joi.objectId().optional(),
+    reviewer_agent: Joi.objectId().allow(null).optional(),
+    reviewer_prompt: Joi.string().allow(null, "").optional(),
+    reviewer_tools: Joi.array().items(Joi.string()).optional(),
+    reviewer_enabled: Joi.boolean().optional(),
     publicAgentConfig: Joi.object().optional(),
     environment_config: Joi.object().optional()
   }).optional(),

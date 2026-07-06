@@ -73,6 +73,9 @@ const updateVersionSchema = Joi.object({
   connected_agent_flow: Joi.object().optional(),
   settings: Joi.object({
     reviewer_agent: Joi.string().allow(null).optional(),
+    reviewer_prompt: Joi.string().allow(null, "").optional(),
+    reviewer_tools: Joi.array().items(Joi.string()).optional(),
+    reviewer_enabled: Joi.boolean().optional(),
     publicUsers: Joi.array().items(Joi.string()).optional(),
     editAccess: Joi.array().items(Joi.string()).optional(),
     responseStyle: Joi.object().optional(),
