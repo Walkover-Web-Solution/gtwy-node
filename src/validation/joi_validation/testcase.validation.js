@@ -15,7 +15,9 @@ const createTestcaseSchema = Joi.object({
   }),
   matching_type: Joi.string().required().messages({
     "any.required": "matching_type is required"
-  })
+  }),
+  variables: Joi.object().optional(),
+  user_urls: Joi.array().optional()
 }).unknown(true);
 
 const testcaseIdSchema = Joi.object({
