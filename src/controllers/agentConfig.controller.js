@@ -10,17 +10,28 @@ import { purgeAgentCache } from "../services/utils/redis.utils.js";
 import { ensureChatbotPreview } from "../services/utility.service.js";
 import { modelConfigDocument } from "../services/utils/loadModelConfigs.js";
 import { sendAgentCreatedWebhook } from "../services/utils/agentWebhook.utils.js";
+import { ResponseSender } from "../services/utils/customResponse.utils.js";
 
-const createAgentController = async (req, res, next) => {
+const responseSender = new ResponseSender();
+
+const createAgentInBackground = async (req) => {
+  let user_id = req.profile.user.id;
+  const org_id = req.profile.org.id;
+  const rtChannel = `org_${org_id}_${user_id}`;
+  let rtResponseBase = {
+    rtlLayer: true,
+    reqBody: {
+      rtlOptions: { channel: rtChannel, ttl: 1, apikey: process.env.RTLAYER_AUTH }
+    },
+    headers: {}
+  };
+
   try {
     const agents = req.body;
     const purpose = agents.purpose;
     const agentType = agents.bridgeType || "api";
-    const org_id = req.profile.org.id;
     const folder_id = req.folder_id || req.body.folder_id || null;
     const folder_data = await folderDbService.getFolderData(folder_id);
-    const user_id = req.profile.user.id;
-
     let prompt = {
       role: "AI Bot",
       goal: "Respond logically and clearly, maintaining a neutral, automated tone.",
@@ -75,11 +86,8 @@ const createAgentController = async (req, res, next) => {
       const template_id = agents.templateId;
       const template_data = await ConfigurationServices.gettemplateById(template_id);
       if (!template_data) {
-        res.locals = { success: false, message: "Template not found" };
-        req.statusCode = 404;
-        return next();
+        throw new Error("Template not found");
       }
-      // Only override if we don't have folder prompt config
       if (!folder_data?.config?.prompt) {
         prompt = template_data.prompt || prompt;
       }
@@ -246,12 +254,7 @@ const createAgentController = async (req, res, next) => {
       }
     ]);
 
-    res.locals = {
-      success: true,
-      message: "Agent created successfully",
-      agent: updated_agent_result.result.toObject()
-    };
-    req.statusCode = 200;
+    const agent = updated_agent_result.result.toObject();
 
     if (!folder_id) {
       sendAgentCreatedWebhook(updated_agent_result.result, org_id).catch((err) => {
@@ -259,12 +262,29 @@ const createAgentController = async (req, res, next) => {
       });
     }
 
-    return next();
+    await responseSender.sendResponse({
+      ...rtResponseBase,
+      data: { type: "agent_created", user_id, agent }
+    });
   } catch (e) {
-    res.locals = { success: false, message: "Error in creating agent: " + e.message };
-    req.statusCode = 400;
-    return next();
+    await responseSender
+      .sendResponse({
+        ...rtResponseBase,
+        data: {
+          type: "agent_create_failed",
+          user_id,
+          message: e.message || "Error in creating agent"
+        }
+      })
+      .catch((rtErr) => console.error("RT agent create error notify failed:", rtErr.message));
   }
+};
+
+const createAgentController = async (req, res, next) => {
+  res.locals = { success: true, accepted: true, message: "Agent creation started" };
+  req.statusCode = 202;
+  createAgentInBackground(req);
+  return next();
 };
 
 const updateAgentController = async (req, res, next) => {
