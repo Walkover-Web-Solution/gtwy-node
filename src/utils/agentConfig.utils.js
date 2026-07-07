@@ -32,6 +32,8 @@ const getUniqueNameAndSlug = (baseName, allAgents) => {
 };
 
 const normalizeFunctionIds = (function_ids) => {
+  // Deprecated: This function is kept for backward compatibility
+  // New code should work with connected_tools directly
   if (!function_ids) return [];
   if (Array.isArray(function_ids)) return function_ids;
   if (typeof function_ids === "object") return Object.values(function_ids);
@@ -39,6 +41,8 @@ const normalizeFunctionIds = (function_ids) => {
 };
 
 const cloneFunctionsForAgent = async (function_ids, org_id, agent_id, folder_id = null, user_id = null, isEmbedUser = false) => {
+  // Deprecated: This function is kept for backward compatibility
+  // New code should use cloneConnectedToolsForAgent instead
   const cloned_function_ids = [];
   const ids = normalizeFunctionIds(function_ids);
 
@@ -124,4 +128,23 @@ const cloneFunctionsForAgent = async (function_ids, org_id, agent_id, folder_id 
   return cloned_function_ids;
 };
 
-export { getUniqueNameAndSlug, normalizeFunctionIds, cloneFunctionsForAgent };
+const cloneConnectedToolsForAgent = async (connected_tools, org_id, agent_id, folder_id = null, user_id = null, isEmbedUser = false) => {
+  const cloned_tools = [];
+
+  for (const tool of connected_tools || []) {
+    if (tool.type === "tools") {
+      // Clone tool functions
+      const cloned_tool_ids = await cloneFunctionsForAgent([tool.id], org_id, agent_id, folder_id, user_id, isEmbedUser);
+      if (cloned_tool_ids.length > 0) {
+        cloned_tools.push({ ...tool, id: cloned_tool_ids[0] });
+      }
+    } else {
+      // For other tool types (agent, docs, pre_tool), just copy the reference
+      cloned_tools.push(tool);
+    }
+  }
+
+  return cloned_tools;
+};
+
+export { getUniqueNameAndSlug, normalizeFunctionIds, cloneFunctionsForAgent, cloneConnectedToolsForAgent };

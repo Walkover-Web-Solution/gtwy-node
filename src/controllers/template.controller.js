@@ -3,7 +3,7 @@ import ConfigurationServices from "../db_services/configuration.service.js";
 import agentVersionDbService from "../db_services/agentVersion.service.js";
 import apiCallModel from "../mongoModel/ApiCall.model.js";
 import { ObjectId } from "mongodb";
-import { normalizeFunctionIds, cloneFunctionsForAgent } from "../utils/agentConfig.utils.js";
+import { cloneFunctionsForAgent } from "../utils/agentConfig.utils.js";
 import { copyResourceToOrgUtil } from "../utils/rag.utils.js";
 import { callAiMiddleware } from "../services/utils/aiCall.utils.js";
 import { bridge_ids } from "../configs/constant.js";
@@ -84,16 +84,16 @@ const createTemplate = async (req, res, next) => {
 
   let bridge = bridgeData.bridges;
 
-  // Get function data for each function_id in the bridge
+  // Get function data for each tool in connected_tools
   const functionData = [];
-  if (bridge.function_ids && bridge.function_ids.length > 0) {
-    for (const functionId of bridge.function_ids) {
-      // Convert buffer to ObjectId if needed
-      const id = functionId.buffer ? new ObjectId(Buffer.from(functionId.buffer)) : new ObjectId(functionId);
-
-      const functionDetails = await apiCallModel.findOne({ _id: id }, { function_name: 1 });
-      if (functionDetails) {
-        functionData.push(functionDetails);
+  if (bridge.connected_tools && bridge.connected_tools.length > 0) {
+    for (const tool of bridge.connected_tools) {
+      if (tool.type === "tools") {
+        const id = tool.id.buffer ? new ObjectId(Buffer.from(tool.id.buffer)) : new ObjectId(tool.id);
+        const functionDetails = await apiCallModel.findOne({ _id: id }, { function_name: 1 });
+        if (functionDetails) {
+          functionData.push(functionDetails);
+        }
       }
     }
   }
@@ -103,17 +103,19 @@ const createTemplate = async (req, res, next) => {
   bridge = filterBridge(bridge).bridge;
   bridge = Object.fromEntries(Object.entries(bridge).filter(([, v]) => v !== null));
 
-  const buildConnectedAgents = async (connected_agents, ancestorIds = new Set()) => {
+  const buildConnectedAgents = async (connected_tools, ancestorIds = new Set()) => {
     const result = {};
-    for (const [key, agent] of Object.entries(connected_agents)) {
-      const agentBridgeId = agent.bridge_id?.toString() ?? agent.bridge_id;
+    for (const tool of connected_tools) {
+      if (tool.type !== "agent") continue;
+
+      const agentBridgeId = tool.id?.toString() ?? tool.id;
       if (!agentBridgeId) continue;
 
       if (ancestorIds.has(agentBridgeId)) {
-        result[key] = {
+        result[agentBridgeId] = {
           bridge_id: agentBridgeId,
-          ...(agent.thread_id !== undefined && { thread_id: agent.thread_id }),
-          ...(agent.version_id !== undefined && { version_id: agent.version_id }),
+          ...(tool.thread_id !== undefined && { thread_id: tool.thread_id }),
+          ...(tool.version_id !== undefined && { version_id: tool.version_id }),
           bridge_details: {}
         };
         continue;
@@ -125,36 +127,38 @@ const createTemplate = async (req, res, next) => {
       let childBridge = childBridgeData.bridges;
 
       const childFunctionData = [];
-      if (childBridge.function_ids && childBridge.function_ids.length > 0) {
-        for (const functionId of childBridge.function_ids) {
-          const id = functionId.buffer ? new ObjectId(Buffer.from(functionId.buffer)) : new ObjectId(functionId);
-          const functionDetails = await apiCallModel.findOne({ _id: id }, { function_name: 1 });
-          if (functionDetails) childFunctionData.push(functionDetails);
+      if (childBridge.connected_tools && childBridge.connected_tools.length > 0) {
+        for (const childTool of childBridge.connected_tools) {
+          if (childTool.type === "tools") {
+            const id = childTool.id.buffer ? new ObjectId(Buffer.from(childTool.id.buffer)) : new ObjectId(childTool.id);
+            const functionDetails = await apiCallModel.findOne({ _id: id }, { function_name: 1 });
+            if (functionDetails) childFunctionData.push(functionDetails);
+          }
         }
       }
       childBridge.function_data = childFunctionData;
 
       const filteredBridge = Object.fromEntries(
-        Object.entries(filterBridge(childBridge)?.bridge).filter(([k, v]) => v !== null && k !== "connected_agents")
+        Object.entries(filterBridge(childBridge)?.bridge).filter(([k, v]) => v !== null && k !== "connected_tools")
       );
 
-      if (childBridge.connected_agents && Object.keys(childBridge.connected_agents).length > 0) {
+      if (childBridge.connected_tools && childBridge.connected_tools.some((t) => t.type === "agent")) {
         const childAncestors = new Set([...ancestorIds, agentBridgeId]);
-        filteredBridge.child_agents = await buildConnectedAgents(childBridge.connected_agents, childAncestors);
+        filteredBridge.child_agents = await buildConnectedAgents(childBridge.connected_tools, childAncestors);
       }
 
-      result[key] = {
+      result[agentBridgeId] = {
         bridge_id: agentBridgeId,
-        ...(agent.thread_id !== undefined && { thread_id: agent.thread_id }),
-        ...(agent.version_id !== undefined && { version_id: agent.version_id }),
+        ...(tool.thread_id !== undefined && { thread_id: tool.thread_id }),
+        ...(tool.version_id !== undefined && { version_id: tool.version_id }),
         bridge_details: filteredBridge
       };
     }
     return result;
   };
 
-  if (bridge.connected_agents && Object.keys(bridge.connected_agents).length > 0) {
-    bridge.child_agents = await buildConnectedAgents(bridge.connected_agents, new Set([agent_id]));
+  if (bridge.connected_tools && bridge.connected_tools.some((t) => t.type === "agent")) {
+    bridge.child_agents = await buildConnectedAgents(bridge.connected_tools, new Set([agent_id]));
   }
   const user = "Validate the template";
   const email = req.profile?.user?.email;
@@ -249,18 +253,15 @@ const createAgentFromTemplateController = async (req, res, next) => {
     // --- Collect all unique function IDs and doc resource pairs across root + all children ---
     const collectAllResources = (content, allFunctionIds, allDocPairs) => {
       if (!content) return;
-      for (const fid of normalizeFunctionIds(content.function_ids)) allFunctionIds.add(fid);
-      if (Array.isArray(content.pre_tools)) {
-        for (const tool of content.pre_tools) {
-          if (tool.type === "custom_function" && tool.config?.function_id) {
-            allFunctionIds.add(tool.config.function_id);
-          }
-        }
-      }
-      if (Array.isArray(content.doc_ids)) {
-        for (const doc of content.doc_ids) {
-          if (doc.collection_id && doc.resource_id) {
-            allDocPairs.set(`${doc.collection_id}:${doc.resource_id}`, doc);
+      if (Array.isArray(content.connected_tools)) {
+        for (const tool of content.connected_tools) {
+          if (tool.type === "tools") {
+            allFunctionIds.add(tool.id);
+          } else if (tool.type === "pre_tool" && tool.pre_tool_type === "custom_function" && tool.variable_path?.function_id) {
+            allFunctionIds.add(tool.variable_path.function_id);
+          } else if (tool.type === "docs" && tool.id) {
+            // Assuming docs have collection_id:resource_id format in id
+            allDocPairs.set(tool.id, tool);
           }
         }
       }
@@ -311,32 +312,22 @@ const createAgentFromTemplateController = async (req, res, next) => {
     }
 
     // --- Helpers that use maps instead of cloning each time ---
-    const resolvePreTools = (pre_tools) => {
-      if (!Array.isArray(pre_tools) || pre_tools.length === 0) return null;
-      return pre_tools.map((tool) => {
-        const clonedTool = { ...tool, config: { ...(tool.config || {}) } };
-        if (tool.type === "custom_function" && tool.config?.function_id) {
-          const newFid = functionIdMap.get(tool.config.function_id);
-          if (newFid) clonedTool.config.function_id = newFid;
+    const resolveConnectedTools = (connected_tools) => {
+      if (!Array.isArray(connected_tools) || connected_tools.length === 0) return null;
+      return connected_tools.map((tool) => {
+        const clonedTool = { ...tool };
+        if (tool.type === "tools") {
+          const newFid = functionIdMap.get(tool.id);
+          if (newFid) clonedTool.id = newFid;
+        } else if (tool.type === "pre_tool" && tool.variable_path?.function_id) {
+          const newFid = functionIdMap.get(tool.variable_path.function_id);
+          if (newFid) clonedTool.variable_path.function_id = newFid;
+        } else if (tool.type === "docs") {
+          const newDoc = docIdMap.get(tool.id);
+          if (newDoc) clonedTool.id = newDoc.resource_id; // Update with new resource_id
         }
         return clonedTool;
       });
-    };
-
-    const resolveDocIds = (doc_ids) => {
-      if (!Array.isArray(doc_ids) || doc_ids.length === 0) return null;
-      const resolved = doc_ids.map((doc) => docIdMap.get(`${doc.collection_id}:${doc.resource_id}`)).filter(Boolean);
-      return resolved.length > 0 ? resolved : null;
-    };
-
-    const resolveFunctionIds = (function_ids) => {
-      const ids = normalizeFunctionIds(function_ids);
-      if (ids.length === 0) return null;
-      const resolved = ids
-        .map((id) => functionIdMap.get(id))
-        .filter(Boolean)
-        .map((fid) => new ObjectId(fid));
-      return resolved.length > 0 ? resolved : null;
     };
 
     const pickDefined = (obj, keys) => Object.fromEntries(keys.filter((k) => obj[k] !== undefined).map((k) => [k, obj[k]]));
@@ -391,12 +382,8 @@ const createAgentFromTemplateController = async (req, res, next) => {
 
     // Apply to root agent — batch all updates into single DB calls
     const parent_updates = {};
-    const parent_function_ids_resolved = resolveFunctionIds(template_content?.function_ids);
-    if (parent_function_ids_resolved) parent_updates.function_ids = parent_function_ids_resolved;
-    const parent_pre_tools = resolvePreTools(template_content?.pre_tools);
-    if (parent_pre_tools) parent_updates.pre_tools = parent_pre_tools;
-    const parent_doc_ids = resolveDocIds(template_content?.doc_ids);
-    if (parent_doc_ids) parent_updates.doc_ids = parent_doc_ids;
+    const parent_connected_tools = resolveConnectedTools(template_content?.connected_tools);
+    if (parent_connected_tools) parent_updates.connected_tools = parent_connected_tools;
     const parent_api_calls = resolveApiCalls(template_content?.apiCalls);
     if (parent_api_calls) parent_updates.apiCalls = parent_api_calls;
     const parent_tool_choice = resolveToolChoice(model_data.tool_choice);
@@ -420,7 +407,7 @@ const createAgentFromTemplateController = async (req, res, next) => {
       isEmbedUser = false
     ) => {
       if (!child_agents_map || Object.keys(child_agents_map).length === 0) return;
-      const connected_agents = {};
+      const connected_tools = [];
 
       for (const [agent_id, child_agent] of Object.entries(child_agents_map)) {
         const templateBridgeId = child_agent?.bridge_id?.toString() ?? child_agent?.bridge_id;
@@ -429,7 +416,11 @@ const createAgentFromTemplateController = async (req, res, next) => {
         if (ancestorIds.has(cycleKey)) {
           const existingBridgeId = createdAgentsMap.get(cycleKey);
           if (existingBridgeId) {
-            connected_agents[existingBridgeId] = { bridge_id: existingBridgeId, ...pickDefined(child_agent, ["thread_id", "version_id"]) };
+            connected_tools.push({
+              type: "agent",
+              id: existingBridgeId,
+              ...pickDefined(child_agent, ["thread_id", "version_id"])
+            });
           }
           continue;
         }
@@ -437,7 +428,11 @@ const createAgentFromTemplateController = async (req, res, next) => {
         // Same agent referenced by multiple parents — reuse already-created bridge
         if (createdAgentsMap.has(cycleKey)) {
           const reusedId = createdAgentsMap.get(cycleKey);
-          connected_agents[reusedId] = { bridge_id: reusedId, ...pickDefined(child_agent, ["thread_id", "version_id"]) };
+          connected_tools.push({
+            type: "agent",
+            id: reusedId,
+            ...pickDefined(child_agent, ["thread_id", "version_id"])
+          });
           continue;
         }
 
@@ -484,18 +479,14 @@ const createAgentFromTemplateController = async (req, res, next) => {
 
         // Batch all child agent updates into single DB calls
         const child_updates = {};
-        const child_function_ids_resolved = resolveFunctionIds(child_details.function_ids);
-        if (child_function_ids_resolved) child_updates.function_ids = child_function_ids_resolved;
-        const child_pre_tools = resolvePreTools(child_details.pre_tools);
-        if (child_pre_tools) child_updates.pre_tools = child_pre_tools;
+        const child_connected_tools = resolveConnectedTools(child_details.connected_tools);
+        if (child_connected_tools) child_updates.connected_tools = child_connected_tools;
         if (child_details.agent_info && Object.keys(child_details.agent_info).length > 0) {
           child_updates.agent_info = {
             ...child_updates.agent_info,
             ...child_details.agent_info
           };
         }
-        const child_doc_ids = resolveDocIds(child_details.doc_ids);
-        if (child_doc_ids) child_updates.doc_ids = child_doc_ids;
         const child_api_calls = resolveApiCalls(child_details.apiCalls);
         if (child_api_calls) child_updates.apiCalls = child_api_calls;
         const child_tool_choice = resolveToolChoice(child_model_data.tool_choice);
@@ -517,15 +508,16 @@ const createAgentFromTemplateController = async (req, res, next) => {
         }
 
         const newChildBridgeId = child_result.bridge._id.toString();
-        connected_agents[newChildBridgeId] = {
-          bridge_id: newChildBridgeId,
+        connected_tools.push({
+          type: "agent",
+          id: newChildBridgeId,
           ...pickDefined(child_agent, ["thread_id", "version_id"])
-        };
+        });
       }
 
-      if (Object.keys(connected_agents).length > 0) {
-        await ConfigurationServices.updateAgent(parent_bridge_id, { connected_agents });
-        await ConfigurationServices.updateAgent(null, { connected_agents }, parent_version_id);
+      if (connected_tools.length > 0) {
+        await ConfigurationServices.updateAgent(parent_bridge_id, { connected_tools });
+        await ConfigurationServices.updateAgent(null, { connected_tools }, parent_version_id);
       }
     };
 

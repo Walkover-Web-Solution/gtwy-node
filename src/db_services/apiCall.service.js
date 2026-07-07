@@ -68,24 +68,46 @@ async function deleteFunctionFromApicallsDb(org_id, script_id) {
     configurationModel.collection.updateMany(
       {
         org_id: org_id,
-        $or: [{ function_ids: function_id_str }, { "pre_tools.config.function_id": function_id_str }]
+        connected_tools: {
+          $elemMatch: {
+            $or: [
+              { type: "tools", id: function_id_str },
+              { type: "pre_tool", pre_tool_type: "custom_function", "variable_path.function_id": function_id_str }
+            ]
+          }
+        }
       },
       {
         $pull: {
-          function_ids: function_id_str,
-          pre_tools: { "config.function_id": function_id_str }
+          connected_tools: {
+            $or: [
+              { type: "tools", id: function_id_str },
+              { type: "pre_tool", pre_tool_type: "custom_function", "variable_path.function_id": function_id_str }
+            ]
+          }
         }
       }
     ),
     versionModel.collection.updateMany(
       {
         org_id: org_id,
-        $or: [{ function_ids: function_id_str }, { "pre_tools.config.function_id": function_id_str }]
+        connected_tools: {
+          $elemMatch: {
+            $or: [
+              { type: "tools", id: function_id_str },
+              { type: "pre_tool", pre_tool_type: "custom_function", "variable_path.function_id": function_id_str }
+            ]
+          }
+        }
       },
       {
         $pull: {
-          function_ids: function_id_str,
-          pre_tools: { "config.function_id": function_id_str }
+          connected_tools: {
+            $or: [
+              { type: "tools", id: function_id_str },
+              { type: "pre_tool", pre_tool_type: "custom_function", "variable_path.function_id": function_id_str }
+            ]
+          }
         }
       }
     ),
@@ -181,28 +203,30 @@ async function saveApi(desc, org_id, folder_id, user_id, api_data, bridge_ids = 
 async function getAgentsAndVersionsByFunctionIds(org_id) {
   try {
     const configurations = await configurationModel
-      .find({ org_id: org_id, function_ids: { $exists: true, $ne: [] } })
-      .select({ _id: 1, function_ids: 1, name: 1 })
+      .find({ org_id: org_id, connected_tools: { $exists: true, $ne: [] } })
+      .select({ _id: 1, connected_tools: 1, name: 1 })
       .lean();
 
     const versions = await versionModel
-      .find({ org_id: org_id, function_ids: { $exists: true, $ne: [] } })
-      .select({ _id: 1, function_ids: 1, parent_id: 1, name: 1 })
+      .find({ org_id: org_id, connected_tools: { $exists: true, $ne: [] } })
+      .select({ _id: 1, connected_tools: 1, parent_id: 1, name: 1 })
       .lean();
 
     const result = {};
 
     for (const config of configurations) {
       const agent_id = config._id.toString();
-      for (const functionId of config.function_ids || []) {
-        const key = functionId && functionId.toString ? functionId.toString() : String(functionId);
+      for (const tool of config.connected_tools || []) {
+        if (tool.type === "tools") {
+          const key = tool.id && tool.id.toString ? tool.id.toString() : String(tool.id);
 
-        if (!result[key]) {
-          result[key] = {};
-        }
+          if (!result[key]) {
+            result[key] = {};
+          }
 
-        if (!result[key][agent_id]) {
-          result[key][agent_id] = [];
+          if (!result[key][agent_id]) {
+            result[key][agent_id] = [];
+          }
         }
       }
     }
@@ -211,19 +235,21 @@ async function getAgentsAndVersionsByFunctionIds(org_id) {
       const version_id = version._id.toString();
       const parent_id = version.parent_id ? version.parent_id.toString() : null;
 
-      for (const functionId of version.function_ids || []) {
-        const key = functionId && functionId.toString ? functionId.toString() : String(functionId);
+      for (const tool of version.connected_tools || []) {
+        if (tool.type === "tools") {
+          const key = tool.id && tool.id.toString ? tool.id.toString() : String(tool.id);
 
-        if (!result[key]) {
-          result[key] = {};
-        }
-
-        if (parent_id) {
-          if (!result[key][parent_id]) {
-            result[key][parent_id] = [];
+          if (!result[key]) {
+            result[key] = {};
           }
-          if (!result[key][parent_id].includes(version_id)) {
-            result[key][parent_id].push(version_id);
+
+          if (parent_id) {
+            if (!result[key][parent_id]) {
+              result[key][parent_id] = [];
+            }
+            if (!result[key][parent_id].includes(version_id)) {
+              result[key][parent_id].push(version_id);
+            }
           }
         }
       }

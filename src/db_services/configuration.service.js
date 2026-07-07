@@ -82,131 +82,125 @@ const cloneAgentToOrg = async (agent_id, to_shift_org_id, cloned_agents_map = nu
 
     await configurationModel.updateOne({ _id: new_agent_id }, { $set: update_data });
 
-    // Step 6: Clone related API calls (functions) using external API
-    const cloned_function_ids = [];
-    if (original_config.function_ids && original_config.function_ids.length > 0) {
-      for (const function_id of original_config.function_ids) {
-        const original_api_call = await apiCallModel.findOne({ _id: new ObjectId(function_id) }).lean();
-        if (original_api_call && original_api_call.script_id) {
-          try {
-            const payload = {
-              org_id: process.env.ORG_ID,
-              project_id: process.env.PROJECT_ID,
-              user_id: to_shift_org_id
-            };
-            const auth_token = jwt.sign(payload, process.env.ACCESS_KEY, { algorithm: "HS256" });
+    // Step 6: Clone related API calls (functions) using external API - convert from connected_tools
+    const cloned_connected_tools = [];
+    if (original_config.connected_tools && original_config.connected_tools.length > 0) {
+      for (const tool of original_config.connected_tools) {
+        if (tool.type === "tools") {
+          const original_api_call = await apiCallModel.findOne({ _id: new ObjectId(tool.id) }).lean();
+          if (original_api_call && original_api_call.script_id) {
+            try {
+              const payload = {
+                org_id: process.env.ORG_ID,
+                project_id: process.env.PROJECT_ID,
+                user_id: to_shift_org_id
+              };
+              const auth_token = jwt.sign(payload, process.env.ACCESS_KEY, { algorithm: "HS256" });
 
-            const duplicate_url = `https://flow-api.viasocket.com/embed/duplicateflow/${original_api_call.script_id}`;
-            const headers = {
-              Authorization: auth_token,
-              "Content-Type": "application/json"
-            };
-            const json_body = {
-              title: "",
-              meta: ""
-            };
+              const duplicate_url = `https://flow-api.viasocket.com/embed/duplicateflow/${original_api_call.script_id}`;
+              const headers = {
+                Authorization: auth_token,
+                "Content-Type": "application/json"
+              };
+              const json_body = {
+                title: "",
+                meta: ""
+              };
 
-            const response = await axios.post(duplicate_url, json_body, { headers });
-            const duplicate_data = response.data;
+              const response = await axios.post(duplicate_url, json_body, { headers });
+              const duplicate_data = response.data;
 
-            if (duplicate_data.success && duplicate_data.data) {
+              if (duplicate_data.success && duplicate_data.data) {
+                const new_api_call = { ...original_api_call };
+                delete new_api_call._id;
+                new_api_call.org_id = to_shift_org_id;
+                new_api_call.script_id = duplicate_data.data.id;
+                new_api_call.bridge_ids = [new_agent_id.toString()];
+                new_api_call.updated_at = new Date();
+
+                const new_api_call_result = await new apiCallModel(new_api_call).save();
+                cloned_connected_tools.push({ ...tool, id: new_api_call_result._id.toString() });
+              } else {
+                console.error(`Failed to duplicate function ${original_api_call.script_id}:`, duplicate_data);
+              }
+            } catch (e) {
+              console.error(`Error duplicating function ${original_api_call.script_id || tool.id}:`, e);
+              // Fallback
               const new_api_call = { ...original_api_call };
               delete new_api_call._id;
               new_api_call.org_id = to_shift_org_id;
-              new_api_call.script_id = duplicate_data.data.id;
               new_api_call.bridge_ids = [new_agent_id.toString()];
               new_api_call.updated_at = new Date();
 
               const new_api_call_result = await new apiCallModel(new_api_call).save();
-              cloned_function_ids.push(new_api_call_result._id.toString());
-            } else {
-              console.error(`Failed to duplicate function ${original_api_call.script_id}:`, duplicate_data);
+              cloned_connected_tools.push({ ...tool, id: new_api_call_result._id.toString() });
             }
-          } catch (e) {
-            console.error(`Error duplicating function ${original_api_call.script_id || function_id}:`, e);
-            // Fallback
-            const new_api_call = { ...original_api_call };
-            delete new_api_call._id;
-            new_api_call.org_id = to_shift_org_id;
-            new_api_call.bridge_ids = [new_agent_id.toString()];
-            new_api_call.updated_at = new Date();
-
-            const new_api_call_result = await new apiCallModel(new_api_call).save();
-            cloned_function_ids.push(new_api_call_result._id.toString());
           }
+        } else {
+          // For other tool types (agent, docs, pre_tool), just copy the reference
+          cloned_connected_tools.push(tool);
         }
       }
     }
 
-    // Step 7: Update configuration and versions with cloned function IDs
-    if (cloned_function_ids.length > 0) {
-      await configurationModel.updateOne({ _id: new_agent_id }, { $set: { function_ids: cloned_function_ids } });
+    // Step 7: Update configuration and versions with cloned connected_tools
+    if (cloned_connected_tools.length > 0) {
+      await configurationModel.updateOne({ _id: new_agent_id }, { $set: { connected_tools: cloned_connected_tools } });
 
       for (const version_id of cloned_version_ids) {
-        await versionModel.updateOne({ _id: new ObjectId(version_id) }, { $set: { function_ids: cloned_function_ids } });
+        await versionModel.updateOne({ _id: new ObjectId(version_id) }, { $set: { connected_tools: cloned_connected_tools } });
       }
     }
 
-    // Step 8: Handle connected agents recursively
-    const cloned_connected_agents = {};
+    // Step 8: Handle connected agents recursively - now part of connected_tools
     const connected_agents_info = [];
 
-    if (original_config.connected_agents) {
-      for (const [, agent_info] of Object.entries(original_config.connected_agents)) {
-        const connected_agent_id = agent_info.bridge_id;
-        if (connected_agent_id) {
-          try {
-            const connected_result = await cloneAgentToOrg(connected_agent_id, to_shift_org_id, cloned_agents_map, depth + 1);
+    if (original_config.connected_tools) {
+      for (const tool of original_config.connected_tools) {
+        if (tool.type === "agent") {
+          const connected_agent_id = tool.id;
+          if (connected_agent_id) {
+            try {
+              const connected_result = await cloneAgentToOrg(connected_agent_id, to_shift_org_id, cloned_agents_map, depth + 1);
 
-            if (connected_result) {
-              cloned_connected_agents[connected_result.new_bridge_id] = {
-                bridge_id: connected_result.new_bridge_id,
-                ...(agent_info.thread_id !== undefined && { thread_id: agent_info.thread_id })
-              };
-              connected_agents_info.push({
-                original_bridge_id: connected_agent_id,
-                new_bridge_id: connected_result.new_bridge_id
-              });
+              if (connected_result) {
+                connected_agents_info.push({
+                  original_bridge_id: connected_agent_id,
+                  new_bridge_id: connected_result.new_bridge_id
+                });
+                // Update the tool id in cloned_connected_tools
+                const toolIndex = cloned_connected_tools.findIndex((t) => t.id === connected_agent_id);
+                if (toolIndex !== -1) {
+                  cloned_connected_tools[toolIndex].id = connected_result.new_bridge_id;
+                }
+              }
+            } catch (e) {
+              console.error(`Error cloning connected agent (agent_id: ${connected_agent_id}):`, e);
             }
-          } catch (e) {
-            console.error(`Error cloning connected agent (agent_id: ${connected_agent_id}):`, e);
           }
         }
       }
     }
 
-    // Check for connected_agents in versions and update them too
-    for (const version_id of cloned_version_ids) {
-      const original_version = await versionModel.findOne({ _id: new ObjectId(version_id) }).lean();
-      if (original_version && original_version.connected_agents) {
-        const version_connected_agents = {};
-        for (const [, v_agent_info] of Object.entries(original_version.connected_agents)) {
-          const old_id = v_agent_info.bridge_id;
-          const matched = connected_agents_info.find((c) => c.original_bridge_id === old_id);
-          if (matched) {
-            version_connected_agents[matched.new_bridge_id] = {
-              bridge_id: matched.new_bridge_id,
-              ...(v_agent_info.thread_id !== undefined && { thread_id: v_agent_info.thread_id })
-            };
-          }
-        }
-
-        if (Object.keys(version_connected_agents).length > 0) {
-          await versionModel.updateOne({ _id: new ObjectId(version_id) }, { $set: { connected_agents: version_connected_agents } });
-        }
+    // Update connected_tools with new agent IDs
+    if (cloned_connected_tools.length > 0) {
+      await configurationModel.updateOne({ _id: new_agent_id }, { $set: { connected_tools: cloned_connected_tools } });
+      for (const version_id of cloned_version_ids) {
+        await versionModel.updateOne({ _id: new ObjectId(version_id) }, { $set: { connected_tools: cloned_connected_tools } });
       }
-    }
-
-    if (Object.keys(cloned_connected_agents).length > 0) {
-      await configurationModel.updateOne({ _id: new_agent_id }, { $set: { connected_agents: cloned_connected_agents } });
     }
 
     // Step 9: Get the final cloned configuration
     const cloned_config = await configurationModel.findOne({ _id: new_agent_id }).lean();
     cloned_config._id = cloned_config._id.toString();
 
-    if (cloned_config.function_ids) {
-      cloned_config.function_ids = cloned_config.function_ids.map((fid) => fid.toString());
+    if (cloned_config.connected_tools) {
+      cloned_config.connected_tools = cloned_config.connected_tools.map((tool) => {
+        if (tool.type === "tools" && tool.id) {
+          tool.id = tool.id.toString();
+        }
+        return tool;
+      });
     }
 
     return {
@@ -216,7 +210,7 @@ const cloneAgentToOrg = async (agent_id, to_shift_org_id, cloned_agents_map = nu
       original_bridge_id: agent_id,
       new_bridge_id: new_agent_id.toString(),
       cloned_versions: cloned_version_ids,
-      cloned_functions: cloned_function_ids,
+      cloned_tools: cloned_connected_tools,
       connected_agents: connected_agents_info,
       recursion_depth: depth
     };
@@ -998,18 +992,9 @@ const getAgentsWithoutTools = async (agent_id, org_id, version_id = null) => {
 };
 
 const updateBuiltInTools = async (version_id, tool, add = 1) => {
-  const to_update = { $set: { status: 1 } };
-  if (add === 1) {
-    to_update.$addToSet = { built_in_tools: tool };
-  } else {
-    to_update.$pull = { built_in_tools: tool };
-  }
-
-  const data = await versionModel.findOneAndUpdate({ _id: new ObjectId(version_id) }, to_update, {
-    new: true,
-    upsert: true
-  });
-
+  // This function is deprecated - built_in_tools are now part of connected_tools
+  // Kept for backward compatibility, but should use connected_tools instead
+  const data = await versionModel.findOne({ _id: new ObjectId(version_id) });
   if (!data) {
     return {
       success: false,
@@ -1017,49 +1002,74 @@ const updateBuiltInTools = async (version_id, tool, add = 1) => {
     };
   }
 
-  if (!data.built_in_tools) {
-    data.built_in_tools = [];
+  const connected_tools = data.connected_tools || [];
+  const toolIndex = connected_tools.findIndex((t) => t.type === "tools" && t.id === tool);
+
+  if (add === 1) {
+    if (toolIndex === -1) {
+      connected_tools.push({ type: "tools", id: tool, variable_path: {} });
+    }
+  } else {
+    if (toolIndex !== -1) {
+      connected_tools.splice(toolIndex, 1);
+    }
   }
 
-  return data;
+  const updated = await versionModel.findOneAndUpdate({ _id: new ObjectId(version_id) }, { $set: { connected_tools } }, { new: true });
+
+  return updated;
 };
 
 const updateAgents = async (version_id, agents, add = 1) => {
-  let to_update;
-  if (add === 1) {
-    // Add or update the connected agents keyed by bridge_id, agent name stored inside
-    const setFields = {};
-    for (const [, agent_info] of Object.entries(agents)) {
-      const key = agent_info.bridge_id?.toString() ?? agent_info.bridge_id;
-      if (!key) continue;
-      if (agent_info.thread_id === undefined) agent_info.thread_id = true;
-      setFields[`connected_agents.${key}`] = { ...agent_info };
-    }
-    to_update = { $set: setFields };
-  } else {
-    // Remove the specified connected agents by bridge_id
-    const unsetFields = {};
-    for (const [, agent_info] of Object.entries(agents)) {
-      const key = agent_info.bridge_id?.toString() ?? agent_info.bridge_id;
-      if (key) unsetFields[`connected_agents.${key}`] = "";
-    }
-    to_update = { $unset: unsetFields };
-  }
-
-  const data = await versionModel.findOneAndUpdate({ _id: new ObjectId(version_id) }, to_update, {
-    new: true,
-    upsert: true
-  });
-
+  // This function is deprecated - connected_agents are now part of connected_tools
+  // Kept for backward compatibility, but should use connected_tools instead
+  const data = await versionModel.findOne({ _id: new ObjectId(version_id) });
   if (!data) {
     throw new Error("No records updated or version not found");
   }
 
-  if (!data.connected_agents) {
-    data.connected_agents = {};
+  const connected_tools = data.connected_tools || [];
+
+  if (add === 1) {
+    // Add or update connected agents as tools
+    for (const [, agent_info] of Object.entries(agents)) {
+      const key = agent_info.bridge_id?.toString() ?? agent_info.bridge_id;
+      if (!key) continue;
+      if (agent_info.thread_id === undefined) agent_info.thread_id = true;
+
+      const existingIndex = connected_tools.findIndex((t) => t.type === "agent" && t.id === key);
+      if (existingIndex !== -1) {
+        connected_tools[existingIndex] = {
+          type: "agent",
+          id: key,
+          variable_path: agent_info.variable_path || {},
+          ...(agent_info.thread_id !== undefined && { thread_id: agent_info.thread_id }),
+          ...(agent_info.version_id !== undefined && { version_id: agent_info.version_id })
+        };
+      } else {
+        connected_tools.push({
+          type: "agent",
+          id: key,
+          variable_path: agent_info.variable_path || {},
+          ...(agent_info.thread_id !== undefined && { thread_id: agent_info.thread_id }),
+          ...(agent_info.version_id !== undefined && { version_id: agent_info.version_id })
+        });
+      }
+    }
+  } else {
+    // Remove specified connected agents
+    for (const [, agent_info] of Object.entries(agents)) {
+      const key = agent_info.bridge_id?.toString() ?? agent_info.bridge_id;
+      const index = connected_tools.findIndex((t) => t.type === "agent" && t.id === key);
+      if (index !== -1) {
+        connected_tools.splice(index, 1);
+      }
+    }
   }
 
-  return data;
+  const updated = await versionModel.findOneAndUpdate({ _id: new ObjectId(version_id) }, { $set: { connected_tools } }, { new: true });
+
+  return updated;
 };
 
 const getApikeyCreds = async (org_id, apikey_object_ids) => {
