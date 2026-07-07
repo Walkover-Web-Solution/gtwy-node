@@ -3,6 +3,25 @@ import joiObjectId from "joi-objectid";
 
 Joi.objectId = joiObjectId(Joi);
 
+const connectedToolItemSchema = Joi.object({
+  type: Joi.string().valid("tools", "agent", "docs", "pre_tool", "built_in_tools").required(),
+  id: Joi.string().when("type", { is: Joi.valid("built_in_tools", "pre_tool"), then: Joi.optional(), otherwise: Joi.required() }),
+  built_in_tools: Joi.array().items(Joi.string()).when("type", { is: "built_in_tools", then: Joi.required(), otherwise: Joi.optional() }),
+  gtwy_web_search_filters: Joi.array().items(Joi.string()).optional(),
+  web_search_filters: Joi.array().items(Joi.string()).optional(),
+  variable_path: Joi.object().optional(),
+  pre_tool_type: Joi.string()
+    .valid("custom_function", "query_refiner", "gtwy_web_search", "rag_knowledgebase")
+    .when("type", { is: "pre_tool", then: Joi.required(), otherwise: Joi.optional() }),
+  prompt: Joi.string().allow("").optional(),
+  formats: Joi.array().items(Joi.string()).optional(),
+  url: Joi.string().optional(),
+  thread_id: Joi.boolean().optional(),
+  version_id: Joi.string().optional(),
+  collection_id: Joi.string().optional(),
+  resource_id: Joi.string().optional()
+}).unknown(true);
+
 const createBridgeSchema = Joi.object({
   purpose: Joi.string().optional(),
   templateId: Joi.string()
@@ -51,27 +70,12 @@ const updateBridgeSchema = Joi.object({
     publicAgentConfig: Joi.object().optional(),
     environment_config: Joi.object().optional()
   }).optional(),
-  web_search_filters: Joi.alternatives().try(Joi.array().items(Joi.string()), Joi.object()).optional(),
-  gtwy_web_search_filters: Joi.alternatives().try(Joi.array().items(Joi.string()), Joi.object()).optional(),
   bridge_limit_start_date: Joi.date().optional(),
-  variables_path: Joi.object().optional(),
-  built_in_tools_data: Joi.object({
-    built_in_tools: Joi.string().optional(),
-    built_in_tools_operation: Joi.string().valid("0", "1").optional()
-  }).optional(),
-  agents: Joi.object({
-    connected_agents: Joi.object()
-      .pattern(
-        Joi.string(),
-        Joi.object({
-          bridge_id: Joi.string()
-            .pattern(/^[0-9a-fA-F]{24}$/)
-            .optional()
-        })
-      )
-      .optional(),
-    agent_status: Joi.string().valid("0", "1").optional()
-  }).optional(),
+  connected_tools: Joi.array().items(connectedToolItemSchema).optional(),
+  connected_tool: connectedToolItemSchema.optional(),
+  operation: Joi.alternatives()
+    .try(Joi.string().valid("add", "update", "remove"), Joi.number().valid(0, 1, 2))
+    .optional(),
   functionData: Joi.object({
     function_id: Joi.string()
       .pattern(/^[0-9a-fA-F]{24}$/)

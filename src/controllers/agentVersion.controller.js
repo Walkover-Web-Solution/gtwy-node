@@ -4,7 +4,6 @@ import folderDbService from "../db_services/folder.service.js";
 import conversationDbService from "../db_services/conversation.service.js";
 import { modelConfigDocument } from "../services/utils/loadModelConfigs.js";
 import { selectBestModel } from "../services/utils/notDiamond.utils.js";
-import { ObjectId } from "mongodb";
 import { getDefaultValuesController } from "../services/utils/getDefaultValue.js";
 import { purgeAgentCache } from "../services/utils/redis.utils.js";
 import { validateJsonSchemaConfiguration } from "../services/utils/common.utils.js";
@@ -72,8 +71,6 @@ const updateVersionController = async (req, res, next) => {
     const version = versionData.bridges;
     const parent_id = version.parent_id;
     const current_configuration = version.configuration || {};
-    let current_variables_path = version.variables_path || {};
-    let function_ids = version.function_ids || [];
 
     const update_fields = {};
     const user_history = [];
@@ -122,14 +119,10 @@ const updateVersionController = async (req, res, next) => {
       "user_reference",
       "gpt_memory",
       "gpt_memory_context",
-      "doc_ids",
       "IsstarterQuestionEnable",
       "starterQuestion",
       "auto_model_select",
       "cache_on",
-      "pre_tools",
-      "web_search_filters",
-      "gtwy_web_search_filters",
       "connected_agent_flow",
       "variables_state"
     ];
@@ -174,68 +167,23 @@ const updateVersionController = async (req, res, next) => {
       update_fields.configuration = { ...current_configuration, ...new_configuration };
     }
 
-    if (body.variables_path) {
-      const updated_variables_path = { ...current_variables_path, ...body.variables_path };
-      for (const key in updated_variables_path) {
-        if (Array.isArray(updated_variables_path[key])) {
-          updated_variables_path[key] = {};
-        }
+    if (body.connected_tool) {
+      const { operation } = body;
+      const tool = body.connected_tool;
+      const current = version.connected_tools || [];
+
+      // Handle both string and numeric operations
+      const op = operation === 1 ? "add" : operation === 0 ? "remove" : operation === 2 ? "update" : operation;
+
+      if (op === "add") {
+        update_fields.connected_tools = [...current, tool];
+      } else if (op === "update") {
+        update_fields.connected_tools = current.map((t) => (t.id === tool.id && t.type === tool.type ? { ...t, ...tool } : t));
+      } else if (op === "remove") {
+        update_fields.connected_tools = current.filter((t) => !(t.id === tool.id && t.type === tool.type));
       }
-      update_fields.variables_path = updated_variables_path;
-      current_variables_path = updated_variables_path;
-    }
-
-    if (body.built_in_tools_data) {
-      const { built_in_tools, built_in_tools_operation } = body.built_in_tools_data;
-      if (built_in_tools) {
-        const op = built_in_tools_operation === "1" ? 1 : 0;
-        await ConfigurationServices.updateBuiltInTools(version_id, built_in_tools, op);
-      }
-    }
-
-    if (body.agents) {
-      const { connected_agents, agent_status } = body.agents;
-      if (connected_agents) {
-        const op = agent_status === "1" ? 1 : 0;
-        if (op === 0) {
-          for (const agent_info of Object.values(connected_agents)) {
-            const key = agent_info.bridge_id?.toString() ?? agent_info.bridge_id;
-            if (key && current_variables_path[key]) {
-              delete current_variables_path[key];
-              update_fields.variables_path = current_variables_path;
-            }
-          }
-        }
-        await ConfigurationServices.updateAgents(version_id, connected_agents, op);
-      }
-    }
-
-    if (Array.isArray(body.function_ids)) {
-      update_fields.function_ids = body.function_ids.filter((id) => ObjectId.isValid(id)).map((id) => id.toString());
-      function_ids = [...body.function_ids];
-    }
-
-    if (body.functionData) {
-      const { function_id, function_operation, script_id } = body.functionData;
-      if (function_id) {
-        const op = function_operation === "1" ? 1 : 0;
-
-        if (op === 1) {
-          if (!function_ids.includes(function_id)) {
-            function_ids.push(function_id);
-            update_fields.function_ids = function_ids.map((fid) => fid.toString());
-          }
-        } else {
-          if (script_id && current_variables_path[script_id]) {
-            delete current_variables_path[script_id];
-            update_fields.variables_path = current_variables_path;
-          }
-          if (function_ids.includes(function_id)) {
-            function_ids = function_ids.filter((fid) => fid.toString() !== function_id);
-            update_fields.function_ids = function_ids.map((fid) => fid.toString());
-          }
-        }
-      }
+    } else if (body.connected_tools !== undefined) {
+      update_fields.connected_tools = body.connected_tools;
     }
 
     if (body.version_description === undefined) {

@@ -1,5 +1,24 @@
 import Joi from "joi";
 
+const connectedToolItemSchema = Joi.object({
+  type: Joi.string().valid("tools", "agent", "docs", "pre_tool", "built_in_tools").required(),
+  id: Joi.string().when("type", { is: Joi.valid("built_in_tools", "pre_tool"), then: Joi.optional(), otherwise: Joi.required() }),
+  built_in_tools: Joi.array().items(Joi.string()).when("type", { is: "built_in_tools", then: Joi.required(), otherwise: Joi.optional() }),
+  gtwy_web_search_filters: Joi.array().items(Joi.string()).optional(),
+  web_search_filters: Joi.array().items(Joi.string()).optional(),
+  variable_path: Joi.object().optional(),
+  pre_tool_type: Joi.string()
+    .valid("custom", "custom_function", "query_refiner", "gtwy_web_search", "rag_knowledgebase")
+    .when("type", { is: "pre_tool", then: Joi.required(), otherwise: Joi.optional() }),
+  prompt: Joi.string().allow("").optional(),
+  formats: Joi.array().items(Joi.string()).optional(),
+  url: Joi.string().optional(),
+  thread_id: Joi.boolean().optional(),
+  version_id: Joi.string().optional(),
+  collection_id: Joi.string().optional(),
+  resource_id: Joi.string().optional()
+}).unknown(true);
+
 const updateVersionSchema = Joi.object({
   configuration: Joi.object({
     model: Joi.string().optional(),
@@ -62,14 +81,10 @@ const updateVersionSchema = Joi.object({
   user_reference: Joi.string().optional(),
   gpt_memory: Joi.boolean().optional(),
   gpt_memory_context: Joi.string().allow("").optional(),
-  doc_ids: Joi.array().items(Joi.object()).optional(),
   IsstarterQuestionEnable: Joi.boolean().optional(),
   starterQuestion: Joi.array().items(Joi.string()).optional(),
   auto_model_select: Joi.object().allow(null).optional(),
   cache_on: Joi.boolean().optional(),
-  pre_tools: Joi.array().optional(),
-  web_search_filters: Joi.alternatives().try(Joi.array().items(Joi.string()), Joi.object()).optional(),
-  gtwy_web_search_filters: Joi.alternatives().try(Joi.array().items(Joi.string()), Joi.object()).optional(),
   connected_agent_flow: Joi.object().optional(),
   settings: Joi.object({
     review_agent: Joi.object({
@@ -93,30 +108,12 @@ const updateVersionSchema = Joi.object({
     }).optional(),
     guardrails: Joi.object().optional()
   }).optional(),
-  variables_path: Joi.object().optional(),
   variables_state: Joi.object().optional(),
-  built_in_tools_data: Joi.object({
-    built_in_tools: Joi.string().optional(),
-    built_in_tools_operation: Joi.string().valid("0", "1").optional()
-  }).optional(),
-  agents: Joi.object({
-    connected_agents: Joi.object()
-      .pattern(
-        Joi.string(),
-        Joi.object({
-          bridge_id: Joi.string()
-            .pattern(/^[0-9a-fA-F]{24}$/)
-            .optional(),
-          thread_id: Joi.boolean().optional(),
-          version_id: Joi.string()
-            .pattern(/^[0-9a-fA-F]{24}$/)
-            .optional(),
-          environment: Joi.string().optional()
-        })
-      )
-      .optional(),
-    agent_status: Joi.string().valid("0", "1").optional()
-  }).optional(),
+  connected_tools: Joi.array().items(connectedToolItemSchema).optional(),
+  connected_tool: connectedToolItemSchema.optional(),
+  operation: Joi.alternatives()
+    .try(Joi.string().valid("add", "update", "remove"), Joi.number().valid(0, 1, 2))
+    .optional(),
   agent_info: Joi.object({
     prompt_total_tokens: Joi.number().min(0).optional(),
     description: Joi.string().allow("").optional(),
@@ -127,9 +124,6 @@ const updateVersionSchema = Joi.object({
     thread_id: Joi.boolean().optional(),
     variables_state: Joi.object().optional()
   }).optional(),
-  function_ids: Joi.array()
-    .items(Joi.string().pattern(/^[0-9a-fA-F]{24}$/))
-    .optional(),
   functionData: Joi.object({
     function_id: Joi.string()
       .pattern(/^[0-9a-fA-F]{24}$/)
