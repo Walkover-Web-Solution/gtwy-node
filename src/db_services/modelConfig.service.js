@@ -1,5 +1,7 @@
 import ModelsConfigModel from "../mongoModel/ModelConfig.model.js";
 import { flatten } from "flat";
+import ApiError from "../utils/ApiError.js";
+import { StatusCodes } from "http-status-codes";
 import ConfigurationServices from "./configuration.service.js";
 import configurationModel from "../mongoModel/Configuration.model.js";
 import versionModel from "../mongoModel/BridgeVersion.model.js";
@@ -38,9 +40,18 @@ async function saveModelConfig(modelConfigData) {
   return { id: result._id.toString(), ...modelConfigData };
 }
 
-async function setModelStatusAdmin(model_name, service, status, org_id) {
+async function setModelStatusAdmin(model_name, service, status, update_to) {
   const query = { model_name, service };
-  if (org_id) query.org_id = org_id;
+
+  if (status === 0 && update_to) {
+    const targetModelConfig = await ModelsConfigModel.findOne({ model_name: update_to, service });
+    if (!targetModelConfig) {
+      throw new ApiError(StatusCodes.BAD_REQUEST, `Target model '${update_to}' is not configured for service '${service}'.`);
+    }
+    if (targetModelConfig.status === 0) {
+      throw new ApiError(StatusCodes.BAD_REQUEST, `Target model '${update_to}' is already disabled and cannot be used.`);
+    }
+  }
 
   const update = { $set: { status } };
   if (status === 0) {
@@ -56,7 +67,7 @@ async function setModelStatusAdmin(model_name, service, status, org_id) {
   if (status === 0 && result) {
     usageInfo = await ConfigurationServices.findIdsByModelAndService(model_name, service, null);
 
-    const defaultModel = new_agent_service[service]?.model;
+    const defaultModel = update_to ? update_to : new_agent_service[service]?.model;
     if (defaultModel && usageInfo?.data) {
       const versionIds = usageInfo.data.versions.map((v) => v.id);
       if (versionIds.length > 0) {

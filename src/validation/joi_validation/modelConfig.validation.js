@@ -109,6 +109,13 @@ const setModelStatusAdminBodySchema = Joi.object({
   status: Joi.number().valid(0, 1).required().messages({
     "any.required": "status is required",
     "any.only": "status must be 0 (disable) or 1 (enable)"
+  }),
+  update_to: Joi.when("status", {
+    is: 0,
+    then: Joi.string().optional(),
+    otherwise: Joi.forbidden()
+  }).messages({
+    "any.unknown": "update_to is only allowed when status is 0"
   })
 });
 
