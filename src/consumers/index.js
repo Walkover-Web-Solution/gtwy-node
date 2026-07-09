@@ -3,6 +3,7 @@ import logger from "../logger.js";
 import rabbitmqService from "../services/rabbitmq.service.js";
 import { logQueueProcessor } from "./logQueueConsumer.js";
 import { metricsQueueProcessor } from "./metricsQueueConsumer.js";
+import { unknown_error_handler_alert } from "../services/utils/utility.service.js";
 
 dotenv.config();
 const CONSUMERS = [
@@ -69,10 +70,12 @@ class Consumer {
       })
       .catch((error) => {
         logger.error(`${this.queueName} Failed to start consumer:`, error);
+        unknown_error_handler_alert(`queue_start_failure_${this.queueName}`, null, error?.message || String(error));
       });
 
     this.channel.on("error", async (error) => {
       logger.error(`${this.queueName} RabbitMQ connection error:`, error);
+      unknown_error_handler_alert(`queue_channel_error_${this.queueName}`, null, error?.message || String(error));
     });
 
     this.channel.on("close", () => {
