@@ -18,6 +18,7 @@ const updateVersionSchema = Joi.object({
     tools: Joi.alternatives().try(Joi.array(), Joi.string(), Joi.object()).optional(),
     tool_choice: Joi.alternatives().try(Joi.string(), Joi.object()).optional(),
     reasoning: Joi.alternatives().try(Joi.string(), Joi.object()).optional(),
+    verbosity: Joi.alternatives().try(Joi.string(), Joi.object()).optional(),
     n: Joi.alternatives().try(Joi.number(), Joi.string(), Joi.object()).optional(),
     logprobs: Joi.alternatives().try(Joi.number(), Joi.string(), Joi.object()).optional(),
     input: Joi.alternatives().try(Joi.string().allow(""), Joi.object()).optional(),
