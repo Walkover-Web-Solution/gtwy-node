@@ -3,6 +3,9 @@ import versionModel from "../mongoModel/BridgeVersion.model.js";
 import configurationModel from "../mongoModel/Configuration.model.js";
 import FolderModel from "../mongoModel/GtwyEmbed.model.js";
 import { new_agent_service } from "../configs/constant.js";
+import Helper from "../services/utils/helper.utils.js";
+import { findInCache } from "../cache_service/index.js";
+import { redis_keys } from "../configs/constant.js";
 
 const saveApikeyRecord = async (data) => {
   const { org_id, apikey, service, name, folder_id, user_id, apikey_limit = 0, apikey_limit_reset_period, apikey_limit_start_date } = data;
@@ -57,9 +60,67 @@ const findAllApikeys = async (org_id, folder_id, user_id, isEmbedUser) => {
     if (user_id && isEmbedUser) query.user_id = String(user_id);
 
     const result = await ApikeyCredential.find(query);
+
+    // First pass: process keys and collect all version_ids
+    const allVersionIds = new Set();
+    const processedResults = await Promise.all(
+      result.map(async (apiKeyObj) => {
+        const plainObj = apiKeyObj.toObject ? apiKeyObj.toObject() : apiKeyObj;
+
+        // Collect version_ids
+        if (Array.isArray(plainObj.version_ids)) {
+          for (const vid of plainObj.version_ids) {
+            if (vid) allVersionIds.add(vid.toString());
+          }
+        }
+
+        // Decrypt and mask the API key
+        const decryptedApiKey = await Helper.decrypt(plainObj.apikey);
+        const maskedApiKey = await Helper.maskApiKey(decryptedApiKey);
+
+        // Get last used data from cache
+        const lastUsedData = await findInCache(`${redis_keys.apikeylastused_}${plainObj._id}`);
+        const cachedVal = await findInCache(`${redis_keys.apikeyusedcost_}${apiKeyObj._id}`);
+
+        // Create the final object (without published_version_ids yet)
+        const processedObj = {
+          ...plainObj,
+          apikey: maskedApiKey
+        };
+
+        if (lastUsedData) {
+          processedObj.last_used = JSON.parse(lastUsedData);
+        }
+
+        if (cachedVal) {
+          const usagecost = JSON.parse(cachedVal);
+          processedObj.apikey_usage = usagecost?.usage_value;
+        }
+
+        return processedObj;
+      })
+    );
+
+    // Find configurations whose published_version_id matches any of the version_ids
+    let publishedSet = new Set();
+    if (allVersionIds.size > 0) {
+      const publishedConfigs = await configurationModel
+        .find({ org_id, published_version_id: { $in: [...allVersionIds] } }, { published_version_id: 1 })
+        .lean();
+      publishedSet = new Set(publishedConfigs.map((c) => c.published_version_id?.toString()).filter(Boolean));
+    }
+
+    // Second pass: add published_version_ids
+    for (const processedObj of processedResults) {
+      const publishedVersionIds = Array.isArray(processedObj.version_ids)
+        ? processedObj.version_ids.filter((vid) => vid && publishedSet.has(vid.toString()))
+        : [];
+      processedObj.published_version_ids = publishedVersionIds;
+    }
+
     return {
       success: true,
-      result: result
+      result: processedResults
     };
   } catch (error) {
     console.error("Error getting all API: ", error);
