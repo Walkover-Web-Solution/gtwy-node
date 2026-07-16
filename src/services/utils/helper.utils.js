@@ -33,7 +33,7 @@ class Helper {
   }
   static maskApiKey = (key) => {
     if (!key) return "";
-    if (key.length > 6) return key.slice(0, 3) + "*".repeat(9) + key.slice(-3);
+    if (key.length > 6) return key.slice(0, 3) + "*".repeat(9) + key.slice(-4);
     return key;
   };
 
