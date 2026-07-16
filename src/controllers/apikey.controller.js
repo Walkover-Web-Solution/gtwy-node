@@ -1,6 +1,6 @@
 import apikeyService from "../db_services/apikey.service.js";
 import Helper from "../services/utils/helper.utils.js";
-import { findInCache, deleteInCache } from "../cache_service/index.js";
+import { deleteInCache } from "../cache_service/index.js";
 import {
   validateBearerModelsList,
   validateBearerChatCompletion,
@@ -64,42 +64,6 @@ const getAllApikeys = async (req, res, next) => {
   const result = await apikeyService.findAllApikeys(org_id, folder_id, user_id, isEmbedUser);
 
   if (result.success) {
-    // Process all API keys in parallel for better performance
-    const processedResults = await Promise.all(
-      result.result.map(async (apiKeyObj) => {
-        // Convert Mongoose document to plain object
-        const plainObj = apiKeyObj.toObject ? apiKeyObj.toObject() : apiKeyObj;
-
-        // Decrypt and mask the API key
-        const decryptedApiKey = await Helper.decrypt(plainObj.apikey);
-        const maskedApiKey = await Helper.maskApiKey(decryptedApiKey);
-
-        // Get last used data from cache (runs in parallel)
-        const lastUsedData = await findInCache(`${redis_keys.apikeylastused_}${plainObj._id}`);
-        const cachedVal = await findInCache(`${redis_keys.apikeyusedcost_}${apiKeyObj._id}`);
-
-        // Create the final object with all properties
-        const processedObj = {
-          ...plainObj,
-          apikey: maskedApiKey
-        };
-
-        // Only add last_used if cache data exists
-        if (lastUsedData) {
-          processedObj.last_used = JSON.parse(lastUsedData);
-        }
-
-        if (cachedVal) {
-          let usagecost = JSON.parse(cachedVal);
-          processedObj.apikey_usage = usagecost?.usage_value;
-        }
-
-        return processedObj;
-      })
-    );
-
-    // Update the result with processed data
-    result.result = processedResults;
     res.locals = result;
     req.statusCode = 200;
     return next();
