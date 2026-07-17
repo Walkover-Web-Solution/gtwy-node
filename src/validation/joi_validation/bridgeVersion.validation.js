@@ -52,10 +52,15 @@ const updateVersionSchema = Joi.object({
     numerals: Joi.alternatives().try(Joi.boolean(), Joi.string(), Joi.object()).optional(),
     detect_entities: Joi.alternatives().try(Joi.boolean(), Joi.string(), Joi.object()).optional(),
     model_option: Joi.alternatives().try(Joi.string().allow(""), Joi.object()).optional(),
-    size: Joi.alternatives().try(Joi.string(), Joi.object()).optional()
+    size: Joi.alternatives().try(Joi.string(), Joi.object()).optional(),
+    provider_config: Joi.object({
+      provider: Joi.string().optional(),
+      base_url: Joi.string().optional(),
+      provider_model_id: Joi.string().optional()
+    }).optional()
   }).optional(),
   service: Joi.string()
-    .valid("openai", "anthropic", "groq", "open_router", "mistral", "gemini", "grok", "deepseek", "deepgram", "neev_cloud", "moonshot")
+    .valid("openai", "anthropic", "groq", "open_router", "mistral", "gemini", "grok", "deepseek", "deepgram", "neev_cloud", "moonshot", "huggingface")
     .optional(),
   apikey_object_id: Joi.object()
     .pattern(Joi.string(), Joi.string().pattern(/^[0-9a-fA-F]{24}$/))
