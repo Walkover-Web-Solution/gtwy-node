@@ -323,6 +323,23 @@ const updateAgentController = async (req, res, next) => {
       }
     }
 
+    if (body.connected_tools) {
+      const { type, id } = body.connected_tools;
+      const operation = body.connected_tools_operation;
+      const current_connected_tools = Array.isArray(agent.connected_tools) ? agent.connected_tools : [];
+
+      if (operation === 1) {
+        // Add tool if not already present
+        const exists = current_connected_tools.some((tool) => tool.type === type && tool.id === id);
+        if (!exists) {
+          update_fields.connected_tools = [...current_connected_tools, { type, id }];
+        }
+      } else if (operation === 0) {
+        // Remove tool
+        update_fields.connected_tools = current_connected_tools.filter((tool) => !(tool.type === type && tool.id === id));
+      }
+    }
+
     if (body.agent_info) {
       update_fields.agent_info = { ...agent.agent_info, ...body.agent_info };
     }

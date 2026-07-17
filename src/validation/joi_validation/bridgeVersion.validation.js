@@ -100,6 +100,13 @@ const updateVersionSchema = Joi.object({
     built_in_tools: Joi.string().optional(),
     built_in_tools_operation: Joi.string().valid("0", "1").optional()
   }).optional(),
+  connected_tools: Joi.object({
+    type: Joi.string().valid("skills").required(),
+    id: Joi.string()
+      .pattern(/^[0-9a-fA-F]{24}$/)
+      .required()
+  }).optional(),
+  connected_tools_operation: Joi.number().valid(0, 1).optional(),
   agents: Joi.object({
     connected_agents: Joi.object()
       .pattern(

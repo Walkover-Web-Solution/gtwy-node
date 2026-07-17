@@ -112,6 +112,10 @@ const version = new mongoose.Schema({
     type: Object,
     default: {}
   },
+  connected_tools: {
+    type: Array,
+    default: []
+  },
   published_version_id: {
     type: String,
     default: null

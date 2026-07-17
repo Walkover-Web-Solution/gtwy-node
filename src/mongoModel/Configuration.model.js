@@ -143,6 +143,10 @@ const configuration = new mongoose.Schema({
     type: Array,
     default: []
   },
+  connected_tools: {
+    type: Array,
+    default: []
+  },
   bridge_summary: {
     type: String,
     default: ""
