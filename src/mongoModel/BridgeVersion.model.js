@@ -143,6 +143,10 @@ const version = new mongoose.Schema({
     type: Array,
     default: []
   },
+  post_tool: {
+    type: Object,
+    default: null
+  },
   web_search_filters: {
     type: [String],
     default: []

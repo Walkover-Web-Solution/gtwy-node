@@ -128,6 +128,7 @@ const updateVersionController = async (req, res, next) => {
       "auto_model_select",
       "cache_on",
       "pre_tools",
+      "post_tool",
       "web_search_filters",
       "gtwy_web_search_filters",
       "connected_agent_flow",
