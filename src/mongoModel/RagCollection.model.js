@@ -36,10 +36,15 @@ const ragCollectionSchema = new mongoose.Schema({
   updated_at: {
     type: Date,
     default: Date.now
+  },
+  deletedAt: {
+    type: Date,
+    default: null
   }
 });
 
 ragCollectionSchema.index({ org_id: 1 });
+ragCollectionSchema.index({ deletedAt: 1 }, { expireAfterSeconds: 2592000 }); // TTL: 30 days
 
 // Tag id is resource_id, not _id. Bust on $pull (remove) and on delete (iterate doc).
 ragCollectionSchema.plugin(cacheInvalidationPlugin, {
