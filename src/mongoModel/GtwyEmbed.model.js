@@ -30,6 +30,10 @@ const FolderSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   },
+  deletedAt: {
+    type: Date,
+    default: null
+  },
   folder_limit: {
     type: Number,
     default: 0
@@ -50,6 +54,7 @@ const FolderSchema = new mongoose.Schema({
 });
 
 FolderSchema.index({ org_id: 1, name: 1 }, { unique: true });
+FolderSchema.index({ deletedAt: 1 }, { expireAfterSeconds: 2592000 }); // TTL: 30 days
 
 FolderSchema.pre("save", function (next) {
   if (this.type === "embed") {

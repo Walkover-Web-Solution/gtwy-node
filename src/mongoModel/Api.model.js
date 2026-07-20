@@ -59,10 +59,15 @@ const ApikeyCredentials = new mongoose.Schema({
   status: {
     type: String,
     default: null
+  },
+  deletedAt: {
+    type: Date,
+    default: null
   }
 });
 
 ApikeyCredentials.index({ name: 1, org_id: 1, folder_id: 1 }, { unique: true });
+ApikeyCredentials.index({ deletedAt: 1 }, { expireAfterSeconds: 2592000 }); // TTL: 30 days
 // NOTE: bulkWrite in apikey.service.js#processBulkUpdates skips this hook.
 ApikeyCredentials.plugin(cacheInvalidationPlugin, { tags: [tag_keys.apikey] });
 
