@@ -216,6 +216,23 @@ const updateVersionController = async (req, res, next) => {
       function_ids = [...body.function_ids];
     }
 
+    if (body.connected_tools) {
+      const { type, id } = body.connected_tools;
+      const operation = body.connected_tools_operation;
+      const current_connected_tools = Array.isArray(version.connected_tools) ? version.connected_tools : [];
+
+      if (operation === 1) {
+        // Add tool if not already present
+        const exists = current_connected_tools.some((tool) => tool.type === type && tool.id === id);
+        if (!exists) {
+          update_fields.connected_tools = [...current_connected_tools, { type, id }];
+        }
+      } else if (operation === 0) {
+        // Remove tool
+        update_fields.connected_tools = current_connected_tools.filter((tool) => !(tool.type === type && tool.id === id));
+      }
+    }
+
     if (body.functionData) {
       const { function_id, function_operation, script_id } = body.functionData;
       if (function_id) {
