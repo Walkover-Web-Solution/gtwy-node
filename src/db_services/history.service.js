@@ -112,6 +112,10 @@ async function findConversationLogsByIds(org_id, bridge_id, thread_id, sub_threa
       whereConditions.testcase_id = testcase_id;
     }
 
+    const totalCount = await models.pg.conversation_logs.count({
+      where: whereConditions
+    });
+
     // Get paginated data
     const logs = await models.pg.conversation_logs.findAll({
       where: whereConditions,
@@ -123,9 +127,14 @@ async function findConversationLogsByIds(org_id, bridge_id, thread_id, sub_threa
     // Reverse the conversation logs array
     const reversedLogs = logs.reverse();
 
+    // Calculate pagination
+    const totalPages = Math.ceil(totalCount / limit);
+
     return {
       success: true,
-      data: reversedLogs
+      data: reversedLogs,
+      totalEntries: totalCount,
+      totalPages: totalPages
     };
   } catch (error) {
     console.error("Error fetching conversation logs:", error);
