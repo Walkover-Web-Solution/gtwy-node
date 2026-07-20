@@ -176,6 +176,20 @@ const FALLBACK_SERVICES = {
     prompt_role: "system",
     apikey_status_codes: { invalid: [400, 401], unauthorized: [403], limited: [429] },
     status: 1
+  },
+  huggingface: {
+    service_name: "huggingface",
+    base_url: "https://router.huggingface.co/v1",
+    wire_format: "openai_chat",
+    client: "openai_sdk",
+    supports_streaming: true,
+    supports_tool_calls: true,
+    supports_stream_usage: false,
+    supports_reasoning: false,
+    default_model: "meta-llama/Llama-3.1-8B-Instruct",
+    prompt_role: "system",
+    apikey_status_codes: { invalid: [401], unauthorized: [403], limited: [402, 429] },
+    status: 1
   }
 };
 

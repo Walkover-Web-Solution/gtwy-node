@@ -98,7 +98,12 @@ const new_agent_service = {
   deepseek: { model: "deepseek-v4-flash", default_fallback_model: "deepseek-v4-pro", default_name: "DeepSeek" },
   deepgram: { model: "nova-3", default_fallback_model: "nova-2", default_name: "Deepgram" },
   neev_cloud: { model: "gpt-oss-120b", default_fallback_model: "gpt-oss-120b", default_name: "Neev Cloud" },
-  moonshot: { model: "kimi-k2.6", default_fallback_model: "kimi-k2.5", default_name: "Moonshot" }
+  moonshot: { model: "kimi-k2.6", default_fallback_model: "kimi-k2.5", default_name: "Moonshot" },
+  huggingface: {
+    model: "meta-llama/Llama-3.1-8B-Instruct",
+    default_fallback_model: "meta-llama/Llama-3.3-70B-Instruct",
+    default_name: "Hugging Face"
+  }
 };
 
 export { collectionNames, bridge_ids, redis_keys, cost_types, prebuilt_prompt_bridge_id, new_agent_service, embed_cache };
