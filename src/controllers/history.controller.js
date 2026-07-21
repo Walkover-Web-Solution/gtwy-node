@@ -64,8 +64,8 @@ const getBatchConversationLogsCount = async (req, res, next) => {
 const getConversationLogs = async (req, res, next) => {
   const org_id = req.profile.org.id; // From middleware
   const { agent_id, thread_id, sub_thread_id } = req.params;
-  const pageNum = req.query.page || 1;
-  const limitNum = req.query.limit || 30;
+  const pageNum = parseInt(req.query.page) || 1;
+  const limitNum = parseInt(req.query.limit) || 30;
   const version_id = req.query.version_id || null;
   const testcase_id = req.query.testcase_id || null;
 
@@ -75,7 +75,9 @@ const getConversationLogs = async (req, res, next) => {
   if (result.success) {
     res.locals = {
       data: result.data,
-      success: true
+      success: true,
+      totalEntries: result.totalEntries,
+      totalPages: result.totalPages
     };
     req.statusCode = 200;
     return next();
