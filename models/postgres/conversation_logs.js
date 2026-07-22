@@ -152,6 +152,26 @@ export default (sequelize, DataTypes) => {
       testcase_data: {
         type: DataTypes.JSONB,
         allowNull: true
+      },
+      // Billing outbox columns (docs/billing-idempotency-outbox-credit-system.md §3).
+      // Written by the Python execution plane; Node owns the DDL.
+      cost_data: {
+        type: DataTypes.JSONB,
+        allowNull: true
+      },
+      dispatch_status: {
+        type: DataTypes.TEXT,
+        allowNull: false,
+        defaultValue: "pending" // pending | dispatched | failed | dead_letter
+      },
+      dispatch_attempts: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0
+      },
+      lago_response: {
+        type: DataTypes.JSONB,
+        allowNull: true
       }
     },
     {

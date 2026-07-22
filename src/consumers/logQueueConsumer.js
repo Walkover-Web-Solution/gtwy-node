@@ -7,6 +7,7 @@ import { handleGptMemory } from "../services/logQueue/handleGptMemory.service.js
 import { saveToAgentMemory } from "../services/logQueue/saveToAgentMemory.service.js";
 import { saveFilesToRedis } from "../services/logQueue/saveFilesToRedis.service.js";
 import { sendApiHitEvent } from "../services/logQueue/sendApiHitEvent.service.js";
+import { processBillingEvents } from "../services/logQueue/billingDebit.service.js";
 import { broadcastResponseWebhook } from "../services/logQueue/broadcastResponseWebhook.service.js";
 import {
   saveConversationHistory,
@@ -58,7 +59,16 @@ async function saveBatchHistoryBlock(messages) {
 }
 
 async function validateResponseBlock(messages) {
-  if (!messages["validateResponse"]?.alert_flag) {
+  // sendApiHitEvent (per-hit usage event into a subscription plan) and the
+  // wallet debit in `messages["billing"]` are two parallel Lago billing
+  // mechanisms that must never both be live for the same call (doc §4 "repo
+  // reality check" — the exact double-billing this design exists to prevent).
+  // `messages["billing"]` is only attached once BILLING_ENABLED=true on the
+  // Python side, so its presence is the per-message signal that wallet debits
+  // have taken over for this call — fall back to sendApiHitEvent only when it's
+  // absent. This self-migrates the moment BILLING_ENABLED flips, with no
+  // separate Node-side config to keep in sync.
+  if (!messages["validateResponse"]?.alert_flag && !messages["billing"]) {
     await sendApiHitEvent({
       message_id: messages["validateResponse"]?.message_id,
       org_id: messages["validateResponse"]?.org_id
@@ -103,6 +113,7 @@ async function processLogQueueMessage(messages) {
 
   if (messages["validateResponse"]) postHistoryTasks.push(validateResponseBlock(messages));
   if (messages["save_files_to_redis"]) postHistoryTasks.push(saveFilesToRedis(messages["save_files_to_redis"]));
+  if (messages["billing"]) postHistoryTasks.push(processBillingEvents(messages["billing"]));
 
   await Promise.all(postHistoryTasks);
 
