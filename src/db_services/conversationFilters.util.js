@@ -106,7 +106,17 @@ export function buildConversationFilterSql(filters = {}) {
       } else if (col === "batch_id") {
         if (val) or.push(`${T}."batch_data"->>'batch_id' ILIKE ${like(val)}`);
       } else if (SEARCHABLE.includes(col) && val) {
-        or.push(`${T}."${col}" ILIKE ${like(val)}`);
+        const FREE_TEXT_MESSAGE_COLUMNS = ["llm_message", "updated_llm_message", "chatbot_message"];
+        if (FREE_TEXT_MESSAGE_COLUMNS.includes(col)) {
+          // Message columns store raw markdown; text pasted from the rendered UI has
+          // markdown/whitespace stripped, so a single %blob% never matches. Match
+          // every whitespace-delimited token (AND of ILIKE) so a full pasted response
+          // or any snippet matches regardless of formatting differences.
+          const tokens = String(val).split(/\s+/).map((t) => t.trim()).filter(Boolean);
+          if (tokens.length) or.push(`(${tokens.map((t) => `${T}."${col}" ILIKE ${like(t)}`).join(" AND ")})`);
+        } else {
+          or.push(`${T}."${col}" ILIKE ${like(val)}`);
+        }
       }
     }
   } else if (keyword && String(keyword).length) {
