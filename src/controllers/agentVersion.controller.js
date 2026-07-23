@@ -128,6 +128,7 @@ const updateVersionController = async (req, res, next) => {
       "auto_model_select",
       "cache_on",
       "pre_tools",
+      "post_tool",
       "web_search_filters",
       "gtwy_web_search_filters",
       "connected_agent_flow",
@@ -137,6 +138,13 @@ const updateVersionController = async (req, res, next) => {
     for (const field of simpleVersionFields) {
       if (body[field] !== undefined) {
         update_fields[field] = body[field];
+      }
+    }
+
+    if (body.embed_override !== undefined) {
+      for (const key in body.embed_override) {
+        const currentKeyData = version.embed_override?.[key];
+        update_fields[`embed_override.${key}`] = { ...currentKeyData, ...body.embed_override[key] };
       }
     }
 

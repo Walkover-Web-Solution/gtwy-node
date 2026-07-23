@@ -8,6 +8,8 @@ import { combinedAuthWithChatBotAndPublicChatbot } from "../middlewares/interfac
 const router = express.Router();
 
 router.get("/:thread_id/:bridge_slugName", combinedAuthWithChatBotAndPublicChatbot, historyController.getChatbotThreadHistory);
+router.get("/message/testcase/history/message_id/:message_id", middleware, historyController.getHistoryByMessageId);
+
 router.get(
   "/recursive/:agent_id/:thread_id/:message_id",
   middleware,

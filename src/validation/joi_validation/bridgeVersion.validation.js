@@ -69,11 +69,24 @@ const updateVersionSchema = Joi.object({
   auto_model_select: Joi.object().allow(null).optional(),
   cache_on: Joi.boolean().optional(),
   pre_tools: Joi.array().optional(),
+  post_tool: Joi.object()
+    .keys({
+      id: Joi.string().required(),
+      script_id: Joi.string().optional(),
+      args: Joi.object().optional()
+    })
+    .allow(null)
+    .optional(),
   web_search_filters: Joi.alternatives().try(Joi.array().items(Joi.string()), Joi.object()).optional(),
   gtwy_web_search_filters: Joi.alternatives().try(Joi.array().items(Joi.string()), Joi.object()).optional(),
   connected_agent_flow: Joi.object().optional(),
   settings: Joi.object({
-    reviewer_agent: Joi.string().allow(null).optional(),
+    review_agent: Joi.object({
+      reviewer_agent: Joi.string().allow(null).optional(),
+      reviewer_prompt: Joi.string().allow(null, "").optional(),
+      reviewer_tools: Joi.array().items(Joi.string()).optional(),
+      reviewer_enabled: Joi.boolean().optional()
+    }).optional(),
     publicUsers: Joi.array().items(Joi.string()).optional(),
     editAccess: Joi.array().items(Joi.string()).optional(),
     responseStyle: Joi.object().optional(),
@@ -133,7 +146,8 @@ const updateVersionSchema = Joi.object({
     function_operation: Joi.string().valid("0", "1").optional(),
     script_id: Joi.string().optional()
   }).optional(),
-  version_description: Joi.string().allow("").optional()
+  version_description: Joi.string().allow("").optional(),
+  embed_override: Joi.object().optional()
 });
 
 const createVersion = {
