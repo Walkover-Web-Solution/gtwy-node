@@ -23,7 +23,7 @@ const getMetricsData = async (req, res, next) => {
     start_date = req.body.start_date;
     end_date = req.body.end_date;
   }
-  const whereClause = buildWhereClause(params, values, factor, range, start_date, end_date);
+  const whereClause = buildWhereClause(params, values, factor, range, true, start_date, end_date);
   // const table = selectTable(startTime, endTime, range);
   const table = selectTable(range);
   const query = `SELECT ${factor}, created_at, SUM(cost_sum) as cost_sum, AVG(latency_sum/NULLIF(record_count, 0)) as latency_sum, SUM(success_count) as success_count, SUM(total_token_count) AS total_token_count FROM ${table} ${whereClause} ORDER BY created_at ASC`;
