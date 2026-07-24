@@ -1,4 +1,4 @@
-const SKIP_KEYS = new Set(["prompt", "model", "type", "system_prompt_version_id", "is_rich_text"]);
+const SKIP_KEYS = new Set(["prompt", "model", "type", "system_prompt_version_id", "is_rich_text", "mcp_config"]);
 
 const transformToDbFormat = (configuration) => {
   if (!configuration || typeof configuration !== "object") {
