@@ -1,14 +1,8 @@
 import apikeyService from "../db_services/apikey.service.js";
 import Helper from "../services/utils/helper.utils.js";
 import { findInCache, deleteInCache } from "../cache_service/index.js";
-import {
-  validateBearerModelsList,
-  validateBearerChatCompletion,
-  callAnthropicApi,
-  callGeminiApi,
-  callDeepgramApi
-} from "../services/utils/aiServices.js";
-import { getBaseUrl, getDefaultModel, client as serviceClient } from "../services/utils/loadServicesRegistry.js";
+import { validateApiKey } from "../services/utils/aiServices.js";
+import { getBaseUrl, getDefaultModel, getValidationConfig } from "../services/utils/loadServicesRegistry.js";
 import { redis_keys, cost_types, new_agent_service } from "../configs/constant.js";
 import { cleanupCache } from "../services/utils/redis.utils.js";
 
@@ -215,44 +209,14 @@ const deleteApikey = async (req, res, next) => {
   }
 };
 
-// Bearer (OpenAI-compatible) providers validated via an authenticated GET
-// (value = path under base_url); everything else (groq, mistral, neev_cloud,
-// + future openai_sdk services) via a tiny POST /chat/completions. The GET
-// path must require auth or it can't validate the key — open_router's /models
-// is public, so it uses OpenRouter's /key endpoint instead. GET-vs-POST
-// doesn't follow `client`, so it's an explicit hint here; base_url + model
-// come from the services registry.
-const BEARER_VALIDATION_GET_PATH = {
-  openai: "models",
-  open_router: "key",
-  grok: "models",
-  moonshot: "models"
-  // groq, mistral, neev_cloud, deepseek, + future openai_sdk services default to chat
-};
-
 const checkApikey = async (apikey, service) => {
   // Prefer the existing default model (parity) and fall back to the registry
   // so a brand-new registered service still resolves a model with no code change.
   const model = new_agent_service[service]?.model || getDefaultModel(service);
   const baseUrl = getBaseUrl(service);
-  const svcClient = serviceClient(service);
-  let check;
+  const validationConfig = getValidationConfig(service);
 
-  if (svcClient === "anthropic_sdk") {
-    check = await callAnthropicApi(apikey, baseUrl);
-  } else if (svcClient === "gemini_sdk") {
-    check = await callGeminiApi(apikey, baseUrl);
-  } else if (svcClient === "deepgram_sdk") {
-    check = await callDeepgramApi(apikey, baseUrl);
-  } else if (svcClient) {
-    // OpenAI-compatible Bearer: openai_sdk / openai_completion_sdk / groq_sdk / grok_http / mistral_sdk
-    const getPath = BEARER_VALIDATION_GET_PATH[service];
-    check = getPath ? await validateBearerModelsList(apikey, baseUrl, getPath) : await validateBearerChatCompletion(apikey, baseUrl, model);
-  } else {
-    const error = new Error("Invalid service provided");
-    error.statusCode = 400;
-    throw error;
-  }
+  const check = await validateApiKey(apikey, baseUrl, model, validationConfig);
 
   if (!check.success) {
     const error = new Error("invalid apikey or apikey is expired");

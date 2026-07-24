@@ -2,7 +2,7 @@ import ApikeyCredential from "../mongoModel/Api.model.js";
 import versionModel from "../mongoModel/BridgeVersion.model.js";
 import configurationModel from "../mongoModel/Configuration.model.js";
 import FolderModel from "../mongoModel/GtwyEmbed.model.js";
-import { new_agent_service } from "../configs/constant.js";
+import { getServiceNames } from "../services/utils/loadServicesRegistry.js";
 
 const saveApikeyRecord = async (data) => {
   const { org_id, apikey, service, name, folder_id, user_id, apikey_limit = 0, apikey_limit_reset_period, apikey_limit_start_date } = data;
@@ -269,7 +269,9 @@ async function processBulkUpdates(model, ids, service) {
 }
 
 async function checkApikeyUsage(apikey_object_id, org_id, service) {
-  if (!service || !Object.keys(new_agent_service).includes(service)) {
+  const validServices = getServiceNames();
+
+  if (!service || !validServices.includes(service)) {
     return { success: false, error: "Invalid or missing service" };
   }
   const query = {

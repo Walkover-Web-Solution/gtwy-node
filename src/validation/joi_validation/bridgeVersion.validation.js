@@ -1,4 +1,5 @@
 import Joi from "joi";
+import { getServiceNames } from "../../services/utils/loadServicesRegistry.js";
 
 const updateVersionSchema = Joi.object({
   configuration: Joi.object({
@@ -55,7 +56,7 @@ const updateVersionSchema = Joi.object({
     size: Joi.alternatives().try(Joi.string(), Joi.object()).optional()
   }).optional(),
   service: Joi.string()
-    .valid("openai", "anthropic", "groq", "open_router", "mistral", "gemini", "grok", "deepseek", "deepgram", "neev_cloud", "moonshot")
+    .valid(...getServiceNames())
     .optional(),
   apikey_object_id: Joi.object()
     .pattern(Joi.string(), Joi.string().pattern(/^[0-9a-fA-F]{24}$/))

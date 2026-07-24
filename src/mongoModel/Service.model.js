@@ -8,7 +8,7 @@ const ServiceSchema = new mongoose.Schema(
     service_name: { type: String, required: true, unique: true },
     base_url: { type: String, default: null }, // null => provider SDK default
     wire_format: { type: String, required: true }, // openai_chat | openai_responses | anthropic | gemini | deepgram
-    client: { type: String, required: true }, // openai_sdk | groq_sdk | grok_http | mistral_sdk | openai_completion_sdk | anthropic_sdk | gemini_sdk | deepgram_sdk
+    client: { type: String, required: true }, // openai_sdk | groq_sdk | grok_http | mistral_sdk | openai_completion_sdk | anthropic_sdk | gemini_sdk | deepgram_sdk | minimax_sdk
     supports_streaming: { type: Boolean, default: false },
     supports_tool_calls: { type: Boolean, default: false },
     supports_stream_usage: { type: Boolean, default: false },
