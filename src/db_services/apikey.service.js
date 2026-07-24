@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import ApikeyCredential from "../mongoModel/Api.model.js";
 import versionModel from "../mongoModel/BridgeVersion.model.js";
 import configurationModel from "../mongoModel/Configuration.model.js";
@@ -30,7 +31,8 @@ const findApikeyByName = async (name, org_id) => {
   try {
     const result = await ApikeyCredential.findOne({
       org_id: org_id,
-      name: name
+      name: name,
+      deletedAt: null
     });
 
     return {
@@ -47,7 +49,7 @@ const findApikeyByName = async (name, org_id) => {
 };
 const findAllApikeys = async (org_id, folder_id, user_id, isEmbedUser) => {
   try {
-    const query = { org_id: org_id };
+    const query = { org_id: org_id, deletedAt: null };
 
     if (folder_id) {
       query.folder_id = folder_id;
@@ -157,20 +159,54 @@ async function removeApikeyFromEmbeds(apikey_object_id, org_id) {
     };
   }
 }
+const LIVE_PROVIDER_FILE_STATUSES = ["uploading", "active", "deleting"];
+async function countLiveProviderFiles(apikey_object_id) {
+  try {
+    const collection = mongoose.connection.db.collection("provider_files");
+    return await collection.countDocuments({
+      apikey_object_id: String(apikey_object_id),
+      status: { $in: LIVE_PROVIDER_FILE_STATUSES }
+    });
+  } catch (error) {
+    console.error(`Error counting provider files for apikey ${apikey_object_id}: ${error}`);
+    return -1;
+  }
+}
 
 async function removeApikeyById(apikey_object_id, org_id) {
   try {
     await removeApikeyFromEmbeds(apikey_object_id, org_id);
 
-    const result = await ApikeyCredential.deleteOne({ _id: apikey_object_id });
-    if (result.deletedCount > 0) {
-      return { success: true };
-    } else {
+    const liveFiles = await countLiveProviderFiles(apikey_object_id);
+    if (liveFiles === 0) {
+      const result = await ApikeyCredential.deleteOne({ _id: apikey_object_id });
+      if (result.deletedCount > 0) {
+        return { success: true };
+      }
       return {
         success: false,
         error: "API key not found"
       };
     }
+    const softDeleted = await ApikeyCredential.findOneAndUpdate(
+      { _id: apikey_object_id },
+      [
+        {
+          $set: {
+            deletedAt: "$$NOW",
+            name: { $concat: ["$name", "__deleted_", { $toString: "$$NOW" }] }
+          }
+        }
+      ],
+      { new: true }
+    );
+    if (!softDeleted) {
+      return {
+        success: false,
+        error: "API key not found"
+      };
+    }
+    return { success: true, soft_deleted: true, pending_file_cleanup: liveFiles };
   } catch (error) {
     console.error(`Error: ${error}`);
     return {
