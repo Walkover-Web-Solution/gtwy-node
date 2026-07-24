@@ -79,27 +79,39 @@ const prebuilt_prompt_bridge_id = [
   "generate_test_cases"
 ];
 
-const new_agent_service = {
-  openai: { model: "gpt-5-nano", default_fallback_model: "gpt-4.1-mini", default_name: "OpenAI" },
-  anthropic: {
-    model: "claude-sonnet-4-6",
-    default_fallback_model: "claude-haiku-4-5-20251001",
-    default_name: "Anthropic"
-  },
-  groq: { model: "openai/gpt-oss-120b", default_fallback_model: "llama-3.3-70b-versatile", default_name: "Groq" },
-  open_router: { model: "openai/gpt-4o", default_fallback_model: "deepseek/deepseek-chat-v3-0324:free", default_name: "Open Router" },
-  mistral: {
-    model: "mistral-small-latest",
-    default_fallback_model: "codestral-latest",
-    default_name: "Mistral"
-  },
-  gemini: { model: "gemini-2.5-pro", default_fallback_model: "gemini-2.5-flash", default_name: "Gemini" },
-  grok: { model: "grok-4-fast", default_fallback_model: "grok-4-fast-reasoning", default_name: "Grok" },
-  deepseek: { model: "deepseek-v4-flash", default_fallback_model: "deepseek-v4-pro", default_name: "DeepSeek" },
-  deepgram: { model: "nova-3", default_fallback_model: "nova-2", default_name: "Deepgram" },
-  neev_cloud: { model: "gpt-oss-120b", default_fallback_model: "gpt-oss-120b", default_name: "Neev Cloud" },
-  moonshot: { model: "kimi-k2.6", default_fallback_model: "kimi-k2.5", default_name: "Moonshot" }
+import { servicesRegistry } from "../services/utils/loadServicesRegistry.js";
+
+// Helper function to capitalize service names for display
+const capitalize = (str) => {
+  if (!str) return "";
+  return str
+    .split(/[_-]/)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
 };
+
+const new_agent_service = new Proxy(
+  {},
+  {
+    get(target, prop) {
+      const serviceName = String(prop);
+      const resolved = servicesRegistry[serviceName];
+
+      if (!resolved) {
+        return undefined;
+      }
+
+      return {
+        model: resolved.default_model,
+        default_fallback_model: resolved.default_fallback_model,
+        default_name: resolved.service_name ? capitalize(resolved.service_name) : capitalize(serviceName)
+      };
+    },
+    ownKeys() {
+      return Object.keys(servicesRegistry);
+    }
+  }
+);
 
 export { collectionNames, bridge_ids, redis_keys, cost_types, prebuilt_prompt_bridge_id, new_agent_service, embed_cache };
 

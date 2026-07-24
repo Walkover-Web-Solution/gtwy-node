@@ -1,20 +1,5 @@
 import { modelConfigDocument } from "./loadModelConfigs.js";
 
-const service_name = {
-  openai: "openai",
-  anthropic: "anthropic",
-  groq: "groq",
-  grok: "grok",
-  deepseek: "deepseek",
-  open_router: "open_router",
-  mistral: "mistral",
-  gemini: "gemini",
-  openai_completion: "openai_completion",
-  deepgram: "deepgram",
-  neev_cloud: "neev_cloud",
-  moonshot: "moonshot"
-};
-
 const validateFallBack = (fall_back_data) => {
   if (typeof fall_back_data !== "object" || fall_back_data === null) {
     throw new Error("fall_back must be a dictionary");
@@ -195,12 +180,7 @@ const getDefaultValuesController = async (service, model, current_configuration,
     }
 
     const modelObj = modelConfigDocument[service][model];
-
-    if (Object.values(service_name).includes(service)) {
-      return getDefaultValues(modelObj);
-    } else {
-      throw new Error(`Service '${service}' not found.`);
-    }
+    return getDefaultValues(modelObj);
   } catch (e) {
     throw new Error(e.message);
   }
