@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
 import { getOrganizationById } from "../services/proxy.service.js";
 import { unknown_error_handler_alert } from "../services/utils/utility.service.js";
+import { middleware, EmbeddecodeToken } from "./middleware.js";
 
 const chatBotTokenDecode = async (req, res, next) => {
   const token = req?.get("Authorization");
@@ -148,10 +149,49 @@ const combinedAuthWithChatBotTokenDecodeAndPublicChatbot = async (req, res, next
     return res.status(401).json({ message: "unauthorized user", error: err });
   }
 };
+/**
+ * Runs an auth middleware against a mock response so a failed attempt
+ * (which normally calls res.status().json()) doesn't send a real response -
+ * it just resolves false so the next auth method can be tried instead.
+ */
+const runAuthAttempt = (authMiddleware, req) => {
+  return new Promise((resolve) => {
+    let settled = false;
+    const settle = (result) => {
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    };
+    const fakeRes = {
+      status: () => fakeRes,
+      json: () => settle(false),
+      send: () => settle(false),
+      end: () => settle(false)
+    };
+    Promise.resolve(authMiddleware(req, fakeRes, () => settle(true))).catch(() => settle(false));
+  });
+};
+
+/**
+ * Combined auth middleware that accepts any of the auth methods used across
+ * the app: dashboard/org auth (JWT, pauthkey, proxy token), chatbot auth,
+ * public chatbot auth, and org-scoped embed/rag token auth. Tries each in
+ * order and proceeds on the first success; 401s only if all fail.
+ */
+const combinedAllAuth = async (req, res, next) => {
+  const authAttempts = [middleware, chatBotAuth, publicChatbotAuth, chatBotTokenDecode, EmbeddecodeToken];
+  for (const authMiddleware of authAttempts) {
+    const success = await runAuthAttempt(authMiddleware, req);
+    if (success) return next();
+  }
+  return res.status(401).json({ message: "unauthorized user" });
+};
+
 export {
   chatBotTokenDecode,
   chatBotAuth,
   publicChatbotAuth,
   combinedAuthWithChatBotAndPublicChatbot,
-  combinedAuthWithChatBotTokenDecodeAndPublicChatbot
+  combinedAuthWithChatBotTokenDecodeAndPublicChatbot,
+  combinedAllAuth
 };
