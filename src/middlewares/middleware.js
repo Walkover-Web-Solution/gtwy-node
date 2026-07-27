@@ -324,7 +324,7 @@ const EmbeddecodeToken = async (req, res, next) => {
 
 const InternalAuth = async (req, res, next) => {
   try {
-    const allowedEmailList = ["ankit@whozzat.com", "husain@whozzat.com", "harsh@whozzat.com"];
+    const allowedEmailList = ["ankit@whozzat.com", "husain@whozzat.com", "harsh@whozzat.com", "natwar@whozzat.com"];
 
     const userEmail = req.profile?.user?.email?.toLowerCase();
     if (!userEmail) {
