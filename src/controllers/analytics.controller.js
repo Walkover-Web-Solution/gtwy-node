@@ -102,10 +102,13 @@ const getAgentAnalytics = async (req, res, next) => {
       knowledgebase_id: filters.knowledgebase_id,
       review_failed: filters.review_failed
     };
+    const ufForSearch = filters.user_feedback || "all";
+
     const result = await findRecentThreadsByBridgeId(
       org_id,
       bridge_id,
       searchFilters,
+      ufForSearch,
       error || "false",
       page,
       page_size,
@@ -170,6 +173,11 @@ function toUserEntry(user) {
   };
 }
 
+/**
+ * Resolve org users for embed analytics.
+ * 1) Page all company users (including embed guests — no exclude_role_ids)
+ * 2) For any still-missing agent owner ids, fetch by user_id
+ */
 async function loadOrgUserMap(org_id, neededUserIds = []) {
   const needed = [...new Set((neededUserIds || []).map((id) => String(id)).filter(Boolean))];
   const cacheKey = `embed_analytics_users_v2_${org_id}`;
@@ -248,109 +256,119 @@ async function loadOrgUserMap(org_id, neededUserIds = []) {
   return userMap;
 }
 
+// GET /api/analytics/embed/:folder_id
+// Embed (folder) analytics: agents in folder → conversation_logs by bridge_id →
+// roll up by Configuration.user_id → enrich via proxy users.
 const getEmbedAnalytics = async (req, res, next) => {
-  const { folder_id } = req.params;
-  const org_id = req.profile?.org?.id;
-  const { range, start_date, end_date, interval, user_id: filterUserId, search, page, limit } = req.query;
+  try {
+    const { folder_id } = req.params;
+    const org_id = req.profile?.org?.id;
+    const { range, start_date, end_date, interval, user_id: filterUserId, search, page, limit } = req.query;
 
-  const folder = await folderService.getFolderData(folder_id);
-  if (!folder || String(folder.org_id) !== String(org_id)) {
-    res.locals = { success: false, message: "Embed folder not found" };
-    req.statusCode = 404;
-    return next();
-  }
-  if (folder.type && folder.type !== "embed" && folder.type !== "rag_embed") {
-    res.locals = { success: false, message: "Folder is not an embed integration" };
-    req.statusCode = 400;
-    return next();
-  }
+    const folder = await folderService.getFolderData(folder_id);
+    if (!folder || String(folder.org_id) !== String(org_id)) {
+      res.locals = { success: false, message: "Embed folder not found" };
+      req.statusCode = 404;
+      return next();
+    }
+    if (folder.type && folder.type !== "embed" && folder.type !== "rag_embed") {
+      res.locals = { success: false, message: "Folder is not an embed integration" };
+      req.statusCode = 400;
+      return next();
+    }
 
-  const window = analyticsService.computeWindow({ range, start_date, end_date, interval });
+    const window = analyticsService.computeWindow({ range, start_date, end_date, interval });
 
-  const folderIdStr = String(folder_id);
-  const folderIdVariants = [folderIdStr];
-  if (mongoose.Types.ObjectId.isValid(folderIdStr)) {
-    folderIdVariants.push(new mongoose.Types.ObjectId(folderIdStr));
-  }
+    const folderIdStr = String(folder_id);
+    const folderIdVariants = [folderIdStr];
+    if (mongoose.Types.ObjectId.isValid(folderIdStr)) {
+      folderIdVariants.push(new mongoose.Types.ObjectId(folderIdStr));
+    }
 
-  const orgVariants = [...new Set([String(org_id), org_id].filter((v) => v != null && v !== ""))];
-  const orgAsNum = Number(org_id);
-  if (!Number.isNaN(orgAsNum) && String(orgAsNum) === String(org_id).trim()) {
-    orgVariants.push(orgAsNum);
-  }
+    const orgVariants = [...new Set([String(org_id), org_id].filter((v) => v != null && v !== ""))];
+    const orgAsNum = Number(org_id);
+    if (!Number.isNaN(orgAsNum) && String(orgAsNum) === String(org_id).trim()) {
+      orgVariants.push(orgAsNum);
+    }
 
-  const agentQuery = {
-    org_id: { $in: orgVariants },
-    folder_id: { $in: folderIdVariants }
-  };
-  if (filterUserId) {
-    agentQuery.user_id = String(filterUserId);
-  }
+    const agentQuery = {
+      org_id: { $in: orgVariants },
+      folder_id: { $in: folderIdVariants }
+    };
+    if (filterUserId) {
+      agentQuery.user_id = String(filterUserId);
+    }
 
-  const agentDocs = await configurationModel
-    .find(agentQuery)
-    .select({
-      _id: 1,
-      name: 1,
-      user_id: 1,
-      service: 1,
-      versions: 1,
-      published_version_id: 1,
-      "configuration.model": 1,
-      deletedAt: 1
-    })
-    .lean();
+    const agentDocs = await configurationModel
+      .find(agentQuery)
+      .select({
+        _id: 1,
+        name: 1,
+        user_id: 1,
+        service: 1,
+        versions: 1,
+        published_version_id: 1,
+        "configuration.model": 1,
+        deletedAt: 1
+      })
+      .lean();
 
-  const agents = (agentDocs || [])
-    .filter((a) => !a.deletedAt)
-    .map((a) => {
-      const version_ids = [];
-      if (Array.isArray(a.versions)) {
-        for (const v of a.versions) {
-          if (v != null) version_ids.push(String(v));
+    const agents = (agentDocs || [])
+      .filter((a) => !a.deletedAt)
+      .map((a) => {
+        const version_ids = [];
+        if (Array.isArray(a.versions)) {
+          for (const v of a.versions) {
+            if (v != null) version_ids.push(String(v));
+          }
         }
-      }
-      if (a.published_version_id) version_ids.push(String(a.published_version_id));
-      return {
-        bridge_id: a._id.toString(),
-        name: a.name || "Untitled",
-        user_id: a.user_id != null ? String(a.user_id) : null,
-        service: a.service || null,
-        model: a.configuration?.model || null,
-        version_ids: [...new Set(version_ids)]
-      };
+        if (a.published_version_id) version_ids.push(String(a.published_version_id));
+        return {
+          bridge_id: a._id.toString(),
+          name: a.name || "Untitled",
+          user_id: a.user_id != null ? String(a.user_id) : null,
+          service: a.service || null,
+          model: a.configuration?.model || null,
+          version_ids: [...new Set(version_ids)]
+        };
+      });
+
+    logger.info(
+      `embed analytics folder=${folderIdStr} org=${org_id} agents=${agents.length} versions=${agents.reduce((n, a) => n + (a.version_ids?.length || 0), 0)} range=${range || "30d"} start=${window.start?.toISOString?.()} end=${window.end?.toISOString?.()}`
+    );
+
+    const neededUserIds = agents.map((a) => a.user_id).filter(Boolean);
+    const userMap = await loadOrgUserMap(org_id, neededUserIds);
+
+    const result = await embedAnalyticsService.getEmbedAnalytics({
+      org_id: String(org_id),
+      window,
+      agents,
+      userMap,
+      userSearch: search,
+      userPage: page,
+      userLimit: limit
     });
 
-  logger.info(
-    `embed analytics folder=${folderIdStr} org=${org_id} agents=${agents.length} versions=${agents.reduce((n, a) => n + (a.version_ids?.length || 0), 0)} range=${range || "30d"} start=${window.start?.toISOString?.()} end=${window.end?.toISOString?.()}`
-  );
+    logger.info(
+      `embed analytics result folder=${folderIdStr} range_req=${result?.summary?.total_requests} lifetime_req=${result?.meta?.lifetime_requests} cost=${result?.summary?.est_cost} users=${result?.users?.length}`
+    );
 
-  const neededUserIds = agents.map((a) => a.user_id).filter(Boolean);
-  const userMap = await loadOrgUserMap(org_id, neededUserIds);
-
-  const result = await embedAnalyticsService.getEmbedAnalytics({
-    org_id: String(org_id),
-    window,
-    agents,
-    userMap,
-    userSearch: search,
-    userPage: page,
-    userLimit: limit
-  });
-
-  logger.info(
-    `embed analytics result folder=${folderIdStr} range_req=${result?.summary?.total_requests} lifetime_req=${result?.meta?.lifetime_requests} cost=${result?.summary?.est_cost} users=${result?.users?.length}`
-  );
-
-  res.locals = {
-    success: true,
-    folder_id,
-    range_start: window.start,
-    range_end: window.end,
-    ...result
-  };
-  req.statusCode = 200;
-  return next();
+    res.locals = {
+      success: true,
+      folder_id,
+      range_start: window.start,
+      range_end: window.end,
+      ...result
+    };
+    req.statusCode = 200;
+    return next();
+  } catch (error) {
+    logger.error(`Error fetching embed analytics: ${error.message}`);
+    res.locals = { success: false, error: error.message };
+    req.statusCode = 500;
+    return next();
+  }
 };
 
 export default {
