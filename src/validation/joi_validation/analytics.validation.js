@@ -87,7 +87,10 @@ const getEmbedAnalytics = {
       end_date: Joi.date().iso().min(Joi.ref("start_date")).optional().messages({
         "date.min": "end_date must be after start_date"
       }),
-      user_id: Joi.string().trim().min(1).optional()
+      user_id: Joi.string().trim().min(1).optional(),
+      search: Joi.string().trim().allow("").max(200).optional(),
+      page: Joi.number().integer().min(1).optional(),
+      limit: Joi.number().integer().min(1).max(100).optional()
     })
     .unknown(true)
 };

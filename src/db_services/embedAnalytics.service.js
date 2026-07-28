@@ -53,6 +53,8 @@ const TOKENS_SQL = `COALESCE(
     + COALESCE((tokens->>'output_tokens')::double precision, 0)
 )`;
 
+const USERS_DEFAULT_PAGE_SIZE = 5;
+
 function emptyEmbedSummary() {
   return {
     total_requests: 0,
@@ -178,7 +180,7 @@ function extractExternalUserId(email, org_id) {
   return cleaned || null;
 }
 
-async function getEmbedAnalytics({ org_id, window, agents, userMap }) {
+async function getEmbedAnalytics({ org_id, window, agents, userMap, userSearch, userPage, userLimit }) {
   const idToParent = {};
   const queryIds = [];
   for (const agent of agents) {
@@ -202,6 +204,7 @@ async function getEmbedAnalytics({ org_id, window, agents, userMap }) {
       response_time: [],
       agents: [],
       users: [],
+      users_pagination: { page: 1, limit: USERS_DEFAULT_PAGE_SIZE, total: 0, total_pages: 1, search: "" },
       meta: { queried_bridge_ids: 0, lifetime_requests: 0, range_requests: 0 }
     };
   }
@@ -384,13 +387,39 @@ async function getEmbedAnalytics({ org_id, window, agents, userMap }) {
   };
   const lifetime = rowToSummary(lifetimeRow);
 
+  // Users are searched/paginated only for the response — `summary` above still
+  // reflects the full set, so the KPI cards stay accurate while searching.
+  const term = String(userSearch || "")
+    .trim()
+    .toLowerCase();
+  const matchedUsers = term
+    ? users.filter((u) =>
+        [u.name, u.email, u.external_user_id, u.user_id].some((field) =>
+          String(field || "")
+            .toLowerCase()
+            .includes(term)
+        )
+      )
+    : users;
+
+  const pageSize = Math.min(Math.max(1, Number(userLimit) || USERS_DEFAULT_PAGE_SIZE), 100);
+  const totalPages = Math.max(1, Math.ceil(matchedUsers.length / pageSize));
+  const currentPage = Math.min(Math.max(1, Number(userPage) || 1), totalPages);
+
   return {
     summary,
     lifetime_summary: lifetime,
     requests_over_time: requests_over_time || [],
     response_time: response_time || [],
     agents: agentsOut.sort((a, b) => b.total_requests - a.total_requests),
-    users,
+    users: matchedUsers.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    users_pagination: {
+      page: currentPage,
+      limit: pageSize,
+      total: matchedUsers.length,
+      total_pages: totalPages,
+      search: term
+    },
     meta: {
       queried_bridge_ids: uniqueQueryIds.length,
       lifetime_requests: lifetime.total_requests,

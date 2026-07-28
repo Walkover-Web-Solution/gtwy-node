@@ -263,7 +263,7 @@ const getEmbedAnalytics = async (req, res, next) => {
   try {
     const { folder_id } = req.params;
     const org_id = req.profile?.org?.id;
-    const { range, start_date, end_date, interval, user_id: filterUserId } = req.query;
+    const { range, start_date, end_date, interval, user_id: filterUserId, search, page, limit } = req.query;
 
     const folder = await folderService.getFolderData(folder_id);
     if (!folder || String(folder.org_id) !== String(org_id)) {
@@ -344,7 +344,10 @@ const getEmbedAnalytics = async (req, res, next) => {
       org_id: String(org_id),
       window,
       agents,
-      userMap
+      userMap,
+      userSearch: search,
+      userPage: page,
+      userLimit: limit
     });
 
     logger.info(
