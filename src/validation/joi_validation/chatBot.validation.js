@@ -4,12 +4,17 @@ Joi.objectId = joiObjectId(Joi);
 
 const subscribe = {
   body: Joi.object({
-    slugName: Joi.string().required().messages({
-      "string.empty": "slugName is required",
-      "any.required": "slugName is required"
+    slugName: Joi.string().optional().messages({
+      "string.empty": "slugName is required"
     }),
     versionId: Joi.string().optional().allow(""),
-    helloId: Joi.string().optional().allow("")
+    helloId: Joi.string().optional().allow(""),
+    model: Joi.string().optional().messages({
+      "string.empty": "model is required"
+    }),
+    service: Joi.string().optional().messages({
+      "string.empty": "service is required"
+    })
   }).unknown(true)
 };
 

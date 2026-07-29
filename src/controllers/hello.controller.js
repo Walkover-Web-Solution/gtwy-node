@@ -2,19 +2,38 @@ import ConfigurationServices from "../db_services/configuration.service.js";
 import modelConfigService from "../db_services/modelConfig.service.js";
 
 export const subscribe = async (req, res, next) => {
-  const { ispublic } = req.chatBot;
+  const { slugName, versionId, model: reqModel, service: reqService } = req.body;
 
-  let data = null;
-  let { slugName, versionId } = req.body;
-  let { org } = req?.profile || {};
+  // Direct model lookup mode — return what the model supports
+  if (reqModel) {
+    const modelConfigData = await modelConfigService.getModelConfigsByNameAndService(reqModel, reqService);
+    const validationConfig = modelConfigData[0]?.validationConfig || {};
 
-  if (ispublic && slugName?.includes("::")) {
-    const [orgIdFromSlug, actualSlugName] = slugName.split("::");
-    org = { ...org, id: orgIdFromSlug };
-    slugName = actualSlugName;
+    const mode = [validationConfig.files && "files", validationConfig.vision && "vision"].filter(Boolean);
+
+    res.locals = {
+      mode,
+      supportedEntities: mode,
+      model: reqModel,
+      service: reqService
+    };
+    req.statusCode = 200;
+    return next();
   }
 
-  data = await ConfigurationServices.getAgentBySlugname(org.id, slugName, versionId);
+  // Existing agent-based lookup
+  const { ispublic } = req.chatBot;
+  let data = null;
+  let { org } = req?.profile || {};
+  let resolvedSlugName = slugName;
+
+  if (ispublic && resolvedSlugName?.includes("::")) {
+    const [orgIdFromSlug, actualSlugName] = resolvedSlugName.split("::");
+    org = { ...org, id: orgIdFromSlug };
+    resolvedSlugName = actualSlugName;
+  }
+
+  data = await ConfigurationServices.getAgentBySlugname(org.id, resolvedSlugName, versionId);
 
   if (!data || data.success === false) {
     return res.status(404).json({ error: data?.error || "Agent not found" });
