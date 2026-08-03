@@ -59,6 +59,10 @@ const ApikeyCredentials = new mongoose.Schema({
   status: {
     type: String,
     default: null
+  },
+  deletedAt: {
+    type: Date,
+    default: null
   }
 });
 

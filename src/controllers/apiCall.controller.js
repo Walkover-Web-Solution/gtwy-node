@@ -258,6 +258,12 @@ const getAllInBuiltToolsController = async (req, res, next) => {
         name: "GTWY Web Search",
         description: "Allow models that support tool calling to search the web for the latest information before generating a response.",
         value: "Gtwy_Web_Search"
+      },
+      {
+        id: "4",
+        name: "Code Interpreter",
+        description: "Allow models to write and run Python code in a sandboxed container to analyze data, perform calculations, and generate files.",
+        value: "code_interpreter"
       }
     ]
   };

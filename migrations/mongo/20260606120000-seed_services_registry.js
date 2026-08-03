@@ -24,6 +24,10 @@ const SERVICES = [
     supports_reasoning: true,
     default_model: "gpt-4o",
     apikey_status_codes: { invalid: [401], unauthorized: [403], limited: [429] },
+    web_search_tool: {
+      unfiltered: { type: "web_search_preview" },
+      filtered: { type: "web_search", filters: { allowed_domains: null } }
+    },
     status: 1
   },
   {
@@ -63,6 +67,7 @@ const SERVICES = [
     supports_reasoning: true,
     default_model: "claude-3-7-sonnet-latest",
     apikey_status_codes: { invalid: [401], unauthorized: [403], limited: [429] },
+    web_search_tool: { type: "web_search_20250305", name: "web_search" },
     status: 1
   },
   {
