@@ -82,7 +82,8 @@ FolderSchema.pre("save", function (next) {
       prompt: {},
       models: {},
       showPromptHelper: true,
-      showReviewAgent: false
+      showReviewAgent: false,
+      showMcp: false
     };
     this.config = { ...defaults, ...(this.config || {}) };
   }
