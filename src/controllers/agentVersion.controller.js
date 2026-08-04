@@ -331,8 +331,9 @@ const publishVersion = async (req, res, next) => {
 const removeVersion = async (req, res, next) => {
   const { version_id } = req.params;
   const org_id = req.profile.org.id;
+  const user_id = req.profile.user.id;
 
-  const result = await agentVersionDbService.deleteAgentVersion(org_id, version_id);
+  const result = await agentVersionDbService.deleteAgentVersion(org_id, version_id, user_id);
   res.locals = result;
   req.statusCode = 200;
   return next();

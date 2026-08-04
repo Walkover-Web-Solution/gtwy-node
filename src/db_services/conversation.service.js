@@ -405,75 +405,126 @@ async function getSubThreadsWithActivity(org_id, thread_id, bridge_id, { version
  * conversation_logs, so no Mongo lookup is needed.
  */
 
+const BRIDGE_SCOPE_HISTORY_TYPES = [
+  "Version deleted",
+  "Version created",
+  "Agent created",
+  "Version published",
+  "name",
+  "bridge_summary",
+  "editAccess"
+];
+
+const BRIDGE_SCOPE_LIFECYCLE_TYPES = new Set(["Version deleted", "Version created", "Agent created", "Version published"]);
+
+/** Agent-level fields are fanned out per version — keep one row per change on bridge scope. */
+function dedupeBridgeScopeRows(rows) {
+  const seen = new Set();
+  return rows.filter((row) => {
+    const type = row.type ?? row.dataValues?.type;
+    if (BRIDGE_SCOPE_LIFECYCLE_TYPES.has(type)) return true;
+    const userId = row.user_id ?? row.dataValues?.user_id;
+    const time = row.time ?? row.dataValues?.time;
+    const key = `${type}|${userId}|${time ? new Date(time).getTime() : ""}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+async function loadOrgUsersForHistory(org_id) {
+  let pageNo = 1;
+  let userData = await findInCache(`user_data_${org_id}`);
+
+  if (userData) {
+    try {
+      userData = JSON.parse(userData);
+      if (!Array.isArray(userData) || userData.length === 0) {
+        userData = null;
+      }
+    } catch {
+      userData = null;
+    }
+  }
+
+  if (!userData) {
+    let allUserData = [];
+    let hasMoreData = true;
+
+    while (hasMoreData) {
+      const response = await getUsers(org_id, pageNo, 50);
+      if (response && Array.isArray(response.data)) {
+        allUserData = [...allUserData, ...response.data];
+        hasMoreData = response?.totalEntityCount > allUserData.length;
+      } else {
+        hasMoreData = false;
+      }
+      pageNo++;
+    }
+    await storeInCache(`user_data_${org_id}`, allUserData, 86400);
+    userData = allUserData;
+  }
+
+  return Array.isArray(userData) ? userData : [];
+}
+
+function buildHistoryTimeFilters(filters = {}) {
+  const whereConditions = {};
+
+  if (filters.user_ids && filters.user_ids.length > 0) {
+    whereConditions.user_id = { [Sequelize.Op.in]: filters.user_ids };
+  }
+
+  if (filters.types && filters.types.length > 0) {
+    whereConditions.type = { [Sequelize.Op.in]: filters.types };
+  }
+
+  const timeCondition = {};
+  if (filters.date_from) {
+    const from = new Date(filters.date_from);
+    if (!isNaN(from.getTime())) {
+      timeCondition[Sequelize.Op.gte] = from;
+    }
+  }
+  if (filters.date_to) {
+    const to = new Date(filters.date_to);
+    if (!isNaN(to.getTime())) {
+      timeCondition[Sequelize.Op.lte] = to;
+    }
+  }
+  if (Object.keys(timeCondition).length > 0) {
+    whereConditions.time = timeCondition;
+  }
+
+  return whereConditions;
+}
+
+async function mapHistoryWithUsers(history, orgUsers) {
+  const knownIds = new Set(orgUsers.map((u) => u.id));
+  const missingIds = [...new Set(history.map((e) => e.dataValues.user_id))].filter((id) => id && !knownIds.has(id));
+  const formerUsers = missingIds.length ? await getUsersByIds(missingIds) : [];
+  const userMap = new Map([...orgUsers, ...formerUsers].map((u) => [u.id, u]));
+
+  return {
+    updates: history.map((e) => ({
+      ...e.dataValues,
+      user_name: userMap.get(e.dataValues.user_id)?.name ?? "Unknown"
+    })),
+    users: [...userMap.values()].filter((u) => u?.meta?.type !== "embed").map(({ id, name }) => ({ id, name }))
+  };
+}
+
 async function getUserUpdates(org_id, version_id, page = 1, pageSize = 10, users = [], filters = {}) {
   try {
     const offset = (page - 1) * pageSize;
-    let pageNo = 1;
-    let userData = await findInCache(`user_data_${org_id}`);
+    const userData = await loadOrgUsersForHistory(org_id);
 
-    // Parse cached data if it exists, otherwise fetch fresh data
-    if (userData) {
-      try {
-        userData = JSON.parse(userData);
-        // If parsed data is not an array or is empty, fetch fresh data
-        if (!Array.isArray(userData) || userData.length === 0) {
-          userData = null;
-        }
-      } catch {
-        // If JSON parsing fails, treat as no cached data
-        userData = null;
-      }
-    }
-
-    if (!userData) {
-      let allUserData = [];
-      let hasMoreData = true;
-
-      while (hasMoreData) {
-        const response = await getUsers(org_id, pageNo, (pageSize = 50));
-        if (response && Array.isArray(response.data)) {
-          allUserData = [...allUserData, ...response.data];
-          hasMoreData = response?.totalEntityCount > allUserData.length;
-        } else {
-          hasMoreData = false;
-        }
-        pageNo++;
-      }
-      await storeInCache(`user_data_${org_id}`, allUserData, 86400); // Cache for 1 day
-      userData = allUserData;
-    }
     if (version_id) {
-      // Build where conditions for filtering
-      let whereConditions = {
-        org_id: org_id,
-        version_id: version_id
+      const whereConditions = {
+        org_id,
+        version_id,
+        ...buildHistoryTimeFilters(filters)
       };
-
-      // Apply filters if provided
-      if (filters.user_ids && filters.user_ids.length > 0) {
-        whereConditions.user_id = { [Sequelize.Op.in]: filters.user_ids };
-      }
-
-      if (filters.types && filters.types.length > 0) {
-        whereConditions.type = { [Sequelize.Op.in]: filters.types };
-      }
-
-      const timeCondition = {};
-      if (filters.date_from) {
-        const from = new Date(filters.date_from);
-        if (!isNaN(from.getTime())) {
-          timeCondition[Sequelize.Op.gte] = from;
-        }
-      }
-      if (filters.date_to) {
-        const to = new Date(filters.date_to);
-        if (!isNaN(to.getTime())) {
-          timeCondition[Sequelize.Op.lte] = to;
-        }
-      }
-      if (Object.keys(timeCondition).length > 0) {
-        whereConditions.time = timeCondition;
-      }
 
       const lastPublishRow = await models.pg.user_bridge_config_history.findOne({
         where: { org_id, version_id, type: "Version published" },
@@ -494,43 +545,81 @@ async function getUserUpdates(org_id, version_id, page = 1, pageSize = 10, users
         return { success: false, message: "No updates found", lastPublishedAt };
       }
 
-      const orgUsers = Array.isArray(userData) ? userData : [];
-      const knownIds = new Set(orgUsers.map((u) => u.id));
-      const missingIds = [...new Set(history.map((e) => e.dataValues.user_id))].filter((id) => id && !knownIds.has(id));
-      const formerUsers = missingIds.length ? await getUsersByIds(missingIds) : [];
-      const userMap = new Map([...orgUsers, ...formerUsers].map((u) => [u.id, u]));
-
+      const mapped = await mapHistoryWithUsers(history, userData);
       return {
         success: true,
-        updates: history.map((e) => ({
-          ...e.dataValues,
-          user_name: userMap.get(e.dataValues.user_id)?.name ?? "Unknown"
-        })),
+        ...mapped,
         total,
-        lastPublishedAt,
-        users: [...userMap.values()].filter((u) => u?.meta?.type !== "embed").map(({ id, name }) => ({ id, name }))
+        lastPublishedAt
       };
+    }
+
+    let filteredUsers = [];
+    if (Array.isArray(users) && users.length > 0) {
+      const userIdSet = new Set(users);
+      filteredUsers = userData.filter((user) => user && userIdSet.has(user.id));
     } else {
-      let filteredUsers = [];
+      filteredUsers = userData;
+    }
 
-      if (Array.isArray(users) && users.length > 0 && Array.isArray(userData)) {
-        const userIdSet = new Set(users);
-        filteredUsers = userData.filter((user) => user && userIdSet.has(user.id));
-      } else {
-        filteredUsers = Array.isArray(userData) ? userData : [];
-      }
-
-      const mappedUsers = filteredUsers.map((user) => ({
+    return {
+      success: true,
+      users: filteredUsers.map((user) => ({
         id: user.id,
         name: user.name,
         email: user.email
-      }));
-
-      return { success: true, users: mappedUsers, lastPublishedAt: null };
-    }
+      })),
+      lastPublishedAt: null
+    };
   } catch (error) {
     console.error("Error fetching user updates:", error);
     return { success: false, message: "Error fetching updates", lastPublishedAt: null };
+  }
+}
+
+async function getBridgeUserUpdates(org_id, bridge_id, page = 1, pageSize = 10, filters = {}) {
+  try {
+    if (!bridge_id) {
+      return { success: false, message: "bridge_id is required", lastPublishedAt: null };
+    }
+
+    const offset = (page - 1) * pageSize;
+    const userData = await loadOrgUsersForHistory(org_id);
+    const filterParts = buildHistoryTimeFilters(filters);
+
+    const whereConditions = {
+      org_id,
+      bridge_id: String(bridge_id),
+      ...filterParts,
+      type: filterParts.type || { [Sequelize.Op.in]: BRIDGE_SCOPE_HISTORY_TYPES }
+    };
+
+    // Over-fetch slightly so fan-out de-dupe still fills the page
+    const fetchLimit = Math.min(pageSize * 4, 200);
+    const { rows: rawHistory } = await models.pg.user_bridge_config_history.findAndCountAll({
+      where: whereConditions,
+      attributes: ["id", "user_id", "org_id", "bridge_id", "type", "time", "version_id", "previous_value", "current_value"],
+      order: [["time", "DESC"]],
+      offset,
+      limit: fetchLimit
+    });
+
+    const history = dedupeBridgeScopeRows(rawHistory).slice(0, pageSize);
+    if (history.length === 0) {
+      return { success: false, message: "No updates found", lastPublishedAt: null, scope: "bridge" };
+    }
+
+    const mapped = await mapHistoryWithUsers(history, userData);
+    return {
+      success: true,
+      ...mapped,
+      total: history.length,
+      lastPublishedAt: null,
+      scope: "bridge"
+    };
+  } catch (error) {
+    console.error("Error fetching bridge user updates:", error);
+    return { success: false, message: "Error fetching updates", lastPublishedAt: null, scope: "bridge" };
   }
 }
 
@@ -563,5 +652,6 @@ export default {
   findThreadMessage,
   getSubThreadsWithActivity,
   getUserUpdates,
+  getBridgeUserUpdates,
   addBulkUserEntries
 };
