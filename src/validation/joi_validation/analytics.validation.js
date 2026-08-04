@@ -62,7 +62,41 @@ const getAgentAnalyticsFilters = {
     .unknown(true)
 };
 
+const getEmbedAnalytics = {
+  params: Joi.object()
+    .keys({
+      folder_id: Joi.string().trim().min(1).required().messages({
+        "string.empty": "folder_id cannot be empty",
+        "any.required": "folder_id is required"
+      })
+    })
+    .unknown(true),
+  query: Joi.object()
+    .keys({
+      range: Joi.alternatives()
+        .try(Joi.number().integer().min(1).max(365), Joi.string().pattern(/^[0-9]+[hd]$/))
+        .optional()
+        .messages({
+          "number.max": "range cannot exceed 365 days",
+          "string.pattern.base": "range must be a valid format like '1h' or '24h'"
+        }),
+      interval: Joi.string()
+        .pattern(/^[0-9]+[hd]$/)
+        .optional(),
+      start_date: Joi.date().iso().optional(),
+      end_date: Joi.date().iso().min(Joi.ref("start_date")).optional().messages({
+        "date.min": "end_date must be after start_date"
+      }),
+      user_id: Joi.string().trim().min(1).optional(),
+      search: Joi.string().trim().allow("").max(200).optional(),
+      page: Joi.number().integer().min(1).optional(),
+      limit: Joi.number().integer().min(1).max(100).optional()
+    })
+    .unknown(true)
+};
+
 export default {
   getAgentAnalytics,
-  getAgentAnalyticsFilters
+  getAgentAnalyticsFilters,
+  getEmbedAnalytics
 };
