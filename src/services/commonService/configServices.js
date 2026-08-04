@@ -271,31 +271,44 @@ const getAllSubThreadsController = async (req, res, next) => {
   req.statusCode = 200;
   return next();
 };
+const parseHistoryFilters = (query = {}) => ({
+  user_ids: query.user_ids
+    ? query.user_ids
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean)
+    : [],
+  types: query.types
+    ? query.types
+        .split(",")
+        .map((type) => type.trim())
+        .filter(Boolean)
+    : [],
+  date_from: query.date_from || null,
+  date_to: query.date_to || null
+});
+
 const getAllUserUpdates = async (req, res, next) => {
   const { version_id } = req.params;
   const org_id = req?.profile?.org?.id || req?.profile?.org_id;
   let page = parseInt(req.query.page) || 1;
   let pageSize = parseInt(req.query.limit) || 30;
 
-  // Extract filter parameters
-  const filters = {
-    user_ids: req.query.user_ids
-      ? req.query.user_ids
-          .split(",")
-          .map((id) => id.trim())
-          .filter(Boolean)
-      : [],
-    types: req.query.types
-      ? req.query.types
-          .split(",")
-          .map((type) => type.trim())
-          .filter(Boolean)
-      : [],
-    date_from: req.query.date_from || null,
-    date_to: req.query.date_to || null
-  };
-
+  const filters = parseHistoryFilters(req.query);
   const userData = await conversationDbService.getUserUpdates(org_id, version_id, page, pageSize, [], filters);
+  res.locals = { userData, success: true };
+  req.statusCode = 200;
+  return next();
+};
+
+const getAllBridgeUserUpdates = async (req, res, next) => {
+  const { bridge_id } = req.params;
+  const org_id = req?.profile?.org?.id || req?.profile?.org_id;
+  let page = parseInt(req.query.page) || 1;
+  let pageSize = parseInt(req.query.limit) || 30;
+
+  const filters = parseHistoryFilters(req.query);
+  const userData = await conversationDbService.getBridgeUserUpdates(org_id, bridge_id, page, pageSize, filters);
   res.locals = { userData, success: true };
   req.statusCode = 200;
   return next();
@@ -310,5 +323,6 @@ export default {
   extraThreadID,
   getThreadMessages,
   getAllSubThreadsController,
-  getAllUserUpdates
+  getAllUserUpdates,
+  getAllBridgeUserUpdates
 };
