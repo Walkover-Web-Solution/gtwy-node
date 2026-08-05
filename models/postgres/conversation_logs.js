@@ -152,6 +152,11 @@ export default (sequelize, DataTypes) => {
       testcase_data: {
         type: DataTypes.JSONB,
         allowNull: true
+      },
+      annotations: {
+        type: DataTypes.ARRAY(DataTypes.JSONB),
+        allowNull: true,
+        defaultValue: []
       }
     },
     {
