@@ -257,7 +257,21 @@ async function findRecentThreadsByBridgeId(
         } else {
           if (!keyword || keyword === "") continue;
           if (searchableColumns.includes(col)) {
-            orConditions.push({ [col]: { [Sequelize.Op.iLike]: `%${keyword}%` } });
+            const FREE_TEXT_MESSAGE_COLUMNS = ["llm_message", "updated_llm_message", "chatbot_message"];
+            if (FREE_TEXT_MESSAGE_COLUMNS.includes(col)) {
+              // Message columns store raw markdown; text pasted from the rendered UI has
+              // markdown/whitespace stripped, so a single %blob% never matches. Match
+              // every whitespace-delimited token (AND of ILIKE) so a full pasted response
+              // or any snippet matches regardless of formatting differences.
+              const tokens = String(keyword).split(/\s+/).map((t) => t.trim()).filter(Boolean);
+              if (tokens.length) {
+                orConditions.push({
+                  [Sequelize.Op.and]: tokens.map((t) => ({ [col]: { [Sequelize.Op.iLike]: `%${t}%` } })),
+                });
+              }
+            } else {
+              orConditions.push({ [col]: { [Sequelize.Op.iLike]: `%${keyword}%` } });
+            }
           }
         }
       }
