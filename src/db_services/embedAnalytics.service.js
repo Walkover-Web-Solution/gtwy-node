@@ -387,19 +387,21 @@ async function getEmbedAnalytics({ org_id, window, agents, userMap, userSearch, 
   };
   const lifetime = rowToSummary(lifetimeRow);
 
-  // Users are searched/paginated only for the response — `summary` above still
-  // reflects the full set, so the KPI cards stay accurate while searching.
+  // Search + paginate the full user list (not the current page) so matches on
+  // page 2+ still surface. KPI `summary` above stays based on the unfiltered set.
   const term = String(userSearch || "")
     .trim()
     .toLowerCase();
   const matchedUsers = term
-    ? users.filter((u) =>
-        [u.name, u.email, u.external_user_id, u.user_id].some((field) =>
+    ? users.filter((u) => {
+        const emailLocal = u.email && String(u.email).includes("@") ? String(u.email).split("@")[0] : u.email;
+        const agentNames = (u.agents || []).map((a) => a.name).join(" ");
+        return [u.name, u.email, emailLocal, u.external_user_id, u.user_id, agentNames].some((field) =>
           String(field || "")
             .toLowerCase()
             .includes(term)
-        )
-      )
+        );
+      })
     : users;
 
   const pageSize = Math.min(Math.max(1, Number(userLimit) || USERS_DEFAULT_PAGE_SIZE), 100);
