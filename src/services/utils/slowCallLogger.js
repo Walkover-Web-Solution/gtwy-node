@@ -4,7 +4,7 @@ import logger from "../../logger.js";
 // A call slower than its threshold is logged so we can tell which service is slow.
 export const SLOW_CALL_THRESHOLDS = {
   redis: 300, //  300ms
-  mongo: 500, //  500ms
+  mongo: 1500, //  500ms
   pg: 500 //  500ms
 };
 
