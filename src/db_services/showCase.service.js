@@ -1,22 +1,32 @@
-import showCaseModel from "../mongoModel/ShowCase.model.js";
+import showCaseModel, { SHOWCASE_STATUS } from "../mongoModel/ShowCase.model.js";
 
-async function getAll() {
-  const data = await showCaseModel.find().lean();
-  return data.map((d) => ({ ...d, _id: d._id.toString() }));
+const formatShowCase = (showCase) => ({
+  ...showCase,
+  _id: showCase._id.toString()
+});
+
+async function createShowCase({ category, name, description, link }) {
+  const showCase = await showCaseModel.create({
+    category,
+    name,
+    description,
+    link,
+    status: SHOWCASE_STATUS.PENDING
+  });
+  return formatShowCase(showCase.toObject());
 }
 
-async function create(data) {
-  const result = await showCaseModel.insertOne(data);
-  return { id: result.insertedId, ...data };
+async function getShowCasesByStatus(status) {
+  const showCases = await showCaseModel.find({ status }).sort({ createdAt: -1 }).lean();
+  return showCases.map(formatShowCase);
 }
 
-async function update(id, data) {
-  const result = await showCaseModel.findOneAndUpdate({ _id: id }, { $set: data }, { returnDocument: "after" });
-  return result ? { ...result, _id: result._id.toString() } : null;
+async function getApprovedShowCases() {
+  return getShowCasesByStatus(SHOWCASE_STATUS.APPROVED);
 }
 
 export default {
-  getAll,
-  create,
-  update
+  createShowCase,
+  getShowCasesByStatus,
+  getApprovedShowCases
 };
