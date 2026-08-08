@@ -96,13 +96,10 @@ const getAgentAnalytics = async (req, res, next) => {
       knowledgebase_id: filters.knowledgebase_id,
       review_failed: filters.review_failed
     };
-    const ufForSearch = filters.user_feedback || "all";
-
     const result = await findRecentThreadsByBridgeId(
       org_id,
       bridge_id,
       searchFilters,
-      ufForSearch,
       error || "false",
       page,
       page_size,
