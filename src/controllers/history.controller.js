@@ -102,7 +102,6 @@ const getRecentThreads = async (req, res, next) => {
   // Extract query parameters
   const pageNum = parseInt(req.query.page) || 1;
   const limitNum = parseInt(req.query.limit) || 30;
-  const user_feedback = req.query.user_feedback || "all";
   const error = req.query.error || "false";
   const version_id = req.query.version_id;
   const testcase_id = req.query.testcase_id || null;
@@ -121,7 +120,7 @@ const getRecentThreads = async (req, res, next) => {
   };
 
   // Get recent threads with search functionality built-in
-  const result = await findRecentThreadsByBridgeId(org_id, agent_id, filters, user_feedback, error, pageNum, limitNum, version_id, testcase_id);
+  const result = await findRecentThreadsByBridgeId(org_id, agent_id, filters, error, pageNum, limitNum, version_id, testcase_id);
 
   if (result.success) {
     res.locals = {
