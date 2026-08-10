@@ -12,20 +12,46 @@ import { buildConversationFilterSql } from "./conversationFilters.util.js";
  * @param {number} limit - Items per page (default: 30)
  * @returns {Object} - Success status and data
  */
-async function findBatchConversationLogsByAgentId(org_id, bridge_id, filter, page = 1, limit = 30, version_id = null) {
+async function findBatchConversationLogsByAgentId(
+  org_id,
+  bridge_id,
+  filter,
+  page = 1,
+  limit = 30,
+  version_id = null,
+  thread_id = null,
+  sub_thread_id = null
+) {
   try {
     const offset = (page - 1) * limit;
 
     // Build where conditions - all parameters are required
+    const statusFilter = filter ? filter : "completed";
     const whereConditions = {
       org_id: org_id,
       bridge_id: bridge_id,
-      batch_data: { [Sequelize.Op.ne]: null },
-      "batch_data.status": filter ? filter : "completed"
+      batch_data: { [Sequelize.Op.ne]: null }
     };
+
+    if (statusFilter === "error") {
+      // Errored batches are identified by the top-level `error` column being set,
+      // not by batch_data.status (which typically remains "queued"/"processing").
+      whereConditions.error = { [Sequelize.Op.ne]: null };
+    } else {
+      const escapedStatus = statusFilter.replace(/'/g, "''");
+      whereConditions[Sequelize.Op.and] = [Sequelize.literal(`batch_data->>'status' = '${escapedStatus}'`)];
+    }
 
     if (version_id) {
       whereConditions.version_id = version_id;
+    }
+
+    if (thread_id) {
+      whereConditions.thread_id = thread_id;
+    }
+
+    if (sub_thread_id) {
+      whereConditions.sub_thread_id = sub_thread_id;
     }
 
     // Get paginated data
