@@ -5,7 +5,7 @@ export const subscribe = async (req, res, next) => {
   const { ispublic } = req.chatBot;
 
   let data = null;
-  let { slugName, versionId } = req.body;
+  let { slugName, versionId, model_name } = req.body;
   let { org } = req?.profile || {};
 
   if (ispublic && slugName?.includes("::")) {
