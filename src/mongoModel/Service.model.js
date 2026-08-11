@@ -13,6 +13,13 @@ const ServiceSchema = new mongoose.Schema(
     supports_tool_calls: { type: Boolean, default: false },
     supports_stream_usage: { type: Boolean, default: false },
     supports_reasoning: { type: Boolean, default: false },
+    supports_batch: { type: Boolean, default: false },
+    supports_embeddings: { type: Boolean, default: false },
+    supports_image_gen: { type: Boolean, default: false },
+    supports_video: { type: Boolean, default: false },
+    reasoning_param_style: { type: String, default: null }, // summary_flag | thinking_config | output_config_effort | reasoning_effort | reasoning_effort_extra_body | null
+    extra_body: { type: mongoose.Schema.Types.Mixed, default: {} }, // static params always merged into the request's extra_body for this service
+    reasoning_extra_body: { type: mongoose.Schema.Types.Mixed, default: {} }, // extra_body params merged in only when reasoning is enabled
     default_model: { type: String, default: null },
     prompt_role: { type: String, default: "system" },
     apikey_status_codes: { type: mongoose.Schema.Types.Mixed, default: {} },

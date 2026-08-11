@@ -71,10 +71,20 @@ const getBaseUrl = (name) => field(name, "base_url");
 const getDefaultModel = (name) => field(name, "default_model");
 const apikeyStatusCodes = (name) => field(name, "apikey_status_codes", {});
 const getValidationConfig = (name) => field(name, "validation_config", {});
+const supportsBatch = (name) => field(name, "supports_batch", false);
+const supportsEmbeddings = (name) => field(name, "supports_embeddings", false);
+const supportsImageGen = (name) => field(name, "supports_image_gen", false);
+const supportsVideo = (name) => field(name, "supports_video", false);
+const reasoningParamStyle = (name) => field(name, "reasoning_param_style", null);
+const extraBody = (name) => field(name, "extra_body", {});
+const reasoningExtraBody = (name) => field(name, "reasoning_extra_body", {});
 
 // --- Capability predicates (mirror the Python registry) --------------------
 const usesOpenAISdk = (name) => client(name) === "openai_sdk" && wireFormat(name) === "openai_chat";
 const hasOpenAIChoicesShape = (name) => wireFormat(name) === "openai_chat";
+const hasGeminiShape = (name) => wireFormat(name) === "gemini";
+const hasAnthropicShape = (name) => wireFormat(name) === "anthropic";
+const hasOpenAIResponsesShape = (name) => wireFormat(name) === "openai_responses";
 
 // Get all service names from the registry (for dynamic Joi validation)
 const getServiceNames = () => Object.keys(servicesRegistry);
@@ -90,7 +100,17 @@ export {
   getDefaultModel,
   apikeyStatusCodes,
   getValidationConfig,
+  supportsBatch,
+  supportsEmbeddings,
+  supportsImageGen,
+  supportsVideo,
+  reasoningParamStyle,
+  extraBody,
+  reasoningExtraBody,
   usesOpenAISdk,
   hasOpenAIChoicesShape,
+  hasGeminiShape,
+  hasAnthropicShape,
+  hasOpenAIResponsesShape,
   getServiceNames
 };
