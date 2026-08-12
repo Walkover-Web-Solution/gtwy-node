@@ -57,6 +57,47 @@ const deleteUserModelConfigurationQuerySchema = Joi.object({
     })
 }).unknown(true);
 
+const updateUserModelConfigurationQuerySchema = Joi.object({
+  model_name: Joi.string().required().messages({
+    "any.required": "model_name is required"
+  }),
+  service: Joi.string()
+    .valid(...getServiceNames())
+    .required()
+    .messages({
+      "any.required": "service is required"
+    })
+}).unknown(true);
+
+const updateUserModelConfigurationBodySchema = Joi.object({
+  service: Joi.string()
+    .valid(...getServiceNames())
+    .required(),
+  model_name: Joi.string()
+    .pattern(/^[^\s]+$/)
+    .message("model_name must not contain spaces")
+    .required(),
+  status: Joi.number().valid(0, 1).required(),
+  configuration: Joi.object({
+    model: Joi.object({
+      default: Joi.string().required()
+    })
+      .unknown(true)
+      .required()
+  })
+    .unknown(true)
+    .required(),
+  outputConfig: Joi.object().unknown(true).required(),
+  validationConfig: Joi.object().unknown(true).required()
+})
+  .unknown(true)
+  .custom((value, helpers) => {
+    if (value.configuration?.model?.default !== value.model_name) {
+      return helpers.message("configuration.model.default must be the same as model_name");
+    }
+    return value;
+  }, "model_name and configuration.model.default match");
+
 const bulkUpdateModelFilterSchema = Joi.object().min(1).unknown(true);
 
 const bulkUpdateModelChangeSchema = Joi.object({
@@ -120,6 +161,8 @@ export {
   createUserModelConfigSchema,
   saveUserModelConfigurationBodySchema,
   deleteUserModelConfigurationQuerySchema,
+  updateUserModelConfigurationQuerySchema,
+  updateUserModelConfigurationBodySchema,
   setModelStatusAdminBodySchema,
   bulkUpdateUserModelConfigurationBodySchema
 };

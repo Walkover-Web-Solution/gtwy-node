@@ -50,7 +50,7 @@ async function deleteUserModelConfiguration(req, res, next) {
     });
   }
 
-  const result = await modelConfigDbService.deleteUserModelConfig(model_name, service, org_id);
+  const result = await modelConfigDbService.deleteUserModelConfig(model_name, service);
 
   if (!result) {
     return res.status(404).json({ success: false, message: "Model configuration not found." });
@@ -58,7 +58,36 @@ async function deleteUserModelConfiguration(req, res, next) {
 
   res.locals = {
     success: true,
-    message: `Model configuration '${model_name}' for service '${service}' deleted successfully.`
+    message: `Model configuration '${model_name}' for service '${service}' disabled successfully.`
+  };
+  req.statusCode = 200;
+  return next();
+}
+
+async function updateUserModelConfiguration(req, res, next) {
+  const { model_name, service } = req.query;
+  const updates = req.body;
+
+  // check models validity and support
+  const isModelSupported = await validateModel(service, model_name);
+
+  if (!isModelSupported) {
+    throw new Error(`Model '${model_name}' is not supported by service '${service}'`);
+  }
+
+  const result = await modelConfigDbService.updateModelConfigs(model_name, service, updates);
+
+  if (result?.error) {
+    return res.status(400).json({
+      success: false,
+      message: result.error
+    });
+  }
+
+  res.locals = {
+    success: true,
+    message: "Model configuration updated successfully",
+    result
   };
   req.statusCode = 200;
   return next();
@@ -105,4 +134,4 @@ async function bulkUpdateUserModelConfigurations(req, res, next) {
   return next();
 }
 
-export { saveUserModelConfiguration, deleteUserModelConfiguration, bulkUpdateUserModelConfigurations };
+export { saveUserModelConfiguration, deleteUserModelConfiguration, updateUserModelConfiguration, bulkUpdateUserModelConfigurations };
