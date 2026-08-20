@@ -1,32 +1,39 @@
 import mongoose from "mongoose";
+import { SHOWCASE_STATUS } from "../utils/showCase.utils.js";
 
-const showCaseSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: true,
-    trim: true,
-    unique: true // Ensures name is unique
+const showCaseSchema = new mongoose.Schema(
+  {
+    category: {
+      type: String,
+      required: true,
+      trim: true
+    },
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+      unique: true
+    },
+    description: {
+      type: String,
+      required: true,
+      trim: true
+    },
+    link: {
+      type: String,
+      required: true,
+      trim: true
+    },
+    status: {
+      type: Number,
+      enum: Object.values(SHOWCASE_STATUS),
+      default: SHOWCASE_STATUS.PENDING
+    }
   },
-  img_url: {
-    type: String,
-    required: true
-  },
-  description: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  link: {
-    type: String,
-    required: true
-  },
-  created_at: {
-    type: Date,
-    default: Date.now
-  }
-});
+  { timestamps: true }
+);
 
-showCaseSchema.index({ name: 1 }, { unique: true });
+showCaseSchema.index({ status: 1, createdAt: -1 });
 
 const showCaseModel = mongoose.model("showCaseModel", showCaseSchema);
 
