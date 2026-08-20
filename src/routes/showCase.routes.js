@@ -6,7 +6,6 @@ import showCaseValidation from "../validation/joi_validation/showCase.validation
 const router = express.Router();
 
 router.post("/", validate(showCaseValidation.createShowCase), showCaseController.addShowCase);
-router.get("/", validate(showCaseValidation.getShowCases), showCaseController.getShowCases);
-router.get("/all", validate(showCaseValidation.getShowCases), showCaseController.getShowCases);
+router.get("/", showCaseController.getShowCases);
 
 export default router;

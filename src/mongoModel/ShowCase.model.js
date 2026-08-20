@@ -1,10 +1,5 @@
 import mongoose from "mongoose";
-
-export const SHOWCASE_STATUS = {
-  PENDING: 0,
-  APPROVED: 1,
-  REJECTED: 2
-};
+import { SHOWCASE_STATUS } from "../utils/showCase.utils.js";
 
 const showCaseSchema = new mongoose.Schema(
   {

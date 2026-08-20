@@ -1,9 +1,5 @@
-import showCaseModel, { SHOWCASE_STATUS } from "../mongoModel/ShowCase.model.js";
-
-const formatShowCase = (showCase) => ({
-  ...showCase,
-  _id: showCase._id.toString()
-});
+import showCaseModel from "../mongoModel/ShowCase.model.js";
+import { SHOWCASE_STATUS } from "../utils/showCase.utils.js";
 
 async function createShowCase({ category, name, description, link }) {
   const showCase = await showCaseModel.create({
@@ -13,12 +9,13 @@ async function createShowCase({ category, name, description, link }) {
     link,
     status: SHOWCASE_STATUS.PENDING
   });
-  return formatShowCase(showCase.toObject());
+  return showCase.toObject();
 }
 
+// Not exported on purpose — callers go through getApprovedShowCases so that
+// pending and rejected entries can never reach a response by accident.
 async function getShowCasesByStatus(status) {
-  const showCases = await showCaseModel.find({ status }).sort({ createdAt: -1 }).lean();
-  return showCases.map(formatShowCase);
+  return showCaseModel.find({ status }).sort({ createdAt: -1 }).lean();
 }
 
 async function getApprovedShowCases() {
@@ -27,6 +24,5 @@ async function getApprovedShowCases() {
 
 export default {
   createShowCase,
-  getShowCasesByStatus,
   getApprovedShowCases
 };
