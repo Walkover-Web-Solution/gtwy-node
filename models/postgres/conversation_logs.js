@@ -153,6 +153,24 @@ export default (sequelize, DataTypes) => {
         type: DataTypes.JSONB,
         allowNull: true
       },
+      cost_data: {
+        type: DataTypes.JSONB,
+        allowNull: true
+      },
+      dispatch_status: {
+        type: DataTypes.TEXT,
+        allowNull: false,
+        defaultValue: "pending" // pending | dispatched | failed | dead_letter
+      },
+      dispatch_attempts: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0
+      },
+      lago_response: {
+        type: DataTypes.JSONB,
+        allowNull: true
+      },
       annotations: {
         type: DataTypes.ARRAY(DataTypes.JSONB),
         allowNull: true,
