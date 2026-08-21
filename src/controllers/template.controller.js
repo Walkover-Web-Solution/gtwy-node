@@ -166,9 +166,10 @@ const createTemplate = async (req, res, next) => {
     isValid = await callAiMiddleware(user, bridge_ids["template_validator"], { template: bridge, templateName, email });
   }
 
-  // Save the template
+  // Save the template — `isValid.meta` is the validator agent's marketing copy, persisted
+  // alongside the template so the details page can render it.
   if (isValid?.status) {
-    const template = await templateService.saveTemplate(bridge, templateName);
+    const template = await templateService.saveTemplate(bridge, templateName, isValid?.meta || null);
     res.locals = {
       success: true,
       result: template
