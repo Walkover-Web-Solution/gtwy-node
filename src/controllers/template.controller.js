@@ -163,11 +163,19 @@ const createTemplate = async (req, res, next) => {
   let isValid = { status: true };
   if (!req.IsEmbedUser && email) {
     isValid = await callAiMiddleware(user, bridge_ids["template_validator"], { template: bridge, templateName, email });
+    // The validator is the only source of `meta`; log when it comes back without one
+    // so a missing details-page headline can be traced to the agent, not the save.
+    if (!isValid?.meta) {
+      console.warn("[template] validator returned no meta; keys:", Object.keys(isValid || {}));
+    }
+  } else {
+    console.warn("[template] validator skipped (embed user or no email) — no meta will be saved");
   }
 
-  // Save the template
+  // Save the template — `isValid.meta` is the validator agent's marketing copy, persisted
+  // alongside the template so the details page can render it.
   if (isValid?.status) {
-    const template = await templateService.saveTemplate(bridge, templateName);
+    const template = await templateService.saveTemplate(bridge, templateName, isValid?.meta || null);
     res.locals = {
       success: true,
       result: template
