@@ -93,7 +93,7 @@ async function deleteFunctionFromApicallsDb(org_id, script_id) {
 
   const function_id_str = functionData._id.toString();
 
-  const [, , result] = await Promise.all([
+  const [, , , , result] = await Promise.all([
     configurationModel.collection.updateMany(
       {
         org_id: org_id,
@@ -128,6 +128,9 @@ async function deleteFunctionFromApicallsDb(org_id, script_id) {
         }
       }
     ),
+    // post_tool is a single object keyed by id — clear it when that tool is deleted
+    configurationModel.collection.updateMany({ org_id: org_id, "post_tool.id": function_id_str }, { $set: { post_tool: null } }),
+    versionModel.collection.updateMany({ org_id: org_id, "post_tool.id": function_id_str }, { $set: { post_tool: null } }),
     apiCallModel.deleteOne({
       org_id: org_id,
       script_id: script_id
