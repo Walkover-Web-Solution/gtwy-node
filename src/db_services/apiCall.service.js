@@ -97,24 +97,34 @@ async function deleteFunctionFromApicallsDb(org_id, script_id) {
     configurationModel.collection.updateMany(
       {
         org_id: org_id,
-        $or: [{ function_ids: function_id_str }, { "pre_tools.config.function_id": function_id_str }]
+        $or: [
+          { function_ids: function_id_str },
+          { "pre_tools.config.function_id": function_id_str },
+          { "settings.review_agent.reviewer_tools": function_id_str }
+        ]
       },
       {
         $pull: {
           function_ids: function_id_str,
-          pre_tools: { "config.function_id": function_id_str }
+          pre_tools: { "config.function_id": function_id_str },
+          "settings.review_agent.reviewer_tools": function_id_str
         }
       }
     ),
     versionModel.collection.updateMany(
       {
         org_id: org_id,
-        $or: [{ function_ids: function_id_str }, { "pre_tools.config.function_id": function_id_str }]
+        $or: [
+          { function_ids: function_id_str },
+          { "pre_tools.config.function_id": function_id_str },
+          { "settings.review_agent.reviewer_tools": function_id_str }
+        ]
       },
       {
         $pull: {
           function_ids: function_id_str,
-          pre_tools: { "config.function_id": function_id_str }
+          pre_tools: { "config.function_id": function_id_str },
+          "settings.review_agent.reviewer_tools": function_id_str
         }
       }
     ),

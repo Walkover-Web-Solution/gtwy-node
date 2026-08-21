@@ -255,6 +255,25 @@ const getAgentsWithSelectedData = async (agent_id) => {
   }
 };
 
+const clearReviewerAgentReferences = async (agent_id, org_id = null) => {
+  const agentIdStr = agent_id?.toString?.() || String(agent_id);
+  const match = {
+    "settings.review_agent.reviewer_agent": agentIdStr
+  };
+  if (org_id != null) {
+    match.org_id = org_id;
+  }
+
+  await Promise.all([
+    versionModel.updateMany(match, {
+      $set: { "settings.review_agent.reviewer_agent": null }
+    }),
+    configurationModel.updateMany(match, {
+      $set: { "settings.review_agent.reviewer_agent": null }
+    })
+  ]);
+};
+
 const deleteAgent = async (agent_id, org_id) => {
   try {
     // First, find the agent to get its data including versions
@@ -403,6 +422,9 @@ const deleteAgent = async (agent_id, org_id) => {
       ? `Agent "${agentLabel}" was already soft deleted, updated timestamp. ${deletedVersions.modifiedCount} versions marked for deletion.`
       : `Agent "${agentLabel}" and ${deletedVersions.modifiedCount} versions marked for deletion. They will be permanently deleted after 30 days.`;
 
+    // Soft-deleted agents must not remain linked as reviewer agents on other versions/agents
+    await clearReviewerAgentReferences(agent_id, org_id);
+
     return {
       success: true,
       message: statusMessage
@@ -518,6 +540,9 @@ const permanentlyDeleteAgent = async (agent_id) => {
     }
 
     const deletedVersions = await versionModel.deleteMany(versionDeleteFilter);
+
+    // Clear reviewer_agent refs before hard-deleting so other agents don't keep a dead ID
+    await clearReviewerAgentReferences(agent_id, agent.org_id);
 
     // Hard delete the agent itself
     const deletedAgent = await configurationModel.deleteOne({
