@@ -48,6 +48,7 @@ import analyticsRoutes from "./routes/analytics.routes.js";
 import skillRoutes from "./routes/skill.routes.js";
 import { logSlowCall } from "./services/utils/slowCallLogger.js";
 import blockedOrgRoutes from "./routes/blockedOrg.routes.js";
+import showCaseRoutes from "./routes/showCase.routes.js";
 const app = express();
 const PORT = process.env.PORT || 7072;
 
@@ -126,6 +127,7 @@ app.use("/api/observability", observabilityRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/skills", skillRoutes);
 app.use("/api/block_org", blockedOrgRoutes);
+app.use("/api/showcase", showCaseRoutes);
 
 //Metrics
 // app.use('/api/v1/metrics', metrisRoutes);
