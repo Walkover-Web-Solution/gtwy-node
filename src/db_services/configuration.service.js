@@ -255,7 +255,7 @@ const getAgentsWithSelectedData = async (agent_id) => {
   }
 };
 
-const clearReviewerAgentReferences = async (agent_id, org_id = null) => {
+const findAgentsUsingAsReviewer = async (agent_id, org_id = null) => {
   const agentIdStr = agent_id?.toString?.() || String(agent_id);
   const match = {
     "settings.review_agent.reviewer_agent": agentIdStr
@@ -264,14 +264,28 @@ const clearReviewerAgentReferences = async (agent_id, org_id = null) => {
     match.org_id = org_id;
   }
 
-  await Promise.all([
-    versionModel.updateMany(match, {
-      $set: { "settings.review_agent.reviewer_agent": null }
-    }),
-    configurationModel.updateMany(match, {
-      $set: { "settings.review_agent.reviewer_agent": null }
-    })
+  const [fromVersions, fromConfigs] = await Promise.all([
+    versionModel.find(match).select({ parent_id: 1, _id: 1 }).lean(),
+    configurationModel.find(match).select({ _id: 1, name: 1 }).lean()
   ]);
+
+  const referencingAgentIds = [...fromVersions.map((v) => (v.parent_id || v._id)?.toString()), ...fromConfigs.map((c) => c._id?.toString())].filter(
+    (id) => id && id !== agentIdStr
+  );
+
+  const uniqueIds = [...new Set(referencingAgentIds)];
+  if (uniqueIds.length === 0) {
+    return [];
+  }
+
+  const query = {
+    _id: { $in: uniqueIds.map((id) => new ObjectId(id)) }
+  };
+  if (org_id != null) {
+    query.org_id = org_id;
+  }
+
+  return configurationModel.find(query).select({ _id: 1, name: 1 }).lean();
 };
 
 const deleteAgent = async (agent_id, org_id) => {
@@ -374,6 +388,16 @@ const deleteAgent = async (agent_id, org_id) => {
       };
     }
 
+    // Block delete when this agent is configured as a reviewer on other agents/versions
+    const reviewerOfAgents = await findAgentsUsingAsReviewer(agent_id, org_id);
+    if (reviewerOfAgents.length > 0) {
+      const agentNames = reviewerOfAgents.map((a) => a.name || `Agent ${a._id}`);
+      return {
+        success: false,
+        error: `Cannot delete agent. It is used as a reviewer agent in the following ${agentNames.length === 1 ? "agent" : "agents"}: ${agentNames.join(", ")}`
+      };
+    }
+
     const currentDate = new Date();
     let agentAlreadyDeleted = false;
 
@@ -421,9 +445,6 @@ const deleteAgent = async (agent_id, org_id) => {
     const statusMessage = agentAlreadyDeleted
       ? `Agent "${agentLabel}" was already soft deleted, updated timestamp. ${deletedVersions.modifiedCount} versions marked for deletion.`
       : `Agent "${agentLabel}" and ${deletedVersions.modifiedCount} versions marked for deletion. They will be permanently deleted after 30 days.`;
-
-    // Soft-deleted agents must not remain linked as reviewer agents on other versions/agents
-    await clearReviewerAgentReferences(agent_id, org_id);
 
     return {
       success: true,
@@ -519,6 +540,16 @@ const permanentlyDeleteAgent = async (agent_id) => {
       };
     }
 
+    const reviewerOfAgents = await findAgentsUsingAsReviewer(agent_id, agent.org_id);
+    if (reviewerOfAgents.length > 0) {
+      const agentNames = reviewerOfAgents.map((a) => a.name || `Agent ${a._id}`);
+      return {
+        success: false,
+        error: `Cannot delete agent. It is used as a reviewer agent in the following ${agentNames.length === 1 ? "agent" : "agents"}: ${agentNames.join(", ")}`,
+        connected_agents: reviewerOfAgents.map((a) => ({ _id: a._id, name: a.name }))
+      };
+    }
+
     // Hard delete all versions for this agent (by parent_id and by versions array)
     const versionIdsFromArray = Array.isArray(agent.versions)
       ? agent.versions
@@ -540,9 +571,6 @@ const permanentlyDeleteAgent = async (agent_id) => {
     }
 
     const deletedVersions = await versionModel.deleteMany(versionDeleteFilter);
-
-    // Clear reviewer_agent refs before hard-deleting so other agents don't keep a dead ID
-    await clearReviewerAgentReferences(agent_id, agent.org_id);
 
     // Hard delete the agent itself
     const deletedAgent = await configurationModel.deleteOne({
