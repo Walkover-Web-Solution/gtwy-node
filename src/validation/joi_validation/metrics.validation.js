@@ -1,6 +1,9 @@
 import Joi from "joi";
 
 const idSchema = Joi.alternatives().try(Joi.number().integer(), Joi.string().trim().min(1));
+// Multi-select filters accept either a single id (legacy) or a non-empty array of ids.
+const multiIdSchema = Joi.alternatives().try(idSchema, Joi.array().items(idSchema).min(1));
+const multiStringSchema = Joi.alternatives().try(Joi.string().trim().min(1), Joi.array().items(Joi.string().trim().min(1)).min(1));
 
 /**
  * Schema for POST /metrics - get_metrics_data
@@ -15,11 +18,11 @@ const getMetricsData = {
     .unknown(true),
   body: Joi.object()
     .keys({
-      apikey_id: idSchema.optional(),
-      service: Joi.string().optional(),
-      model: Joi.string().optional(),
+      apikey_id: multiIdSchema.optional(),
+      service: multiStringSchema.optional(),
+      model: multiStringSchema.optional(),
       thread_id: idSchema.optional(),
-      bridge_id: idSchema.optional(),
+      bridge_id: multiIdSchema.optional(),
       version_id: idSchema.optional(),
       range: Joi.number().integer().required().messages({
         "any.required": "range is required",
@@ -35,6 +38,22 @@ const getMetricsData = {
     .unknown(true)
 };
 
+// Schema for POST /metrics/requests-activity - real success/failed request
+// counts over time, sourced from conversation_logs (not the Timescale rollups).
+const getRequestsActivity = {
+  body: Joi.object()
+    .keys({
+      bridge_id: multiIdSchema.optional(),
+      model: multiStringSchema.optional(),
+      service: multiStringSchema.optional(),
+      range: Joi.number().integer().optional(),
+      start_date: Joi.date().optional(),
+      end_date: Joi.date().optional()
+    })
+    .unknown(true)
+};
+
 export default {
-  getMetricsData
+  getMetricsData,
+  getRequestsActivity
 };

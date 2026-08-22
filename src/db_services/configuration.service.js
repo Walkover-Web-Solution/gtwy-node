@@ -1195,6 +1195,24 @@ const getAgentsWithTools = async (agent_id, org_id, version_id = null) => {
   }
 };
 
+// Real usage in Timescale/conversation_logs is keyed by bridge_id and knows
+// nothing about which folder an agent lives under - it includes embed agents'
+// usage rows just like any other agent's. getAllAgentsInOrg already excludes
+// embed agents from the org's agent list/dropdowns, but that alone doesn't
+// stop their usage from showing up (unnamed, as "Bridge <hex>") in the
+// Metrics dashboard's chart/table, which reads straight from the usage
+// tables. This gives the Metrics queries the exact bridge_ids to exclude so
+// embed-agent usage is left out at the source, not just left unnamed.
+const getEmbedBridgeIds = async (org_id) => {
+  const embedFolderIds = await folderService.getFolderIdsByOrgAndType(org_id, "embed");
+  if (!embedFolderIds.length) return [];
+  const agents = await configurationModel
+    .find({ org_id, folder_id: { $in: embedFolderIds } })
+    .select({ _id: 1 })
+    .lean();
+  return agents.map((agent) => agent._id.toString());
+};
+
 const getAllAgentsInOrg = async (org_id, folder_id, user_id, isEmbedUser) => {
   // First, get all bridge_ids and their last publishers from PostgreSQL
   const lastPublishersMap = await getAllAgentsWithLastPublishers(org_id);
@@ -1403,6 +1421,7 @@ export default {
   getAgentsData,
   getAgentsWithTools,
   getAllAgentsInOrg,
+  getEmbedBridgeIds,
   createAgent,
   updateAgent,
   updateBuiltInTools,

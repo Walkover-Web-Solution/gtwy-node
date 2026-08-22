@@ -10,37 +10,54 @@ export function selectTable(range) {
   }
 }
 
-export function buildWhereClause(params, values, factor, range, flag = true, start_date = null, end_date = null) {
+const escapeSqlLiteral = (value) => String(value).replace(/'/g, "''");
+
+// A filter value can be a single id (legacy single-select) or an array of ids
+// (multi-select) - either way it renders to `col = 'x'` or `col IN ('x','y')`.
+function pushCondition(conditions, values, column, value) {
+  if (value === null || value === undefined) return;
+  const list = Array.isArray(value) ? value.filter((v) => v !== null && v !== undefined && v !== "") : [value];
+  if (list.length === 0) return;
+  values.push(...list);
+  if (list.length === 1) {
+    conditions.push(`${column} = '${escapeSqlLiteral(list[0])}'`);
+  } else {
+    conditions.push(`${column} IN (${list.map((v) => `'${escapeSqlLiteral(v)}'`).join(", ")})`);
+  }
+}
+
+// Excludes embed agents' bridge_ids from the Timescale query entirely - their
+// usage is real and lives in the same rollup tables as everyone else's, but
+// embed agents aren't part of the org's real Agents list and shouldn't
+// contribute to the Metrics dashboard's numbers at all (not shown unnamed,
+// not folded into totals).
+function pushExcludeCondition(conditions, column, excludeList) {
+  const list = Array.isArray(excludeList) ? excludeList.filter((v) => v !== null && v !== undefined && v !== "") : [];
+  if (list.length === 0) return;
+  conditions.push(`${column} NOT IN (${list.map((v) => `'${escapeSqlLiteral(v)}'`).join(", ")})`);
+}
+
+export function buildWhereClause(
+  params,
+  values,
+  factor,
+  range,
+  flag = true,
+  start_date = null,
+  end_date = null,
+  groupExtra = "",
+  excludeBridgeIds = null
+) {
   const conditions = [];
 
-  if (params.org_id !== null && params.org_id !== undefined) {
-    values.push(params.org_id);
-    conditions.push(`org_id = '${params.org_id}'`);
-  }
-  if (params.bridge_id !== null && params.bridge_id !== undefined) {
-    values.push(params.bridge_id);
-    conditions.push(`bridge_id = '${params.bridge_id}'`);
-  }
-  if (params.version_id !== null && params.version_id !== undefined) {
-    values.push(params.version_id);
-    conditions.push(`version_id = '${params.version_id}'`);
-  }
-  if (params.apikey_id !== null && params.apikey_id !== undefined) {
-    values.push(params.apikey_id);
-    conditions.push(`apikey_id = '${params.apikey_id}'`);
-  }
-  if (params.thread_id !== null && params.thread_id !== undefined) {
-    values.push(params.thread_id);
-    conditions.push(`thread_id = '${params.thread_id}'`);
-  }
-  if (params.service !== null && params.service !== undefined) {
-    values.push(params.service);
-    conditions.push(`service = '${params.service}'`);
-  }
-  if (params.model !== null && params.model !== undefined) {
-    values.push(params.model);
-    conditions.push(`model = '${params.model}'`);
-  }
+  pushCondition(conditions, values, "org_id", params.org_id);
+  pushCondition(conditions, values, "bridge_id", params.bridge_id);
+  pushCondition(conditions, values, "version_id", params.version_id);
+  pushCondition(conditions, values, "apikey_id", params.apikey_id);
+  pushCondition(conditions, values, "thread_id", params.thread_id);
+  pushCondition(conditions, values, "service", params.service);
+  pushCondition(conditions, values, "model", params.model);
+  pushExcludeCondition(conditions, "bridge_id", excludeBridgeIds);
 
   let query = "WHERE " + conditions.join(" AND ");
   if (range && flag) {
@@ -70,7 +87,7 @@ export function buildWhereClause(params, values, factor, range, flag = true, sta
     query += ` AND created_at >= NOW() - INTERVAL '2 days'`;
   }
   if (factor) {
-    query += ` GROUP BY ${factor}, created_at, cost_sum, total_token_count, success_count`;
+    query += ` GROUP BY ${factor}${groupExtra}, created_at, cost_sum, total_token_count, success_count`;
   }
   return query;
 }
