@@ -128,6 +128,98 @@ async function getResponseTime({ bridge_id, org_id, start, end, bucket, filters 
   return pgSelect(query, finalParams);
 }
 
+const toArray = (v) => (Array.isArray(v) ? v : v == null || v === "" ? [] : [v]);
+const litValue = (v) => `'${String(v).replace(/'/g, "''")}'`;
+
+// tokens is JSONB but its shape isn't uniform across service types: text/audio
+// models store input_tokens/output_tokens directly, while image-generation
+// models (e.g. gpt-image-1.5) instead store text_input_tokens+image_input_tokens
+// and text_output_tokens+image_output_tokens - a row is only ever one shape
+// or the other, never both, so summing every field (COALESCE'd to 0) is safe
+// and doesn't double count.
+const INPUT_TOKENS_EXPR = `(
+    COALESCE((tokens->>'input_tokens')::numeric, 0)
+    + COALESCE((tokens->>'text_input_tokens')::numeric, 0)
+    + COALESCE((tokens->>'image_input_tokens')::numeric, 0)
+  )`;
+const OUTPUT_TOKENS_EXPR = `(
+    COALESCE((tokens->>'output_tokens')::numeric, 0)
+    + COALESCE((tokens->>'text_output_tokens')::numeric, 0)
+    + COALESCE((tokens->>'image_output_tokens')::numeric, 0)
+  )`;
+
+// Org-wide (or agent/model/service-scoped) success vs failed request counts
+// per time bucket, for the Metrics dashboard's Request Activity card. Unlike
+// getRequestsOverTime (single required bridge_id, used by the Agent Analytics
+// page), this scopes to the whole org and treats bridge_id/model/service as
+// optional multi-select filters (array or single value, matching ANY).
+// Note: conversation_logs has no apikey_id column, so this cannot be filtered
+// by API key - that constraint is surfaced to the frontend, not hidden.
+async function getOrgRequestsOverTime({ org_id, bridge_id, model, service, start, end, bucket, excludeBridgeIds }) {
+  const { bucketSql, finalParams } = getBucketExpressionAndParams(bucket, { org_id, start, end });
+
+  const bridgeIds = toArray(bridge_id).map(String).filter(Boolean);
+
+  let bridgeClause = "";
+  if (bridgeIds.length) {
+    bridgeClause = ` AND "conversation_logs"."bridge_id" IN (${bridgeIds.map(litValue).join(", ")})`;
+  }
+  // Embed agents' real usage lives in conversation_logs same as any other
+  // agent's - excluded here at the query level so it never contributes to
+  // the Metrics dashboard's numbers, not just left unnamed.
+  const excludeIds = toArray(excludeBridgeIds).map(String).filter(Boolean);
+  let excludeClause = "";
+  if (excludeIds.length) {
+    excludeClause = ` AND "conversation_logs"."bridge_id" NOT IN (${excludeIds.map(litValue).join(", ")})`;
+  }
+
+  const inputTokensExpr = INPUT_TOKENS_EXPR;
+  const outputTokensExpr = OUTPUT_TOKENS_EXPR;
+
+  const query = `
+    SELECT
+      ${bucketSql} AS t,
+      COUNT(*) FILTER (WHERE status = true)::int  AS success,
+      COUNT(*) FILTER (WHERE status = false)::int AS failed,
+      AVG((latency->>'over_all_time')::float) FILTER (WHERE status = true) AS avg_latency,
+      SUM(${inputTokensExpr}) AS input_tokens,
+      SUM(${outputTokensExpr}) AS output_tokens
+    FROM conversation_logs
+    WHERE org_id = :org_id AND created_at BETWEEN :start AND :end
+      ${bridgeClause} ${excludeClause} ${filterClause({ model, service })}
+    GROUP BY 1 ORDER BY 1 ASC`;
+  return pgSelect(query, finalParams);
+}
+
+// Real input/output token totals per agent, for the Metrics dashboard's
+// Models table. Same conversation_logs source and same dual-shape token
+// handling as getOrgRequestsOverTime, just grouped by bridge_id instead of
+// time - the Models table already aggregates a whole window per agent, with
+// no time-bucket dimension of its own.
+async function getAgentTokenBreakdown({ org_id, bridge_id, model, service, start, end, excludeBridgeIds }) {
+  const bridgeIds = toArray(bridge_id).map(String).filter(Boolean);
+  let bridgeClause = "";
+  if (bridgeIds.length) {
+    bridgeClause = ` AND "conversation_logs"."bridge_id" IN (${bridgeIds.map(litValue).join(", ")})`;
+  }
+  const excludeIds = toArray(excludeBridgeIds).map(String).filter(Boolean);
+  let excludeClause = "";
+  if (excludeIds.length) {
+    excludeClause = ` AND "conversation_logs"."bridge_id" NOT IN (${excludeIds.map(litValue).join(", ")})`;
+  }
+
+  const query = `
+    SELECT
+      bridge_id,
+      SUM(${INPUT_TOKENS_EXPR}) AS input_tokens,
+      SUM(${OUTPUT_TOKENS_EXPR}) AS output_tokens
+    FROM conversation_logs
+    WHERE org_id = :org_id AND created_at BETWEEN :start AND :end
+      ${bridgeClause} ${excludeClause} ${filterClause({ model, service })}
+    GROUP BY bridge_id`;
+  return pgSelect(query, { org_id, start, end });
+}
+
 async function pushAnalytics(channel, data) {
   await responseSender.sendResponse({
     rtlLayer: true,
@@ -280,5 +372,7 @@ async function getFilterOptions({ bridge_id, org_id }) {
 export default {
   computeWindow,
   runAndPush,
-  getFilterOptions
+  getFilterOptions,
+  getOrgRequestsOverTime,
+  getAgentTokenBreakdown
 };
