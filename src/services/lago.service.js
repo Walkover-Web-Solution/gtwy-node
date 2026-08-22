@@ -5,9 +5,9 @@ import client from "./cache.service.js";
 const BILLING_API_URL = process.env.BILLING_API_URL;
 const BILLING_API_KEY = process.env.BILLING_API_KEY;
 const BILLING_EVENT_CODE = process.env.BILLING_EVENT_CODE;
-const WALLET_RATE_AMOUNT = process.env.LAGO_WALLET_RATE_AMOUNT;
+const WALLET_RATE_AMOUNT = process.env.LAGO_WALLET_RATE_AMOUNT || "0.0025";
 const WALLET_CURRENCY = "USD";
-const SIGNUP_GRANT_CREDITS = process.env.LAGO_SIGNUP_GRANT_CREDITS;
+const SIGNUP_GRANT_CREDITS = process.env.LAGO_SIGNUP_GRANT_CREDITS || "1000";
 const SIGNUP_GRANT_EXPIRY_DAYS = process.env.LAGO_SIGNUP_GRANT_EXPIRY_DAYS;
 
 const billingHeaders = () => ({
