@@ -46,6 +46,7 @@ import batchHistoryRoutes from "./routes/batchHistory.routes.js";
 import observabilityRoutes from "./routes/observability.routes.js";
 import analyticsRoutes from "./routes/analytics.routes.js";
 import { logSlowCall } from "./services/utils/slowCallLogger.js";
+import showCaseRoutes from "./routes/showCase.routes.js";
 const app = express();
 const PORT = process.env.PORT || 7072;
 
@@ -121,6 +122,7 @@ app.use("/api/rich_ui_templates", richUiTemplateRoutes);
 app.use("/api/lago", lagoRoutes);
 app.use("/api/observability", observabilityRoutes);
 app.use("/api/analytics", analyticsRoutes);
+app.use("/api/showcase", showCaseRoutes);
 
 //Metrics
 // app.use('/api/v1/metrics', metrisRoutes);
