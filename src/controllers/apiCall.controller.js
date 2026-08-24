@@ -163,15 +163,17 @@ const addPreTool = async (req, res, next) => {
     const data_to_update = {};
 
     if (status === "1") {
-      // Prevent adding a new tool if one already exists (only one pre-tool allowed)
-      if (current_pre_tools.length > 0) {
-        res.locals = { success: false, message: "A pre-tool is already configured. Remove it before adding a new one." };
-        req.statusCode = 400;
-        return next();
-      }
-      data_to_update["pre_tools"] = [...current_pre_tools, pre_tool_entry];
+      // Only one pre-tool is allowed — replace any existing entry (supports Change Pre Tool)
+      data_to_update["pre_tools"] = [pre_tool_entry];
     } else {
-      data_to_update["pre_tools"] = current_pre_tools.filter((t) => t.type !== pre_tool_entry?.type);
+      // Remove the matching pre-tool. Custom functions share type "custom_function",
+      // so match by function_id; built-ins match by type.
+      data_to_update["pre_tools"] = current_pre_tools.filter((t) => {
+        if (pre_tool_entry?.type === "custom_function") {
+          return !(t.type === "custom_function" && t.config?.function_id === pre_tool_entry?.config?.function_id);
+        }
+        return t.type !== pre_tool_entry?.type;
+      });
     }
 
     if (version_id) {
