@@ -14,12 +14,27 @@ async function createShowCase({ category, name, description, link }) {
 
 // Not exported on purpose — callers go through getApprovedShowCases so that
 // pending and rejected entries can never reach a response by accident.
-async function getShowCasesByStatus(status) {
-  return showCaseModel.find({ status }).sort({ createdAt: -1 }).lean();
+async function getShowCasesByStatus(status, page, limit) {
+  const skip = (page - 1) * limit;
+
+  // Counted against the same filter as the page, so `totalPages` can never
+  // disagree with what the caller actually receives.
+  const [showCases, total] = await Promise.all([
+    showCaseModel.find({ status }).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+    showCaseModel.countDocuments({ status })
+  ]);
+
+  return {
+    data: showCases,
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit)
+  };
 }
 
-async function getApprovedShowCases() {
-  return getShowCasesByStatus(SHOWCASE_STATUS.APPROVED);
+async function getApprovedShowCases(page = 1, limit = 30) {
+  return getShowCasesByStatus(SHOWCASE_STATUS.APPROVED, page, limit);
 }
 
 export default {

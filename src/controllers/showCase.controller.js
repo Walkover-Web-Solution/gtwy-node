@@ -16,12 +16,19 @@ const addShowCase = async (req, res, next) => {
 };
 
 const getShowCases = async (req, res, next) => {
-  const showCases = await showCaseDbService.getApprovedShowCases();
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 30;
+
+  const { data, total, totalPages } = await showCaseDbService.getApprovedShowCases(page, limit);
 
   res.locals = {
     success: true,
     message: "Showcases retrieved successfully",
-    data: showCases
+    data,
+    total,
+    page,
+    limit,
+    totalPages
   };
   req.statusCode = StatusCodes.OK;
   return next();
