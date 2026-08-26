@@ -17,4 +17,7 @@ router.get(
   analyticsController.getAgentAnalyticsFilters
 );
 
+// Embed (folder) analytics: user-wise + agent-wise for agents in the embed folder.
+router.get("/embed/:folder_id", middleware, validate(analyticsValidation.getEmbedAnalytics), analyticsController.getEmbedAnalytics);
+
 export default router;
