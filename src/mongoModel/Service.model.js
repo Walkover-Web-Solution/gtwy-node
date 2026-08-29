@@ -14,8 +14,11 @@ const ServiceSchema = new mongoose.Schema(
     supports_stream_usage: { type: Boolean, default: false },
     supports_reasoning: { type: Boolean, default: false },
     default_model: { type: String, default: null },
+    default_fallback_model: { type: String, default: null },
     prompt_role: { type: String, default: "system" },
     apikey_status_codes: { type: mongoose.Schema.Types.Mixed, default: {} },
+    service_keys: { type: mongoose.Schema.Types.Mixed, default: {} },
+    validation_config: { type: mongoose.Schema.Types.Mixed, default: {} },
     status: { type: Number, default: 1 }
   },
   { strict: true }
