@@ -19,7 +19,8 @@ const API_KEY_ENV_MAP = {
   moonshot: "MOONSHOT_API_KEY",
   minimax: "MINIMAX_API_KEY",
   grok: "GROK_API_KEY",
-  gemini: "GEMINI_API_KEY"
+  gemini: "GEMINI_API_KEY",
+  together_ai: "TOGETHER_API_KEY"
 };
 
 // Services that require special header formats
