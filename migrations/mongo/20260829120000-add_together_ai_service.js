@@ -28,6 +28,7 @@ const TOGETHER_AI = {
   supports_tool_calls: true,
   supports_stream_usage: false,
   supports_reasoning: true,
+  supports_batch: false,
   default_model: "meta-llama/Llama-3.3-70B-Instruct-Turbo",
   default_fallback_model: "openai/gpt-oss-20b",
   prompt_role: "system",
