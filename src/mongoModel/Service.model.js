@@ -16,6 +16,9 @@ const ServiceSchema = new mongoose.Schema(
     default_model: { type: String, default: null },
     prompt_role: { type: String, default: "system" },
     apikey_status_codes: { type: mongoose.Schema.Types.Mixed, default: {} },
+    web_search_tool: { type: mongoose.Schema.Types.Mixed, default: null },
+    image_generation_tool: { type: mongoose.Schema.Types.Mixed, default: null },
+    code_interpreter_tool: { type: mongoose.Schema.Types.Mixed, default: null },
     status: { type: Number, default: 1 }
   },
   { strict: true }
