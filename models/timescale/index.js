@@ -4,6 +4,7 @@ import path from "path";
 import Sequelize from "sequelize";
 import process from "process";
 import * as url from "url";
+import { logSlowCall } from "../../src/services/utils/slowCallLogger.js";
 const __filename = url.fileURLToPath(import.meta.url);
 const __dirname = url.fileURLToPath(new URL(".", import.meta.url));
 
@@ -22,7 +23,9 @@ try {
         rejectUnauthorized: false
       }
     },
-    logging: false
+    // Measure every query and warn on slow ones (labelled timescale to separate from primary PG).
+    benchmark: true,
+    logging: (sql, timingMs) => logSlowCall("pg", `timescale ${sql}`, timingMs)
   });
 
   const dbservice = async () => {

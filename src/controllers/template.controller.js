@@ -22,8 +22,8 @@ const allTemplates = async (req, res, next) => {
  * Filter bridge/agent data to include only specific keys
  */
 const FILTER_BRIDGE_EXCLUDE_KEYS = new Set([
-  "api_key_object",
   "apikey",
+  "apikey_object_id",
   "user_id",
   "total_tokens",
   "prompt_total_tokens",
@@ -91,9 +91,9 @@ const createTemplate = async (req, res, next) => {
       // Convert buffer to ObjectId if needed
       const id = functionId.buffer ? new ObjectId(Buffer.from(functionId.buffer)) : new ObjectId(functionId);
 
-      const functionDetails = await apiCallModel.findOne({ _id: id }, { function_name: 1 });
+      const functionDetails = await apiCallModel.findOne({ _id: id }, { title: 1, description: 1 });
       if (functionDetails) {
-        functionData.push(functionDetails);
+        functionData.push({ id: functionDetails._id, name: functionDetails.title, description: functionDetails.description });
       }
     }
   }
@@ -128,8 +128,9 @@ const createTemplate = async (req, res, next) => {
       if (childBridge.function_ids && childBridge.function_ids.length > 0) {
         for (const functionId of childBridge.function_ids) {
           const id = functionId.buffer ? new ObjectId(Buffer.from(functionId.buffer)) : new ObjectId(functionId);
-          const functionDetails = await apiCallModel.findOne({ _id: id }, { function_name: 1 });
-          if (functionDetails) childFunctionData.push(functionDetails);
+          const functionDetails = await apiCallModel.findOne({ _id: id }, { title: 1, description: 1 });
+          if (functionDetails)
+            childFunctionData.push({ id: functionDetails._id, name: functionDetails.title, description: functionDetails.description });
         }
       }
       childBridge.function_data = childFunctionData;
@@ -165,9 +166,10 @@ const createTemplate = async (req, res, next) => {
     isValid = await callAiMiddleware(user, bridge_ids["template_validator"], { template: bridge, templateName, email });
   }
 
-  // Save the template
+  // Save the template — `isValid.meta` is the validator agent's marketing copy, persisted
+  // alongside the template so the details page can render it.
   if (isValid?.status) {
-    const template = await templateService.saveTemplate(bridge, templateName);
+    const template = await templateService.saveTemplate(bridge, templateName, isValid?.meta || null);
     res.locals = {
       success: true,
       result: template

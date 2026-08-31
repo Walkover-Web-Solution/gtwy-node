@@ -159,39 +159,52 @@ async function findConversationLogsByIds(org_id, bridge_id, thread_id, sub_threa
  * @param {number} limit - Items per page (default: 30)
  * @returns {Object} - Success status and data
  */
-async function findRecentThreadsByBridgeId(
-  org_id,
-  bridge_id,
-  filters,
-  user_feedback,
-  error,
-  page = 1,
-  limit = 30,
-  version_id = null,
-  testcase_id = null
-) {
+/**
+ * findRecentThreadsByBridgeId — no-blob version, keyword search scoped to
+ * FIVE fields: "user", "llm_message", "message_id", "thread_id", "batch_id".
+ *
+ * Requires (from the migration):
+ *   - trgm GIN on "user" and "llm_message"            -> ILIKE '%kw%'
+ *   - text_pattern_ops B-tree on message_id/thread_id -> prefix LIKE 'kw%'
+ *   - trgm ((batch_data->>'batch_id'))                -> ILIKE '%kw%'
+ *   - GIN (variables)                                  -> filter_by variables (key=value)
+ *   - (org_id, bridge_id, updated_at DESC)            -> scope + ordering
+ *
+ * filter_by (explicit per-column search) still supports the full column
+ * set — only the generic keyword search box is narrowed to 3 fields.
+ */
+
+// Generic keyword search: ONLY these fields.
+const KEYWORD_TEXT_COLUMNS = ["user", "llm_message"]; // substring, trgm-indexed
+const KEYWORD_ID_COLUMNS = ["message_id", "thread_id"]; // prefix, B-tree-indexed
+const KEYWORD_SEARCH_BATCH_ID = true; // batch_data->>'batch_id', substring, expression-trgm-indexed
+
+// filter_by (explicit column pick) keeps the wider set.
+const FILTERBY_TEXT_COLUMNS = ["llm_message", "user", "chatbot_message", "updated_llm_message"];
+const FILTERBY_ID_COLUMNS = ["message_id", "thread_id", "sub_thread_id"];
+
+/** Escape LIKE wildcards so user input can't pattern-inject. */
+const escapeLike = (s) => String(s).replace(/[\\%_]/g, (c) => "\\" + c);
+
+async function findRecentThreadsByBridgeId(org_id, bridge_id, filters, error, page = 1, limit = 30, version_id = null, testcase_id = null) {
   try {
     const offset = (page - 1) * limit;
 
-    // Base scoping conditions — shared by the thread list and the feedback totals.
-    // These are cheap, index-backed predicates (org + bridge + view scope) and
-    // deliberately exclude the facet filters (feedback/error) and the keyword
-    // search so the totals reflect all threads in the bridge.
-    const baseWhereConditions = {
-      org_id: org_id,
-      bridge_id: bridge_id
+    // Named replacements for every raw literal — bound safely by Sequelize.
+    const replacements = {};
+    let paramSeq = 0;
+    const addParam = (value) => {
+      const name = `p${paramSeq++}`;
+      replacements[name] = value;
+      return `:${name}`;
     };
 
-    if (version_id) {
-      baseWhereConditions.version_id = version_id;
-    }
+    // ---------------- Base scope ----------------
+    const baseWhereConditions = { org_id, bridge_id };
+    if (version_id) baseWhereConditions.version_id = version_id;
+    if (testcase_id) baseWhereConditions.testcase_id = testcase_id;
 
-    if (testcase_id) {
-      baseWhereConditions.testcase_id = testcase_id;
-    }
-
-    // Add time range filter
-    if (filters.time_range) {
+    if (filters?.time_range) {
       const timeConditions = {};
       if (filters.time_range.start) {
         timeConditions[Sequelize.Op.gte] = new Date(filters.time_range.start);
@@ -199,119 +212,114 @@ async function findRecentThreadsByBridgeId(
       if (filters.time_range.end) {
         timeConditions[Sequelize.Op.lte] = new Date(filters.time_range.end);
       }
-      if (timeConditions) {
+      if (Object.getOwnPropertySymbols(timeConditions).length > 0) {
         baseWhereConditions.created_at = timeConditions;
       }
     }
 
-    // Thread-list conditions layer the facet filters and the keyword/filter_by
-    // search on top of the base scope.
+    // ---------------- Thread-list conditions ----------------
     const whereConditions = { ...baseWhereConditions };
-
-    if (user_feedback !== "all" && user_feedback !== "undefined") {
-      whereConditions.user_feedback = user_feedback;
-    }
 
     if (error === "true" || error === true) {
       whereConditions.error = { [Sequelize.Op.ne]: null };
     }
 
-    // Add keyword search across recommended columns
-    const searchableColumns = ["message_id", "thread_id", "sub_thread_id", "llm_message", "user", "chatbot_message", "updated_llm_message"];
     const filterBy = filters?.filter_by;
+    const isFilterBySearch = filterBy && typeof filterBy === "object" && Object.keys(filterBy).length > 0;
+    const isKeywordSearch = !isFilterBySearch && typeof filters?.keyword === "string" && filters.keyword.trim() !== "";
 
-    if (filterBy && typeof filterBy === "object" && Object.keys(filterBy).length > 0) {
+    if (isFilterBySearch) {
       const orConditions = [];
+
       for (const [col, keyword] of Object.entries(filterBy)) {
-        if (col === "variables_absent") continue; // AND facet, handled after this block
+        if (col === "variables_absent") continue;
+
         if (col === "variables") {
           if (!keyword) continue;
-          if (typeof keyword === "string" && keyword.trim() !== "") {
-            const escapedValue = keyword.trim().replace(/'/g, "''");
-            orConditions.push(
-              Sequelize.literal(
-                `EXISTS (SELECT 1 FROM jsonb_each_text(COALESCE("conversation_logs"."variables", '{}'::jsonb)) AS kv WHERE jsonb_typeof(COALESCE("conversation_logs"."variables", 'null'::jsonb)) = 'object' AND kv.value ILIKE '%${escapedValue}%')`
-              )
-            );
-            continue;
-          }
+
           if (typeof keyword !== "object" || Object.keys(keyword).length === 0) continue;
+
           for (const [varName, varVal] of Object.entries(keyword)) {
-            const escapedKey = varName.trim().replace(/'/g, "''");
-            const trimmedVal = typeof varVal === "string" ? varVal.trim() : null;
-            const hasValue = trimmedVal && trimmedVal !== "";
-            if (!escapedKey) continue;
-            const escapedValue = hasValue ? trimmedVal.replace(/'/g, "''") : null;
-            let varCondition;
-            if (hasValue) {
-              varCondition = `EXISTS (SELECT 1 FROM jsonb_each_text(COALESCE("conversation_logs"."variables", '{}'::jsonb)) AS kv WHERE jsonb_typeof(COALESCE("conversation_logs"."variables", 'null'::jsonb)) = 'object' AND kv.key = '${escapedKey}' AND kv.value = '${escapedValue}')`;
+            const key = String(varName).trim();
+            if (!key) continue;
+            const val = typeof varVal === "string" ? varVal.trim() : null;
+
+            if (val) {
+              // Exact key=value -> containment, uses idx_cl_variables_gin.
+              const jsonParam = addParam(JSON.stringify({ [key]: val }));
+              orConditions.push(Sequelize.literal(`"conversation_logs"."variables" @> ${jsonParam}::jsonb`));
             } else {
-              varCondition = `EXISTS (SELECT 1 FROM jsonb_each_text(COALESCE("conversation_logs"."variables", '{}'::jsonb)) AS kv WHERE jsonb_typeof(COALESCE("conversation_logs"."variables", 'null'::jsonb)) = 'object' AND kv.key = '${escapedKey}')`;
+              const keyParam = addParam(key);
+              orConditions.push(Sequelize.literal(`jsonb_exists(COALESCE("conversation_logs"."variables", '{}'::jsonb), ${keyParam})`));
             }
-            orConditions.push(Sequelize.literal(varCondition));
           }
         } else if (col === "batch_id") {
           if (!keyword || keyword === "") continue;
-          const escapedBatch = keyword.replace(/'/g, "''");
-          orConditions.push(Sequelize.literal(`"conversation_logs"."batch_data"->>'batch_id' ILIKE '%${escapedBatch}%'`));
-        } else {
+          const pat = addParam(`%${escapeLike(keyword)}%`);
+          orConditions.push(Sequelize.literal(`"conversation_logs"."batch_data"->>'batch_id' ILIKE ${pat} ESCAPE '\\'`));
+        } else if (FILTERBY_TEXT_COLUMNS.includes(col)) {
           if (!keyword || keyword === "") continue;
-          if (searchableColumns.includes(col)) {
-            const FREE_TEXT_MESSAGE_COLUMNS = ["llm_message", "updated_llm_message", "chatbot_message"];
-            if (FREE_TEXT_MESSAGE_COLUMNS.includes(col)) {
-              // Message columns store raw markdown; text pasted from the rendered UI has
-              // markdown/whitespace stripped, so a single %blob% never matches. Match
-              // every whitespace-delimited token (AND of ILIKE) so a full pasted response
-              // or any snippet matches regardless of formatting differences.
-              const tokens = String(keyword).split(/\s+/).map((t) => t.trim()).filter(Boolean);
-              if (tokens.length) {
-                orConditions.push({
-                  [Sequelize.Op.and]: tokens.map((t) => ({ [col]: { [Sequelize.Op.iLike]: `%${t}%` } })),
-                });
-              }
-            } else {
-              orConditions.push({ [col]: { [Sequelize.Op.iLike]: `%${keyword}%` } });
+          const FREE_TEXT_MESSAGE_COLUMNS = ["llm_message", "updated_llm_message", "chatbot_message"];
+          if (FREE_TEXT_MESSAGE_COLUMNS.includes(col)) {
+            // Message columns store raw markdown; text pasted from the rendered UI has
+            // markdown/whitespace stripped, so a single %blob% never matches. Match
+            // every whitespace-delimited token (AND of ILIKE) so a full pasted response
+            // or any snippet matches regardless of formatting differences.
+            const tokens = String(keyword).split(/\s+/).map((t) => t.trim()).filter(Boolean);
+            if (tokens.length) {
+              orConditions.push({
+                [Sequelize.Op.and]: tokens.map((t) => ({ [col]: { [Sequelize.Op.iLike]: `%${escapeLike(t)}%` } })),
+              });
             }
+          } else {
+            orConditions.push({ [col]: { [Sequelize.Op.iLike]: `%${escapeLike(keyword)}%` } });
           }
+        } else if (FILTERBY_ID_COLUMNS.includes(col)) {
+          if (!keyword || keyword === "") continue;
+          orConditions.push({ [col]: { [Sequelize.Op.like]: `${escapeLike(keyword)}%` } });
         }
       }
+
       if (orConditions.length > 0) {
         whereConditions[Sequelize.Op.and] = [{ [Sequelize.Op.or]: orConditions }];
       }
-    } else if (filters?.keyword?.length > 0 && filters?.keyword !== "") {
-      const escapedKeyword = filters.keyword.replace(/'/g, "''");
-      whereConditions[Sequelize.Op.and] = [
-        {
-          [Sequelize.Op.or]: [
-            ...searchableColumns.map((col) => ({ [col]: { [Sequelize.Op.iLike]: `%${filters.keyword}%` } })),
-            Sequelize.literal(
-              `EXISTS (SELECT 1 FROM jsonb_each_text(COALESCE("conversation_logs"."variables", '{}'::jsonb)) AS kv WHERE jsonb_typeof(COALESCE("conversation_logs"."variables", 'null'::jsonb)) = 'object' AND kv.value ILIKE '%${escapedKeyword}%')`
-            ),
-            Sequelize.literal(`"conversation_logs"."batch_data"->>'batch_id' ILIKE '%${escapedKeyword}%'`)
-          ]
-        }
+    } else if (isKeywordSearch) {
+      // Keyword search across 5 fields, every branch index-backed so the
+      // planner can BitmapOr them:
+      //   user, llm_message          -> substring ILIKE '%kw%' (trgm GIN)
+      //   message_id, thread_id      -> prefix LIKE 'kw%'      (B-tree)
+      //   batch_data->>'batch_id'    -> substring ILIKE '%kw%' (expr trgm GIN)
+      const kw = filters.keyword.trim();
+      const orBranches = [
+        ...KEYWORD_TEXT_COLUMNS.map((col) => ({
+          [col]: { [Sequelize.Op.iLike]: `%${escapeLike(kw)}%` }
+        })),
+        ...KEYWORD_ID_COLUMNS.map((col) => ({
+          [col]: { [Sequelize.Op.like]: `${escapeLike(kw)}%` }
+        }))
       ];
+
+      if (KEYWORD_SEARCH_BATCH_ID) {
+        const batchPat = addParam(`%${escapeLike(kw)}%`);
+        orBranches.push(Sequelize.literal(`"conversation_logs"."batch_data"->>'batch_id' ILIKE ${batchPat} ESCAPE '\\'`));
+      }
+
+      whereConditions[Sequelize.Op.and] = [{ [Sequelize.Op.or]: orBranches }];
     }
 
-    // variables_absent: match rows where NONE of the named variable keys exist.
-    // AND'd with the rest, so it appends to any existing Op.and (the OR group)
-    // rather than overwriting it.
-    const absentRaw = filters?.filter_by?.variables_absent;
+    // variables_absent: rows where NONE of the named keys exist.
+    const absentRaw = filterBy?.variables_absent;
     const absent = (Array.isArray(absentRaw) ? absentRaw : absentRaw ? [absentRaw] : []).map((v) => String(v).trim()).filter(Boolean);
+
     if (absent.length) {
-      const inList = absent.map((v) => `'${v.replace(/'/g, "''")}'`).join(", ");
+      const keyParams = absent.map((k) => addParam(k)).join(", ");
       whereConditions[Sequelize.Op.and] = [
         ...(whereConditions[Sequelize.Op.and] || []),
-        Sequelize.literal(
-          `NOT EXISTS (SELECT 1 FROM jsonb_each_text(COALESCE("conversation_logs"."variables", '{}'::jsonb)) AS kv WHERE jsonb_typeof(COALESCE("conversation_logs"."variables", 'null'::jsonb)) = 'object' AND kv.key IN (${inList}))`
-        )
+        Sequelize.literal(`NOT jsonb_exists_any(COALESCE("conversation_logs"."variables", '{}'::jsonb), ARRAY[${keyParams}]::text[])`)
       ];
     }
 
-    // Multi-select facets (tool_id / model / service) not covered by the legacy
-    // where-building above. Applied via the shared builder and AND'd with the
-    // existing Op.and (the keyword/filter_by OR-group). The history route never
-    // passes these, so its behaviour is unchanged.
+    // Multi-select facets via the shared builder.
     const facetExpr = buildConversationFilterSql({
       tool_id: filters?.tool_id,
       model: filters?.model,
@@ -323,62 +331,67 @@ async function findRecentThreadsByBridgeId(
     if (facetExpr) {
       whereConditions[Sequelize.Op.and] = [...(whereConditions[Sequelize.Op.and] || []), Sequelize.literal(facetExpr)];
     }
+    const [threads] = await Promise.all([
+      models.pg.conversation_logs.findAll({
+        attributes: ["thread_id", [Sequelize.fn("MAX", Sequelize.col("id")), "id"], [Sequelize.fn("MAX", Sequelize.col("updated_at")), "updated_at"]],
+        where: whereConditions,
+        group: ["thread_id"],
+        order: [[Sequelize.fn("MAX", Sequelize.col("updated_at")), "DESC"]],
+        limit,
+        offset,
+        replacements
+      })
+    ]);
 
-    // Get recent threads with distinct thread_id, ordered by updated_at
-    const threads = await models.pg.conversation_logs.findAll({
-      attributes: ["thread_id", [Sequelize.fn("MAX", Sequelize.col("id")), "id"], [Sequelize.fn("MAX", Sequelize.col("updated_at")), "updated_at"]],
-      where: whereConditions,
-      group: ["thread_id"],
-      order: [[Sequelize.fn("MAX", Sequelize.col("updated_at")), "DESC"]],
-      limit: limit,
-      offset: offset
-    });
-
-    // Format the response - simple thread data only
     const formattedThreads = threads.map((thread) => ({
       id: thread.dataValues.id,
       thread_id: thread.dataValues.thread_id,
       updated_at: thread.dataValues.updated_at
     }));
 
-    const isKeywordSearch = filters?.keyword?.length > 0 && filters?.keyword !== "";
-    const isFilterBySearch = filterBy && typeof filterBy === "object" && Object.keys(filterBy).length > 0;
-
-    // If keyword or filter_by search is active, fetch matching messages for the found threads
-    if ((isKeywordSearch || isFilterBySearch) && formattedThreads?.length > 0) {
+    // ---------------- Matching messages for found threads ----------------
+    if ((isKeywordSearch || isFilterBySearch) && formattedThreads.length > 0) {
       const threadIds = formattedThreads.map((t) => t.thread_id);
 
-      const messagesWhere = {
-        ...whereConditions,
-        thread_id: { [Sequelize.Op.in]: threadIds }
-      };
-
       const matchedMessages = await models.pg.conversation_logs.findAll({
-        where: messagesWhere,
-        order: [["created_at", "DESC"]]
+        attributes: [
+          "message_id",
+          "thread_id",
+          "sub_thread_id",
+          "display_name",
+          "user",
+          "llm_message",
+          "chatbot_message",
+          "updated_llm_message",
+          "created_at"
+        ],
+        where: {
+          ...whereConditions,
+          thread_id: { [Sequelize.Op.in]: threadIds }
+        },
+        order: [["created_at", "DESC"]],
+        limit: limit * 10, // hard cap — one noisy thread can't flood Node
+        replacements
       });
 
-      // Attach matching messages to threads
       formattedThreads.forEach((thread) => {
         const threadMessages = matchedMessages.filter((m) => m.thread_id === thread.thread_id);
 
         thread.message = threadMessages.map((msg) => {
           let content = "";
           if (isKeywordSearch) {
-            const kw = filters.keyword.toLowerCase();
+            // Keyword search targets user / llm_message / message_id /
+            // thread_id / batch_id, so the content picker mirrors that.
+            const kw = filters.keyword.trim().toLowerCase();
             if (msg.user && msg.user.toLowerCase().includes(kw)) {
               content = msg.user;
             } else if ((msg.llm_message || "").toLowerCase().includes(kw)) {
               content = msg.llm_message;
-            } else if ((msg.chatbot_message || "").toLowerCase().includes(kw)) {
-              content = msg.chatbot_message;
-            } else if ((msg.updated_llm_message || "").toLowerCase().includes(kw)) {
-              content = msg.updated_llm_message;
             } else {
-              content = msg.user || msg.llm_message || msg.chatbot_message || "Match found in ID or metadata";
+              // Matched on message_id / thread_id prefix or batch_id.
+              content = msg.user || msg.llm_message || "Match found in ID or metadata";
             }
           } else {
-            // filter_by: pick first non-empty message field as content
             content = msg.user || msg.llm_message || msg.chatbot_message || msg.updated_llm_message || "Match found";
           }
 
@@ -405,34 +418,16 @@ async function findRecentThreadsByBridgeId(
       });
     }
 
-    // Get total count of all user_feedback values across all threads.
-    // Uses baseWhereConditions (org + bridge + view scope only) so the totals
-    // reflect the whole bridge and are not dragged through the keyword/JSONB
-    // search predicates that live on whereConditions.
-    const totalFeedbackCount = await models.pg.conversation_logs.findOne({
-      attributes: [
-        [Sequelize.fn("COUNT", Sequelize.literal("CASE WHEN user_feedback = 0 THEN 1 END")), "total_feedback_0"],
-        [Sequelize.fn("COUNT", Sequelize.literal("CASE WHEN user_feedback = 1 THEN 1 END")), "total_feedback_1"],
-        [Sequelize.fn("COUNT", Sequelize.literal("CASE WHEN user_feedback = 2 THEN 1 END")), "total_feedback_2"]
-      ],
-      where: baseWhereConditions
-    });
-
     return {
       success: true,
-      data: formattedThreads,
-      total_user_feedback_count: {
-        0: parseInt(totalFeedbackCount.dataValues.total_feedback_0) || 0,
-        1: parseInt(totalFeedbackCount.dataValues.total_feedback_1) || 0,
-        2: parseInt(totalFeedbackCount.dataValues.total_feedback_2) || 0
-      }
+      data: formattedThreads
     };
-  } catch (error) {
-    console.error("Error fetching recent threads:", error);
+  } catch (err) {
+    console.error("Error fetching recent threads:", err);
     return {
       success: false,
       message: "Failed to fetch recent threads",
-      error: error.message
+      error: err.message
     };
   }
 }

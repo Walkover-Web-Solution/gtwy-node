@@ -1,4 +1,4 @@
-import { new_agent_service } from "../configs/constant.js";
+import { servicesRegistry } from "../services/utils/loadServicesRegistry.js";
 import { modelConfigDocument } from "../services/utils/loadModelConfigs.js";
 import { getSupportedModelSet } from "../services/utils/notDiamond.utils.js";
 
@@ -55,15 +55,22 @@ const getAllServiceModelsController = async (req, res, next) => {
 const getAllServiceController = async (req, res, next) => {
   const supportedModelSet = await getSupportedModelSet();
 
-  const serviceNames = Object.keys(new_agent_service);
+  const serviceNames = Object.keys(servicesRegistry);
   const services = {};
   for (const service of serviceNames) {
     const serviceModels = Object.keys(modelConfigDocument[service] || {});
     const autoRouterSupport = serviceModels.some((model) => supportedModelSet.has(`${service}:${model}`));
+    const svc = servicesRegistry[service];
+    const displayName = svc.service_name
+      ? svc.service_name
+          .split(/[_-]/)
+          .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(" ")
+      : service;
     services[service] = {
-      model: new_agent_service[service].model,
-      default_fallback_model: new_agent_service[service].default_fallback_model,
-      default_name: new_agent_service[service].default_name,
+      model: svc.default_model,
+      default_fallback_model: svc.default_model,
+      default_name: displayName,
       autoRouterSupport
     };
   }

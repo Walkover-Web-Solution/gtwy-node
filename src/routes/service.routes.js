@@ -1,10 +1,10 @@
 import express from "express";
-import { middleware } from "../middlewares/middleware.js";
 import serviceController from "../controllers/service.controller.js";
+import { combinedAllAuth } from "../middlewares/interfaceMiddlewares.js";
 
 const router = express.Router();
 
-router.get("/", middleware, serviceController.getAllServiceController);
-router.get("/:service", middleware, serviceController.getAllServiceModelsController);
+router.get("/", combinedAllAuth, serviceController.getAllServiceController);
+router.get("/:service", combinedAllAuth, serviceController.getAllServiceModelsController);
 
 export default router;

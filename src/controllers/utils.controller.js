@@ -6,6 +6,7 @@ import { createOrgToken } from "./chatBot.controller.js";
 import embedController from "./embed.controller.js";
 import { getUsers } from "../services/proxy.service.js";
 import modelConfigDbService from "../db_services/modelConfig.service.js";
+import latencyService from "../services/latency.service.js";
 
 const clearRedisCache = async (req, res, next) => {
   const { id, ids } = req.body;
@@ -249,6 +250,54 @@ const getModelsByStatus = async (req, res, next) => {
   }
 };
 
+const checkLatency = async (req, res, next) => {
+  const { type, count, webhook } = req.body;
+  const BULK_COUNT = 50;
+
+  switch (type) {
+    case "single": {
+      const result = await latencyService.singleLatency();
+      res.locals = {
+        success: true,
+        type: "single",
+        data: result
+      };
+      req.statusCode = 200;
+      return next();
+    }
+
+    case "bulk": {
+      latencyService.runLatencyChecks(BULK_COUNT, webhook).catch((err) => {
+        console.error("Error in background latency checks (bulk):", err);
+      });
+      res.locals = {
+        success: true,
+        message: "Latency check initiated. Results will be sent to the webhook."
+      };
+      req.statusCode = 200;
+      return next();
+    }
+
+    case "load": {
+      latencyService.runLatencyChecks(count, webhook).catch((err) => {
+        console.error("Error in background latency checks (load):", err);
+      });
+      res.locals = {
+        success: true,
+        message: "Latency check initiated. Results will be sent to the webhook."
+      };
+      req.statusCode = 200;
+      return next();
+    }
+
+    default: {
+      res.locals = { success: false, message: "Invalid type. Must be one of: single, bulk, load" };
+      req.statusCode = 400;
+      return next();
+    }
+  }
+};
+
 export default {
   clearRedisCache,
   getRedisCache,
@@ -257,5 +306,6 @@ export default {
   getCurrentOrgUsers,
   getAffiliateEmbedToken,
   setModelStatus,
-  getModelsByStatus
+  getModelsByStatus,
+  checkLatency
 };

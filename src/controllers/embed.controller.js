@@ -2,6 +2,7 @@ import ConfigurationServices from "../db_services/configuration.service.js";
 import folderService from "../db_services/folder.service.js";
 import FolderModel from "../mongoModel/GtwyEmbed.model.js";
 import configurationModel from "../mongoModel/Configuration.model.js";
+import bridgeVersionModel from "../mongoModel/BridgeVersion.model.js";
 import { createProxyToken, getOrganizationById, updateOrganizationData } from "../services/proxy.service.js";
 import { generateIdentifier } from "../services/utils/utility.service.js";
 import { cleanupCache } from "../services/utils/redis.utils.js";
@@ -155,6 +156,23 @@ const updateEmbed = async (req, res, next) => {
       res.locals = { success: false, message: "Folder not found" };
       req.statusCode = 404;
       return next();
+    }
+
+    const newTools = tools_id !== undefined ? tools_id : config?.tools_id;
+    if (newTools !== undefined && Array.isArray(newTools) && folder) {
+      const oldTools = folder.config?.tools_id || [];
+      const removedTools = oldTools.filter((id) => !newTools.includes(id));
+
+      if (removedTools.length > 0) {
+        const unsetFields = {};
+        for (const toolId of removedTools) {
+          unsetFields[`embed_override.tools.${toolId}`] = "";
+        }
+        await Promise.all([
+          bridgeVersionModel.updateMany({ folder_id: folder_id }, { $unset: unsetFields }),
+          configurationModel.updateMany({ folder_id: folder_id }, { $unset: unsetFields })
+        ]);
+      }
     }
 
     // Find all bridge objects using folder_id and delete from cache

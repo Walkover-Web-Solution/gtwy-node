@@ -13,7 +13,9 @@ const createBridgeSchema = Joi.object({
   bridge_usage: Joi.number().min(0).optional(),
   bridge_limit_reset_period: Joi.string().valid("monthly", "weekly", "daily").optional(),
   bridge_limit_start_date: Joi.date().optional(),
-  folder_id: Joi.string().allow(null).optional()
+  folder_id: Joi.string().allow(null).optional(),
+  // When true, await create and return the agent in the HTTP response instead of RTLayer.
+  flag: Joi.boolean().optional().default(false)
 }).unknown(true); // Allow additional fields that might be added dynamically
 
 const updateBridgeSchema = Joi.object({
@@ -42,7 +44,12 @@ const updateBridgeSchema = Joi.object({
       model: Joi.string().optional()
     }).optional(),
     guardrails: Joi.object().optional(),
-    reviewer_agent: Joi.objectId().optional(),
+    review_agent: Joi.object({
+      reviewer_agent: Joi.objectId().allow(null).optional(),
+      reviewer_prompt: Joi.string().allow(null, "").optional(),
+      reviewer_tools: Joi.array().items(Joi.string()).optional(),
+      reviewer_enabled: Joi.boolean().optional()
+    }).optional(),
     publicAgentConfig: Joi.object().optional(),
     environment_config: Joi.object().optional()
   }).optional(),

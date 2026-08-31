@@ -26,6 +26,15 @@ async function deleteMultipleTestCases(ids) {
   };
 }
 
+async function deleteTestCasesByBridgeId(bridge_id) {
+  const result = await testcaseModel.deleteMany({ bridge_id: bridge_id });
+  return {
+    success: result.deletedCount > 0,
+    deletedCount: result.deletedCount,
+    message: result.deletedCount > 0 ? `${result.deletedCount} testcase(s) deleted successfully` : "No testcases found to delete"
+  };
+}
+
 async function updateTestCaseById(id, updateData) {
   const result = await testcaseModel.findOneAndUpdate({ _id: id }, { $set: updateData }, { returnDocument: "after" });
   return result ? { ...result.toObject(), _id: result._id.toString() } : null;
@@ -155,6 +164,7 @@ export default {
   saveTestCase,
   deleteTestCaseById,
   deleteMultipleTestCases,
+  deleteTestCasesByBridgeId,
   updateTestCaseById,
   getTestcaseById,
   getAllTestcasesByBridgeId,

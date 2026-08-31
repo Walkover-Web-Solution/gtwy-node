@@ -2,7 +2,7 @@ import ApikeyCredential from "../mongoModel/Api.model.js";
 import versionModel from "../mongoModel/BridgeVersion.model.js";
 import configurationModel from "../mongoModel/Configuration.model.js";
 import FolderModel from "../mongoModel/GtwyEmbed.model.js";
-import { new_agent_service } from "../configs/constant.js";
+import { getServiceNames } from "../services/utils/loadServicesRegistry.js";
 
 const saveApikeyRecord = async (data) => {
   const { org_id, apikey, service, name, folder_id, user_id, apikey_limit = 0, apikey_limit_reset_period, apikey_limit_start_date } = data;
@@ -269,7 +269,9 @@ async function processBulkUpdates(model, ids, service) {
 }
 
 async function checkApikeyUsage(apikey_object_id, org_id, service) {
-  if (!service || !Object.keys(new_agent_service).includes(service)) {
+  const validServices = getServiceNames();
+
+  if (!service || !validServices.includes(service)) {
     return { success: false, error: "Invalid or missing service" };
   }
   const query = {
@@ -301,6 +303,33 @@ async function checkApikeyUsage(apikey_object_id, org_id, service) {
   };
 }
 
+async function findApikeyByAgentId(agent_id, org_id) {
+  const versions = await versionModel
+    .find(
+      {
+        parent_id: agent_id,
+        org_id: org_id
+      },
+      { _id: 1, parent_id: 1, configuration: 1, apikey_object_id: 1 }
+    )
+    .lean();
+
+  // Build version_ids object with services array and model
+  const versionIdsData = {};
+  versions.forEach((v) => {
+    const services = v.apikey_object_id ? Object.keys(v.apikey_object_id) : [];
+    versionIdsData[v._id.toString()] = {
+      services,
+      model: v.configuration?.model || null
+    };
+  });
+
+  return {
+    agent_id,
+    version_ids: versionIdsData
+  };
+}
+
 export default {
   saveApikeyRecord,
   findApikeyByName,
@@ -310,5 +339,6 @@ export default {
   findApikeyById,
   findVersionsByIds,
   removeApikeyFromEmbeds,
-  checkApikeyUsage
+  checkApikeyUsage,
+  findApikeyByAgentId
 };

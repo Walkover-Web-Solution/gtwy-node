@@ -3,273 +3,102 @@
  */
 import axios from "axios";
 import dotenv from "dotenv";
+import { getBaseUrl } from "./loadServicesRegistry.js";
 
 // Load environment variables
 dotenv.config();
 
+// Mapping of service names to their API key environment variable names
+const API_KEY_ENV_MAP = {
+  openai: "OPENAI_API_KEY",
+  anthropic: "ANTHROPIC_API_KEY",
+  groq: "GROQ_API_KEY",
+  mistral: "MISTRAL_API_KEY",
+  deepgram: "DEEPGRAM_API_KEY",
+  deepseek: "DEEPSEEK_API_KEY",
+  moonshot: "MOONSHOT_API_KEY",
+  minimax: "MINIMAX_API_KEY",
+  grok: "GROK_API_KEY",
+  gemini: "GEMINI_API_KEY"
+};
+
+// Services that require special header formats
+const SPECIAL_HEADERS = {
+  anthropic: (apiKey) => ({
+    "x-api-key": apiKey,
+    "anthropic-version": "2023-06-01"
+  }),
+  deepgram: (apiKey) => ({
+    Authorization: `Token ${apiKey}`
+  })
+};
+
 /**
- * Validates if a model is supported by OpenRouter
+ * Common validation function that uses base_url from DB and API key from env
+ * @param {string} service - The service name
  * @param {string} modelName - The model name to validate
  * @returns {Promise<boolean>} - True if model is supported, false otherwise
  */
-async function validateOpenRouterModel(modelName) {
+async function validateModelCommon(service, modelName) {
   try {
-    const response = await axios.get("https://openrouter.ai/api/v1/models");
-
-    if (response.status !== 200) {
-      console.error("Failed to fetch models from OpenRouter:", response.status);
+    const baseUrl = getBaseUrl(service);
+    if (!baseUrl) {
+      console.error(`No base_url found for service: ${service}`);
       return false;
     }
 
-    // Check if the model exists in the response data
-    const models = response.data.data || [];
-    return models.some((model) => model.id === modelName);
-  } catch (error) {
-    console.error("Error validating OpenRouter model:", error.message);
-    return false;
-  }
-}
+    const envKey = API_KEY_ENV_MAP[service];
+    const apiKey = envKey ? process.env[envKey] : null;
 
-/**
- * Validates if a model is supported by Anthropic
- * @param {string} modelName - The model name to validate
- * @returns {Promise<boolean>} - True if model is supported, false otherwise
- */
-async function validateAnthropicModel(modelName) {
-  try {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-
-    const response = await axios.get("https://api.anthropic.com/v1/models", {
-      headers: {
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01"
+    // Build headers
+    let headers = { "Content-Type": "application/json" };
+    if (apiKey) {
+      if (SPECIAL_HEADERS[service]) {
+        headers = { ...headers, ...SPECIAL_HEADERS[service](apiKey) };
+      } else {
+        headers.Authorization = `Bearer ${apiKey}`;
       }
-    });
+    }
+
+    const modelsEndpoint = `${baseUrl}/models`;
+    const response = await axios.get(modelsEndpoint, { headers });
 
     if (response.status !== 200) {
-      console.error("Failed to fetch models from Anthropic:", response.status);
+      console.error(`Failed to fetch models from ${service}:`, response.status);
       return false;
     }
 
-    // Check if the model exists in the response data
+    // Handle different response formats
     const models = response.data.data || [];
-    return models.some((model) => model.id === modelName);
-  } catch (error) {
-    console.error("Error validating Anthropic model:", error.message);
-    return false;
-  }
-}
-
-/**
- * Validates if a model is supported by Mistral
- * @param {string} modelName - The model name to validate
- * @returns {Promise<boolean>} - True if model is supported, false otherwise
- */
-async function validateMistralModel(modelName) {
-  try {
-    const apiKey = process.env.MISTRAL_API_KEY;
-
-    const response = await axios.get("https://api.mistral.ai/v1/models", {
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json"
-      }
-    });
-
-    if (response.status !== 200) {
-      console.error("Failed to fetch models from Mistral:", response.status);
-      return false;
-    }
-
-    // Check if the model exists in the response data
-    const models = response.data.data || [];
-    return models.some((model) => model.id === modelName || model.aliases?.includes(modelName));
-  } catch (error) {
-    console.error("Error validating Mistral model:", error.message);
-    return false;
-  }
-}
-
-/**
- * Validates if a model is supported by Groq
- * @param {string} modelName - The model name to validate
- * @returns {Promise<boolean>} - True if model is supported, false otherwise
- */
-async function validateGroqModel(modelName) {
-  try {
-    const apiKey = process.env.GROQ_API_KEY;
-
-    const response = await axios.get("https://api.groq.com/openai/v1/models", {
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json"
-      }
-    });
-
-    if (response.status !== 200) {
-      console.error("Failed to fetch models from Groq:", response.status);
-      return false;
-    }
-
-    // Check if the model exists in the response data
-    const models = response.data.data || [];
-    return models.some((model) => model.id === modelName);
-  } catch (error) {
-    console.error("Error validating Groq model:", error.message);
-    return false;
-  }
-}
-
-/**
- * Validates if a model is supported by OpenAI
- * @param {string} modelName - The model name to validate
- * @returns {Promise<boolean>} - True if model is supported, false otherwise
- */
-async function validateOpenAIModel(modelName) {
-  try {
-    const apiKey = process.env.OPENAI_API_KEY;
-
-    const response = await axios.get("https://api.openai.com/v1/models", {
-      headers: {
-        Authorization: `Bearer ${apiKey}`
-      }
-    });
-
-    if (response.status !== 200) {
-      console.error("Failed to fetch models from OpenAI:", response.status);
-      return false;
-    }
-
-    // Check if the model exists in the response data
-    const models = response.data.data || [];
-    return models.some((model) => model.id === modelName);
-  } catch (error) {
-    console.error("Error validating OpenAI model:", error.message);
-    return false;
-  }
-}
-
-/**
- * Validates if a model is supported by Deepgram
- * @param {string} modelName - The model name to validate
- * @returns {Promise<boolean>} - True if model is supported, false otherwise
- */
-async function validateDeepgramModel(modelName) {
-  try {
-    const apiKey = process.env.DEEPGRAM_API_KEY;
-
-    if (!apiKey) {
-      console.error("Missing DEEPGRAM_API_KEY for Deepgram model validation");
-      return false;
-    }
-
-    const response = await axios.get("https://api.deepgram.com/v1/models", {
-      headers: {
-        Authorization: `Token ${apiKey}`
-      }
-    });
-
-    if (response.status !== 200) {
-      console.error("Failed to fetch models from Deepgram:", response.status);
-      return false;
-    }
-
-    const sttModels = response.data?.stt || [];
     const normalizedModelName = modelName.toLowerCase();
 
-    return sttModels.some((model) => {
-      const architecture = model.architecture?.toLowerCase();
-      const canonicalName = model.canonical_name?.toLowerCase();
-      const name = model.name?.toLowerCase();
-      return architecture === normalizedModelName || canonicalName === normalizedModelName || name === normalizedModelName;
-    });
-  } catch (error) {
-    console.error("Error validating Deepgram model:", error.message);
-    return false;
-  }
-}
-
-/**
- * Validates if a model is supported by DeepSeek
- * @param {string} modelName - The model name to validate
- * @returns {Promise<boolean>} - True if model is supported, false otherwise
- */
-async function validateDeepseekModel(modelName) {
-  try {
-    const apiKey = process.env.DEEPSEEK_API_KEY;
-
-    if (!apiKey) {
-      console.error("Missing DEEPSEEK_API_KEY for DeepSeek model validation");
-      return false;
+    // Special handling for Deepgram which has a different response structure
+    if (service === "deepgram") {
+      const sttModels = response.data?.stt || [];
+      return sttModels.some((model) => {
+        const architecture = model.architecture?.toLowerCase();
+        const canonicalName = model.canonical_name?.toLowerCase();
+        const name = model.name?.toLowerCase();
+        return architecture === normalizedModelName || canonicalName === normalizedModelName || name === normalizedModelName;
+      });
     }
 
-    const response = await axios.get("https://api.deepseek.com/models", {
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json"
-      }
-    });
-
-    if (response.status !== 200) {
-      console.error("Failed to fetch models from DeepSeek:", response.status);
-      return false;
+    // Special handling for Mistral which has aliases
+    if (service === "mistral") {
+      return models.some((model) => model.id === modelName || model.aliases?.includes(modelName));
     }
 
-    const models = response.data.data || [];
+    // Standard OpenAI-compatible format
     return models.some((model) => model.id === modelName);
   } catch (error) {
-    console.error("Error validating DeepSeek model:", error.message);
+    console.error(`Error validating ${service} model:`, error.message);
     return false;
   }
 }
 
 /**
- * Validates if a model is supported by Neev Cloud
- * @param {string} modelName - The model name to validate
- * @returns {Promise<boolean>} - True if model is supported, false otherwise
- */
-async function validateNeevCloudModel(modelName) {
-  try {
-    const response = await axios.get("https://inference.ai.neevcloud.com/v1/models");
-
-    if (response.status !== 200) {
-      console.error("Failed to fetch models from Neev Cloud:", response.status);
-      return false;
-    }
-
-    const models = response.data.data || [];
-    return models.some((model) => model.id === modelName);
-  } catch (error) {
-    console.error("Error validating Neev Cloud model:", error.message);
-    return false;
-  }
-}
-
-/**
- * Validates if a model is supported by Moonshot
- * @param {string} modelName - The model name to validate
- * @returns {Promise<boolean>} - True if model is supported, false otherwise
- */
-async function validateMoonShotModel(modelName) {
-  try {
-    const response = await axios.get("https://api.moonshot.ai/v1/models");
-
-    if (response.status !== 200) {
-      console.error("Failed to fetch models from Moonshot:", response.status);
-      return false;
-    }
-
-    const models = response.data.data || [];
-    return models.some((model) => model.id === modelName);
-  } catch (error) {
-    console.error("Error validating Moonshot model:", error.message);
-    return false;
-  }
-}
-
-/**
- * Validates if a model is supported by a specific service
- * @param {string} service - The service name (e.g., 'open_router', 'anthropic', 'openai')
+ * Main validation function that dispatches to the common validator
+ * @param {string} service - The service name
  * @param {string} modelName - The model name to validate
  * @returns {Promise<boolean>} - True if model is supported, false otherwise
  */
@@ -278,40 +107,21 @@ async function validateModel(service, modelName) {
     return false;
   }
 
-  switch (service.toLowerCase()) {
-    case "open_router":
-      return await validateOpenRouterModel(modelName);
-    case "anthropic":
-      return await validateAnthropicModel(modelName);
-    case "openai":
-    case "openai_response":
-      return await validateOpenAIModel(modelName);
-    case "groq":
-      return await validateGroqModel(modelName);
-    case "mistral":
-      return await validateMistralModel(modelName);
-    case "deepgram":
-      return await validateDeepgramModel(modelName);
-    case "neev_cloud":
-      return await validateNeevCloudModel(modelName);
-    case "deepseek":
-      return await validateDeepseekModel(modelName);
-    case "moonshot":
-      return await validateMoonShotModel(modelName);
-    default:
-      console.warn(`No validation method available for service: ${service}`);
-      return true; // Default to true for services without validation
+  // Services that don't require API key validation (public endpoints)
+  const publicServices = ["open_router", "neev_cloud"];
+
+  if (publicServices.includes(service)) {
+    return await validateModelCommon(service, modelName);
   }
+
+  // Services that require API key
+  const apiKeyEnv = API_KEY_ENV_MAP[service];
+  if (!apiKeyEnv || !process.env[apiKeyEnv]) {
+    console.warn(`Missing ${apiKeyEnv} for ${service} model validation, skipping validation`);
+    return true; // Allow if API key is not configured
+  }
+
+  return await validateModelCommon(service, modelName);
 }
 
-export {
-  validateModel,
-  validateOpenRouterModel,
-  validateAnthropicModel,
-  validateOpenAIModel,
-  validateGroqModel,
-  validateMistralModel,
-  validateDeepgramModel,
-  validateNeevCloudModel,
-  validateDeepseekModel
-};
+export { validateModel, validateModelCommon };

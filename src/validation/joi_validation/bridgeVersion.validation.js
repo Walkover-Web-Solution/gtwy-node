@@ -1,4 +1,5 @@
 import Joi from "joi";
+import { getServiceNames } from "../../services/utils/loadServicesRegistry.js";
 
 const updateVersionSchema = Joi.object({
   configuration: Joi.object({
@@ -52,10 +53,20 @@ const updateVersionSchema = Joi.object({
     numerals: Joi.alternatives().try(Joi.boolean(), Joi.string(), Joi.object()).optional(),
     detect_entities: Joi.alternatives().try(Joi.boolean(), Joi.string(), Joi.object()).optional(),
     model_option: Joi.alternatives().try(Joi.string().allow(""), Joi.object()).optional(),
-    size: Joi.alternatives().try(Joi.string(), Joi.object()).optional()
+    size: Joi.alternatives().try(Joi.string(), Joi.object()).optional(),
+    mcp_config: Joi.object({
+      servers: Joi.array()
+        .items(
+          Joi.object({
+            name: Joi.string().required(),
+            url: Joi.string().uri().required()
+          })
+        )
+        .optional()
+    }).optional()
   }).optional(),
   service: Joi.string()
-    .valid("openai", "anthropic", "groq", "open_router", "mistral", "gemini", "grok", "deepseek", "deepgram", "neev_cloud", "moonshot")
+    .valid(...getServiceNames())
     .optional(),
   apikey_object_id: Joi.object()
     .pattern(Joi.string(), Joi.string().pattern(/^[0-9a-fA-F]{24}$/))
@@ -69,11 +80,24 @@ const updateVersionSchema = Joi.object({
   auto_model_select: Joi.object().allow(null).optional(),
   cache_on: Joi.boolean().optional(),
   pre_tools: Joi.array().optional(),
+  post_tool: Joi.object()
+    .keys({
+      id: Joi.string().required(),
+      script_id: Joi.string().optional(),
+      args: Joi.object().optional()
+    })
+    .allow(null)
+    .optional(),
   web_search_filters: Joi.alternatives().try(Joi.array().items(Joi.string()), Joi.object()).optional(),
   gtwy_web_search_filters: Joi.alternatives().try(Joi.array().items(Joi.string()), Joi.object()).optional(),
   connected_agent_flow: Joi.object().optional(),
   settings: Joi.object({
-    reviewer_agent: Joi.string().allow(null).optional(),
+    review_agent: Joi.object({
+      reviewer_agent: Joi.string().allow(null).optional(),
+      reviewer_prompt: Joi.string().allow(null, "").optional(),
+      reviewer_tools: Joi.array().items(Joi.string()).optional(),
+      reviewer_enabled: Joi.boolean().optional()
+    }).optional(),
     publicUsers: Joi.array().items(Joi.string()).optional(),
     editAccess: Joi.array().items(Joi.string()).optional(),
     responseStyle: Joi.object().optional(),
@@ -133,7 +157,8 @@ const updateVersionSchema = Joi.object({
     function_operation: Joi.string().valid("0", "1").optional(),
     script_id: Joi.string().optional()
   }).optional(),
-  version_description: Joi.string().allow("").optional()
+  version_description: Joi.string().allow("").optional(),
+  embed_override: Joi.object().optional()
 });
 
 const createVersion = {

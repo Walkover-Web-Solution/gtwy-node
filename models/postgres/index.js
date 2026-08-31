@@ -4,6 +4,7 @@ import path from "path";
 import Sequelize from "sequelize";
 import process from "process";
 import * as url from "url";
+import { logSlowCall } from "../../src/services/utils/slowCallLogger.js";
 const __dirname = url.fileURLToPath(new URL(".", import.meta.url));
 
 dotenv.config();
@@ -23,7 +24,9 @@ const sequelize = new Sequelize(process.env.DB_NAME, process.env.DB_USER, proces
     backoffBase: 3000,
     backoffExponent: 1.5
   },
-  logging: false
+  // Measure every query and warn on slow ones so we can tell when PG is the bottleneck.
+  benchmark: true,
+  logging: (sql, timingMs) => logSlowCall("pg", sql, timingMs)
 });
 
 const dbservice = async () => {
