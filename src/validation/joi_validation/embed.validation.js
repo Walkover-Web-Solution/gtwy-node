@@ -83,6 +83,22 @@ const updateAgentMetadata = {
     })
 };
 
+const getEmbedUsageByUserId = {
+  query: Joi.object()
+    .keys({
+      start_date: Joi.date().iso().required().messages({
+        "any.required": "start_date is required",
+        "date.format": "start_date must be a valid ISO date"
+      }),
+      end_date: Joi.date().iso().min(Joi.ref("start_date")).required().messages({
+        "any.required": "end_date is required",
+        "date.format": "end_date must be a valid ISO date",
+        "date.min": "end_date must be after start_date"
+      })
+    })
+    .unknown(true)
+};
+
 export default {
   embedLogin,
   createEmbed,
@@ -90,5 +106,6 @@ export default {
   updateEmbed,
   genrateToken,
   getEmbedDataByUserId,
-  updateAgentMetadata
+  updateAgentMetadata,
+  getEmbedUsageByUserId
 };
