@@ -87,6 +87,14 @@ const addPreTool = {
       status: Joi.string().valid("0", "1", "2").required().messages({
         "any.required": "status is required",
         "any.only": 'status must be "0" (remove), "1" (add), or "2" (replace)'
+      }),
+      // Id of the pre-tool to replace (function_id for custom_function, type for built-ins).
+      pre_tool_id: Joi.when("status", {
+        is: "2",
+        then: Joi.string().trim().min(1).required().messages({
+          "any.required": 'pre_tool_id is required when status is "2" (replace)'
+        }),
+        otherwise: Joi.string().trim().min(1).optional()
       })
     })
     .unknown(true)
