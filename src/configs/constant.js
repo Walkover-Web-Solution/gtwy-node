@@ -53,7 +53,8 @@ const redis_keys = {
   gpt_memory_: "nd_gpt_memory_",
   metrix_bridges_: "nd_metrix_bridges_",
   rate_limit_: "nd_rate_limit_",
-  openai_batch_: "nd_openai_batch_"
+  openai_batch_: "nd_openai_batch_",
+  huggingface_model_price_: "cd_huggingface_model_price_"
 };
 
 const embed_cache = {
