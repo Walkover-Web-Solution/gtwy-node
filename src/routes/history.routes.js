@@ -4,6 +4,7 @@ import historyController from "../controllers/history.controller.js";
 import validate from "../middlewares/validate.middleware.js";
 import historyValidation from "../validation/joi_validation/history.validation.js";
 import { combinedAuthWithChatBotAndPublicChatbot } from "../middlewares/interfaceMiddlewares.js";
+import stripUsageForEmbed from "../middlewares/stripUsageForEmbed.js";
 
 const router = express.Router();
 
@@ -23,4 +24,8 @@ router.get(
   validate(historyValidation.getConversationLogs),
   historyController.getConversationLogs
 );
+
+// Runs after the controllers above call next(), before responseMiddleware.
+router.use(stripUsageForEmbed);
+
 export default router;

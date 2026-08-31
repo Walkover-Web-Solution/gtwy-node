@@ -1195,7 +1195,7 @@ const getAgentsWithTools = async (agent_id, org_id, version_id = null) => {
   }
 };
 
-const getAllAgentsInOrg = async (org_id, folder_id, user_id, isEmbedUser) => {
+const getAllAgentsInOrg = async (org_id, folder_id, user_id, isEmbedUser, page = 1, limit = 30) => {
   // First, get all bridge_ids and their last publishers from PostgreSQL
   const lastPublishersMap = await getAllAgentsWithLastPublishers(org_id);
   const folderIds = await folderService.getFolderIdsByOrgAndType(org_id, "agent");
@@ -1216,6 +1216,8 @@ const getAllAgentsInOrg = async (org_id, folder_id, user_id, isEmbedUser) => {
     query.folder_id = { $in: [null, ...folderIds, ""] };
   }
   if (user_id && isEmbedUser) query.user_id = user_id;
+
+  const skip = (page - 1) * limit;
 
   // Get agents from MongoDB
   const agents = await configurationModel
@@ -1258,6 +1260,8 @@ const getAllAgentsInOrg = async (org_id, folder_id, user_id, isEmbedUser) => {
       folder_id: 1
     })
     .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit)
     .lean();
 
   // Process agents and assign last publisher data
@@ -1278,7 +1282,7 @@ const getAllAgentsInOrg = async (org_id, folder_id, user_id, isEmbedUser) => {
     return agent;
   });
 
-  return processedAgents;
+  return { agents: processedAgents, page, limit };
 };
 
 // Get all agents with their last publishers for an organization in a single query
