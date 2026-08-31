@@ -24,10 +24,12 @@ const GtwyEmbeddecodeToken = async (req, res, next) => {
 
           const proxyUserData = await createOrGetUser(checkToken, decodedToken, orgTokenFromDb);
           const { proxyResponse, name, email } = proxyUserData;
+          const meta = proxyResponse.data.user.meta;
           req.Embed = {
             ...checkToken,
             email: email,
             name: name,
+            meta: meta,
             org_name: orgTokenFromDb?.name,
             org_id: proxyResponse.data.company.id,
             folder_id: decodedToken.folder_id,
@@ -36,7 +38,8 @@ const GtwyEmbeddecodeToken = async (req, res, next) => {
           req.profile = {
             user: {
               id: proxyResponse.data.user.id,
-              name: name
+              name: name,
+              meta: meta
             },
             org: {
               id: proxyResponse.data.company.id,
