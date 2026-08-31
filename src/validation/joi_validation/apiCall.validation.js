@@ -84,9 +84,9 @@ const addPreTool = {
         .messages({
           "any.required": "pre_tools is required"
         }),
-      status: Joi.string().valid("0", "1").required().messages({
+      status: Joi.string().valid("0", "1", "2").required().messages({
         "any.required": "status is required",
-        "any.only": 'status must be either "0" or "1"'
+        "any.only": 'status must be "0" (remove), "1" (add), or "2" (replace)'
       })
     })
     .unknown(true)
