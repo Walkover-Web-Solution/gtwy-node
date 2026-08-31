@@ -96,6 +96,20 @@ const updateBridgeSchema = Joi.object({
   starterQuestion: Joi.array().items(Joi.string()).optional()
 });
 
+const getAllAgentsQuerySchema = Joi.object({
+  page: Joi.number().integer().min(1).optional().default(1).messages({
+    "number.base": "page must be a number",
+    "number.integer": "page must be an integer",
+    "number.min": "page must be at least 1"
+  }),
+  limit: Joi.number().integer().min(1).max(100).optional().default(30).messages({
+    "number.base": "limit must be a number",
+    "number.integer": "limit must be an integer",
+    "number.min": "limit must be at least 1",
+    "number.max": "limit must be at most 100"
+  })
+}).unknown(true);
+
 const bridgeIdParamSchema = Joi.object({
   agent_id: Joi.string()
     .pattern(/^[0-9a-fA-F]{24}$/)
@@ -159,12 +173,24 @@ const getAgent = {
   params: bridgeIdParamSchema
 };
 
+const getAllAgents = {
+  query: getAllAgentsQuerySchema
+};
+
 const updateBridge = {
   body: updateBridgeSchema
 };
 
 // Export both the schemas and validation objects
-export { createBridgeSchema, updateBridgeSchema, bridgeIdParamSchema, modelNameParamSchema, cloneAgentSchema, createAgentFromTemplateParamSchema };
+export {
+  createBridgeSchema,
+  updateBridgeSchema,
+  bridgeIdParamSchema,
+  modelNameParamSchema,
+  cloneAgentSchema,
+  createAgentFromTemplateParamSchema,
+  getAllAgentsQuerySchema
+};
 
 export default {
   createAgent,
@@ -172,5 +198,6 @@ export default {
   getAgentsByModel,
   cloneAgent,
   getAgent,
+  getAllAgents,
   updateBridge
 };

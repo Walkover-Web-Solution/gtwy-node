@@ -505,11 +505,13 @@ const getAllAgentController = async (req, res, next) => {
     const folder_id = req.folder_id || null;
     const user_id = req.profile.user.id || null;
     const isEmbedUser = req.embed;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 30;
 
-    const agents = await ConfigurationServices.getAllAgentsInOrg(org_id, folder_id, user_id, isEmbedUser);
     if (!isEmbedUser && !folder_id) {
-      await ensureChatbotPreview(org_id, user_id, agents);
+      await ensureChatbotPreview(org_id, user_id);
     }
+    const { agents } = await ConfigurationServices.getAllAgentsInOrg(org_id, folder_id, user_id, isEmbedUser, page, limit);
 
     // Get role_name from middleware (first layer check)
     const role_name = req.role_name || null;
@@ -568,6 +570,8 @@ const getAllAgentController = async (req, res, next) => {
       success: true,
       message: "Get all agents successfully",
       agent: agents.filter((agent) => agent.slugName !== "chatbot_preview"),
+      page: page,
+      limit: limit,
       org_id: org_id,
       access: role_name,
       embed_token: embed_token,

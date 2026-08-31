@@ -27,8 +27,9 @@ const parseCsv = (csvBuffer) =>
     readableStream.pipe(csvStream);
   });
 
-const ensureChatbotPreview = async (org_id, user_id, agents) => {
-  if (agents.some((item) => item.slugName === "chatbot_preview")) return null;
+const ensureChatbotPreview = async (org_id, user_id) => {
+  const existing = await ConfigurationServices.getAgentIdBySlugname(org_id, "chatbot_preview");
+  if (existing) return null;
   const name = "chatbot preview";
   const { name: uniqueName, slugName: uniqueSlugName } = await ConfigurationServices.getUniqueAgentNameAndSlug(org_id, name);
 
