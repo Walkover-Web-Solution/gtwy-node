@@ -13,6 +13,7 @@ router.post("/", middleware, checkAgentAccessMiddleware, validate(embedValidatio
 router.get("/", middleware, embedController.getAllEmbed);
 router.put("/", middleware, checkAgentAccessMiddleware, validate(embedValidation.updateEmbed), embedController.updateEmbed);
 router.get("/getAgents", GtwyEmbeddecodeToken, validate(embedValidation.getEmbedDataByUserId), embedController.getEmbedDataByUserId);
+router.get("/usage", GtwyEmbeddecodeToken, validate(embedValidation.getEmbedUsageByUserId), embedController.getEmbedUsageByUserId);
 
 router.put("/:agent_id", GtwyEmbeddecodeToken, validate(embedValidation.updateAgentMetadata), embedController.updateAgentMetadataController);
 

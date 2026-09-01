@@ -1,4 +1,5 @@
 import ConfigurationServices from "../db_services/configuration.service.js";
+import metricsService from "../db_services/metrics.service.js";
 import folderService from "../db_services/folder.service.js";
 import FolderModel from "../mongoModel/GtwyEmbed.model.js";
 import configurationModel from "../mongoModel/Configuration.model.js";
@@ -339,6 +340,56 @@ const updateAgentMetadataController = async (req, res, next) => {
   }
 };
 
+// GET /api/embed/usage — cost/usage per agent owned by this embed user .
+const getEmbedUsageByUserId = async (req, res, next) => {
+  try {
+    const { user_id, org_id, folder_id } = req.Embed;
+    const { start_date, end_date } = req.query;
+
+    const ownedAgents = await ConfigurationServices.getAgentsByUserId(org_id, user_id, null, folder_id);
+    const agentList = Array.isArray(ownedAgents) ? ownedAgents : [];
+    const bridgeIds = agentList.map((a) => String(a._id)).filter(Boolean);
+
+    const usageRows = bridgeIds.length
+      ? await metricsService.getUsageByBridgeIds({ org_id, bridge_ids: bridgeIds, start_date, end_date })
+      : [];
+    const usageByBridge = {};
+    for (const row of usageRows) {
+      usageByBridge[String(row.bridge_id)] = row;
+    }
+
+    // Include every owned agent, even ones with zero usage in this range
+    const agents = agentList.map((a) => {
+      const agentId = String(a._id);
+      const usage = usageByBridge[agentId];
+      return {
+        agent_id: agentId,
+        name: a.name || "Untitled",
+        total_requests: Number(usage?.total_requests) || 0,
+        success_count: Number(usage?.success_count) || 0,
+        total_tokens: Math.round(Number(usage?.total_tokens) || 0),
+        est_cost: Number(Number(usage?.total_cost || 0).toFixed(6)),
+        last_used_time: usage?.last_used_time || null
+      };
+    });
+
+    res.locals = {
+      success: true,
+      user_id,
+      folder_id,
+      start_date,
+      end_date,
+      agents
+    };
+    req.statusCode = 200;
+    return next();
+  } catch (e) {
+    res.locals = { success: false, message: "Error in getting embed usage: " + e.message };
+    req.statusCode = 400;
+    return next();
+  }
+};
+
 export default {
   embedLogin,
   createEmbed,
@@ -346,5 +397,6 @@ export default {
   genrateToken,
   updateEmbed,
   getEmbedDataByUserId,
-  updateAgentMetadataController
+  updateAgentMetadataController,
+  getEmbedUsageByUserId
 };
