@@ -30,12 +30,12 @@ const updatePrebuiltPrompt = {
           message: `Invalid prompt_id. Must be one of: ${validPromptIds.join(", ")}`
         });
       }
-      if (!value[prompt_id] || typeof value[prompt_id] !== "string") {
-        return helpers.error("any.custom", { message: "prompt_text must be a non-empty string" });
-      }
       return value;
     })
     .required()
+    .messages({
+      "any.custom": "{{#message}}"
+    })
 };
 
 const resetPrebuiltPrompts = {
