@@ -7,6 +7,7 @@ import metricsValidation from "../validation/joi_validation/metrics.validation.j
 const router = express.Router();
 
 router.post("/", middleware, validate(metricsValidation.getMetricsData), metricsController.getMetricsData);
+router.post("/user", middleware, validate(metricsValidation.getUserMetrics), metricsController.getUserMetrics);
 router.post("/agent", middleware, metricsController.getBridgeMetrics);
 
 export default router;
