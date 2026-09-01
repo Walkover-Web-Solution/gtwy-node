@@ -80,6 +80,13 @@ async function processLogQueueMessage(messages) {
 
   await Promise.all(parallelTasks);
 
+  // Billing runs BEFORE the image early-return: image usage is wallet-billed
+  // too, and Python already debited its shadow balance for it — skipping the
+  // Lago post here made the two drift apart forever.
+  if (messages["billing"]) {
+    await processBillingEvents(messages["billing"]);
+  }
+
   if (messages.type === "image") {
     return;
   }
@@ -104,7 +111,6 @@ async function processLogQueueMessage(messages) {
 
   if (messages["validateResponse"]) postHistoryTasks.push(validateResponseBlock(messages));
   if (messages["save_files_to_redis"]) postHistoryTasks.push(saveFilesToRedis(messages["save_files_to_redis"]));
-  if (messages["billing"]) postHistoryTasks.push(processBillingEvents(messages["billing"]));
 
   await Promise.all(postHistoryTasks);
 

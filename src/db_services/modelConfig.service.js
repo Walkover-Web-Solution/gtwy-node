@@ -125,7 +125,7 @@ async function updateModelConfigs(model_name, service, updates) {
   for (const key in flattenedUpdates) {
     // Block configuration.model and its subfields, and only allow changes for configuration and validationConfig
     const isBlockedModelField = key === "configuration.model" || key.startsWith("configuration.model.");
-    const isAllowedRoot = key.startsWith("configuration.") || key.startsWith("validationConfig.");
+    const isAllowedRoot = key.startsWith("configuration.") || key.startsWith("validationConfig.") || key === "free_tier";
 
     if (isBlockedModelField || !isAllowedRoot) {
       errorKey = key;

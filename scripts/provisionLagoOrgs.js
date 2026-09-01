@@ -2,7 +2,13 @@
  * Bulk-provisions Lago customers/subscriptions for every org.
  *
  * Fetches all orgs the same way report.controller.js does (via the MSG91
- * getCompanies API) and calls POST /api/lago/provision for each org_id.
+ * getCompanies API) and calls POST /api/lago/provision/admin for each org_id.
+ *
+ * !! MONEY WARNING !!
+ * Provisioning creates each org's wallet with LAGO_SIGNUP_GRANT_CREDITS
+ * (default 1000) granted credits. Run over N orgs = N x grant of real credit.
+ * Run --dry-run first, check the org count, and confirm the grant is intended.
+ * Re-runs are safe: already-provisioned orgs are skipped (409/422 handled).
  *
  * The provision route is gated by InternalAuth, which only allows a
  * hardcoded list of admin emails (see middlewares/middleware.js). Since we
@@ -27,8 +33,8 @@ import jwt from "jsonwebtoken";
 
 dotenv.config();
 
-const BASE_URL = process.env.LAGO_API_BASE_URL
-const ADMIN_EMAIL = process.env.LAGO_SCRIPT_ADMIN_EMAIL
+const BASE_URL = process.env.LAGO_API_BASE_URL || "http://localhost:7072";
+const ADMIN_EMAIL = process.env.LAGO_SCRIPT_ADMIN_EMAIL || "husain@whozzat.com";
 
 function parseArgs(argv) {
   const args = { dryRun: false, orgId: null, concurrency: 3, delayMs: 150 };
@@ -49,16 +55,25 @@ function buildInternalAuthToken() {
 }
 
 async function fetchAllOrgIds() {
-  const response = await axios.get(`https://routes.msg91.com/api/${process.env.PUBLIC_REFERENCEID}/getCompanies?itemsPerPage=17321`, {
-    headers: { authkey: process.env.ADMIN_API_KEY }
-  });
-  const orgs = Array.isArray(response.data?.data) ? response.data.data : [];
-  return orgs.map((org) => String(org.id));
+  // Page through getCompanies instead of one magic-number request — orgs past
+  // a hardcoded itemsPerPage were silently skipped before.
+  const PAGE_SIZE = 1000;
+  const ids = [];
+  for (let page = 1; ; page++) {
+    const response = await axios.get(
+      `https://routes.msg91.com/api/${process.env.PUBLIC_REFERENCEID}/getCompanies?itemsPerPage=${PAGE_SIZE}&pageNo=${page}`,
+      { headers: { authkey: process.env.ADMIN_API_KEY } }
+    );
+    const orgs = Array.isArray(response.data?.data) ? response.data.data : [];
+    ids.push(...orgs.map((org) => String(org.id)));
+    if (orgs.length < PAGE_SIZE) break;
+  }
+  return ids;
 }
 
 async function provisionOrg(orgId, token) {
   const response = await axios.post(
-    `${BASE_URL}/api/lago/provision`,
+    `${BASE_URL}/api/lago/provision/admin`,
     { org_id: orgId },
     { headers: { Authorization: token, "Content-Type": "application/json" } }
   );

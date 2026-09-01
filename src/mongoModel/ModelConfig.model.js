@@ -25,7 +25,10 @@ const ConfigurationSchema = new mongoose.Schema(
     status: { type: Number, default: 1 },
     disabled_at: { type: Date, default: null },
     display_name: { type: String, required: false },
-    org_id: { type: String, required: false }
+    org_id: { type: String, required: false },
+    // Usable on the free plan (wallet-paid runs). Python reads it live via
+    // model_config_document; flipped per model from the admin API.
+    free_tier: { type: Boolean, default: false }
   },
   { strict: true }
 );

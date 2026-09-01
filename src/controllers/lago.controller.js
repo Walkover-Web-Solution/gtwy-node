@@ -1,5 +1,49 @@
 import { ensureOrgSubscribed, getWallet, syncWalletBalanceToRedis, topupWallet } from "../services/lago.service.js";
+import { replayFailedDebits } from "../services/logQueue/billingDebit.service.js";
 
+// MSG91 signup webhook — the path that provisions every NEW org. Contract is
+// fixed by the webhook sender: { event, data: { company: { id } } }. Optional
+// shared-secret check via LAGO_PROVISION_WEBHOOK_TOKEN (x-webhook-token
+// header) — enforced only when the env var is set, so existing webhook
+// config keeps working until the secret is rolled out.
+const SUPPORTED_EVENTS = ["create_company", "register_company_and_user"];
+
+const provisionWebhook = async (req, res, next) => {
+  const expectedToken = process.env.LAGO_PROVISION_WEBHOOK_TOKEN;
+  if (expectedToken && req.get("x-webhook-token") !== expectedToken) {
+    req.statusCode = 403;
+    res.locals = { success: false, message: "invalid webhook token" };
+    return next();
+  }
+
+  const { event, data } = req.body;
+
+  if (!SUPPORTED_EVENTS.includes(event)) {
+    req.statusCode = 400;
+    res.locals = { success: false, message: "unsupported event" };
+    return next();
+  }
+
+  const org_id = data?.company?.id;
+
+  if (!org_id) {
+    req.statusCode = 400;
+    res.locals = { success: false, message: "org_id not found" };
+    return next();
+  }
+
+  const result = await ensureOrgSubscribed(String(org_id));
+
+  res.locals = {
+    success: true,
+    message: "Customer, subscription and wallet provisioned",
+    data: result
+  };
+  req.statusCode = 200;
+  return next();
+};
+
+// Admin/manual provisioning (bulk script, support) — InternalAuth-gated.
 const provisionOrg = async (req, res, next) => {
   const org_id = req.body.org_id;
 
@@ -7,16 +51,23 @@ const provisionOrg = async (req, res, next) => {
 
   res.locals = {
     success: true,
-    message: "Customer and subscription created successfully",
+    message: "Customer, subscription and wallet provisioned",
     data: result
   };
   req.statusCode = 200;
   return next();
 };
 
-// Read an org's wallet balance for the settings UI.
+// Read the CALLER's org wallet for the settings UI. Org comes from the auth
+// profile — an org_id in the URL let any signed-in user read any org's
+// balance.
 const getWalletBalance = async (req, res, next) => {
-  const org_id = req.params.org_id;
+  const org_id = req.profile?.org?.id;
+  if (!org_id) {
+    req.statusCode = 403;
+    res.locals = { success: false, message: "org not resolved from token" };
+    return next();
+  }
   const wallet = await getWallet(String(org_id));
   res.locals = {
     success: true,
@@ -60,4 +111,12 @@ const syncWalletBalance = async (req, res, next) => {
   return next();
 };
 
-export default { provisionOrg, getWalletBalance, topupOrgWallet, syncWalletBalance };
+// Re-post debits that failed against Lago (stored in failed_billing_debits).
+const replayDebits = async (req, res, next) => {
+  const result = await replayFailedDebits(req.body?.limit ?? 100);
+  res.locals = { success: true, message: "replay finished", data: result };
+  req.statusCode = 200;
+  return next();
+};
+
+export default { provisionWebhook, provisionOrg, getWalletBalance, topupOrgWallet, syncWalletBalance, replayDebits };

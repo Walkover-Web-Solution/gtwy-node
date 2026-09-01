@@ -14,7 +14,11 @@ async function sendApiHitEvent({ message_id, org_id }) {
       {
         event: {
           transaction_id: message_id,
-          external_subscription_id: `sub_${org_id}`,
+          // Canonical subscription external_id is the bare org_id (see
+          // subscriptionExternalId in lago.service.js) — `sub_${org_id}`
+          // pointed at a subscription that never existed, so every api-hit
+          // event was silently dropped by Lago.
+          external_subscription_id: String(org_id),
           code
         }
       },
