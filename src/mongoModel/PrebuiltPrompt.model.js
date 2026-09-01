@@ -8,7 +8,7 @@ const prebuiltPromptSchema = new mongoose.Schema(
     },
     prebuilt_prompts: {
       type: Map,
-      of: String,
+      of: mongoose.Schema.Types.Mixed,
       default: {}
     }
   },
