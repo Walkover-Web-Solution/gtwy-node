@@ -452,7 +452,6 @@ const createAgentFromTemplateController = async (req, res, next) => {
         child_model_data.type = child_model_data.type || type;
         if (child_model_data.is_rich_text === undefined) child_model_data.is_rich_text = false;
         child_model_data.prompt = child_model_data.prompt || prompt;
-        child_model_data.tool_choice = "default";
 
         let child_service = child_details.service || service;
 
