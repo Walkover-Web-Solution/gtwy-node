@@ -1,7 +1,8 @@
 import blockedOrgService from "../db_services/blockedOrg.service.js";
 import client from "../services/cache.service.js";
+import { redis_keys } from "../configs/constant.js";
 
-const BLOCKED_ORGS_KEY = `AIMIDDLEWARE_${process.env.ENVIRONMENT}_blocked_orgs`;
+const BLOCKED_ORGS_KEY = `AIMIDDLEWARE_${process.env.ENVIRONMENT}_${redis_keys.blocked_orgs_}`;
 
 const blockOrg = async (req, res, next) => {
   const { org_id, reason } = req.body;
