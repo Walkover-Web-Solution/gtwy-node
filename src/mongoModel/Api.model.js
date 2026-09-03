@@ -62,8 +62,6 @@ const ApikeyCredentials = new mongoose.Schema({
   }
 });
 
-ApikeyCredentials.index({ org_id: 1, folder_id: 1 }, { unique: true });
-// NOTE: bulkWrite in apikey.service.js#processBulkUpdates skips this hook.
 ApikeyCredentials.plugin(cacheInvalidationPlugin, { tags: [tag_keys.apikey] });
 
 const ApikeyCredential = mongoose.model("ApikeyCredentials", ApikeyCredentials);
