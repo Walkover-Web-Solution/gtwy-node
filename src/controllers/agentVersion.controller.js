@@ -78,7 +78,7 @@ const updateVersionController = async (req, res, next) => {
     const update_fields = {};
     const user_history = [];
 
-    let new_configuration = body.configuration;
+    let new_configuration = body.configuration ? { ...body.configuration } : body.configuration;
     const service = body.service;
 
     if (new_configuration) {
