@@ -507,8 +507,9 @@ const getAllAgentController = async (req, res, next) => {
     const isEmbedUser = req.embed;
 
     const agents = await ConfigurationServices.getAllAgentsInOrg(org_id, folder_id, user_id, isEmbedUser);
+    let default_agent = agents.find((agent) => agent.slugName === "chatbot_preview") || null;
     if (!isEmbedUser && !folder_id) {
-      await ensureChatbotPreview(org_id, user_id, agents);
+      default_agent = (await ensureChatbotPreview(org_id, user_id, agents)) || default_agent;
     }
 
     // Get role_name from middleware (first layer check)
@@ -568,6 +569,7 @@ const getAllAgentController = async (req, res, next) => {
       success: true,
       message: "Get all agents successfully",
       agent: agents.filter((agent) => agent.slugName !== "chatbot_preview"),
+      default_agent: default_agent,
       org_id: org_id,
       access: role_name,
       embed_token: embed_token,
