@@ -45,7 +45,6 @@ import lagoRoutes from "./routes/lago.routes.js";
 import batchHistoryRoutes from "./routes/batchHistory.routes.js";
 import observabilityRoutes from "./routes/observability.routes.js";
 import analyticsRoutes from "./routes/analytics.routes.js";
-import skillRoutes from "./routes/skill.routes.js";
 import { logSlowCall } from "./services/utils/slowCallLogger.js";
 import blockedOrgRoutes from "./routes/blockedOrg.routes.js";
 import showCaseRoutes from "./routes/showCase.routes.js";
@@ -125,7 +124,6 @@ app.use("/api/rich_ui_templates", richUiTemplateRoutes);
 app.use("/api/lago", lagoRoutes);
 app.use("/api/observability", observabilityRoutes);
 app.use("/api/analytics", analyticsRoutes);
-app.use("/api/skills", skillRoutes);
 app.use("/api/block_org", blockedOrgRoutes);
 app.use("/api/showcase", showCaseRoutes);
 
