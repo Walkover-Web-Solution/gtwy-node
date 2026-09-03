@@ -104,8 +104,19 @@ async function getAllTestcases(req, res, next) {
 }
 async function updateTestcases(req, res, next) {
   const testcase_id = req.params.testcase_id;
-  const { name, agent_id, type, conversation, expected, variables, matching_type, user_urls } = req.body;
-  const data = { name, agent_id, type, conversation, expected, variables, matching_type, user_urls, updatedAt: new Date() };
+  const { name, agent_id, type, conversation, expected, variables, matching_type, user_urls, tools_response } = req.body;
+  const data = {
+    name,
+    agent_id,
+    type,
+    conversation,
+    expected,
+    variables,
+    matching_type,
+    user_urls,
+    tools_response,
+    updatedAt: new Date()
+  };
   const result = await testcaseSevice.updateTestCaseById(testcase_id, data);
   res.locals = {
     success: true,

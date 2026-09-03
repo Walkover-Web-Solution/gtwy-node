@@ -46,6 +46,7 @@ import batchHistoryRoutes from "./routes/batchHistory.routes.js";
 import observabilityRoutes from "./routes/observability.routes.js";
 import analyticsRoutes from "./routes/analytics.routes.js";
 import { logSlowCall } from "./services/utils/slowCallLogger.js";
+import blockedOrgRoutes from "./routes/blockedOrg.routes.js";
 import showCaseRoutes from "./routes/showCase.routes.js";
 const app = express();
 const PORT = process.env.PORT || 7072;
@@ -67,6 +68,7 @@ try {
   // monitorCommands lets us time every Mongo command and warn on slow ones.
   mongoose.connect(config.mongo.uri, { monitorCommands: true });
   mongoose.connection.on("connected", () => {
+    console.log("mongodb connected");
     const mongoClient = mongoose.connection.getClient();
     // Ignore high-frequency internal chatter that would drown the slow-call signal.
     const ignoredCommands = new Set(["ismaster", "hello", "ping", "endSessions", "saslStart", "saslContinue", "getnonce", "authenticate", "logout"]);
@@ -122,6 +124,7 @@ app.use("/api/rich_ui_templates", richUiTemplateRoutes);
 app.use("/api/lago", lagoRoutes);
 app.use("/api/observability", observabilityRoutes);
 app.use("/api/analytics", analyticsRoutes);
+app.use("/api/block_org", blockedOrgRoutes);
 app.use("/api/showcase", showCaseRoutes);
 
 //Metrics

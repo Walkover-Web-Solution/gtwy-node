@@ -103,8 +103,8 @@ async function deleteModelConfig(model_name, service) {
   return result;
 }
 
-async function deleteUserModelConfig(model_name, service, org_id) {
-  const result = await ModelsConfigModel.findOneAndDelete({ model_name, service, org_id });
+async function deleteUserModelConfig(model_name, service) {
+  const result = await ModelsConfigModel.findOneAndUpdate({ model_name, service }, { $set: { status: 0 } }, { new: true });
   return result;
 }
 
@@ -123,9 +123,11 @@ async function updateModelConfigs(model_name, service, updates) {
   const flattenedUpdates = flatten(updates, { safe: true });
 
   for (const key in flattenedUpdates) {
-    // Block configuration.model and its subfields, and only allow changes for configuration and validationConfig
+    // Block configuration.model and its subfields
     const isBlockedModelField = key === "configuration.model" || key.startsWith("configuration.model.");
-    const isAllowedRoot = key.startsWith("configuration.") || key.startsWith("validationConfig.");
+    // Allow configuration, outputConfig, validationConfig, and status
+    const isAllowedRoot =
+      key.startsWith("configuration.") || key.startsWith("outputConfig.") || key.startsWith("validationConfig.") || key === "status";
 
     if (isBlockedModelField || !isAllowedRoot) {
       errorKey = key;
@@ -140,35 +142,14 @@ async function updateModelConfigs(model_name, service, updates) {
     return { error: "keyError", key: errorKey };
   }
 
-  // First, get the existing document to check which keys exist
-  const existingDoc = await ModelsConfigModel.findOne(
-    { model_name, service },
-    { _id: 0, __v: 0 } // Exclude _id and __v fields
-  );
+  // Check if document exists
+  const existingDoc = await ModelsConfigModel.findOne({ model_name, service });
 
   if (!existingDoc) {
     return { error: "documentNotFound" };
   }
 
-  // Flatten the existing document to match the structure of allowedUpdates
-  // Convert to plain object to avoid Mongoose document issues
-  const plainDoc = existingDoc.toObject ? existingDoc.toObject() : existingDoc;
-  const flattenedExistingDoc = flatten(plainDoc, { safe: true });
-
-  // Filter allowedUpdates to only include keys that exist in the document
-  const existingKeyUpdates = {};
-  for (const key in allowedUpdates) {
-    if (flattenedExistingDoc.hasOwnProperty(key)) {
-      existingKeyUpdates[key] = allowedUpdates[key];
-    }
-  }
-
-  // If no existing keys to update, return early
-  if (Object.keys(existingKeyUpdates).length === 0) {
-    return { error: "not found" };
-  }
-
-  const result = await ModelsConfigModel.updateOne({ model_name, service }, { $set: existingKeyUpdates }, { strict: false });
+  const result = await ModelsConfigModel.updateOne({ model_name, service }, { $set: allowedUpdates }, { strict: false });
 
   return result.modifiedCount > 0;
 }

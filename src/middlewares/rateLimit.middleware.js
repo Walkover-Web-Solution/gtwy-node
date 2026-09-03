@@ -1,7 +1,8 @@
 import client from "../services/cache.service.js";
 import logger from "../logger.js";
+import { redis_keys } from "../configs/constant.js";
 
-const ENV_PREFIX = `AIMIDDLEWARE_${process.env.ENVIRONMENT}_nd_rate_limit_`;
+const ENV_PREFIX = `AIMIDDLEWARE_${process.env.ENVIRONMENT}_${redis_keys.rate_limit_}`;
 
 /**
  * Resolve the client IP. Behind a proxy/load balancer (e.g. db.gtwy.ai) the real

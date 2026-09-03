@@ -24,6 +24,7 @@ async function saveConversationHistory(historyEntries) {
       user_feedback: data.user_feedback ?? 0,
       tools_call_data: data.tools_call_data ?? [],
       message_id: data.message_id ?? null,
+      annotations: data.annotations ?? [],
       sub_thread_id: data.sub_thread_id ?? null,
       thread_id: data.thread_id ?? null,
       display_name: data.display_name ?? null,

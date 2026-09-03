@@ -1,6 +1,7 @@
 import { servicesRegistry } from "../services/utils/loadServicesRegistry.js";
 import { modelConfigDocument } from "../services/utils/loadModelConfigs.js";
 import { getSupportedModelSet } from "../services/utils/notDiamond.utils.js";
+import serviceDbService from "../db_services/service.service.js";
 
 const getAllServiceModelsController = async (req, res, next) => {
   const { service } = req.params;
@@ -84,7 +85,27 @@ const getAllServiceController = async (req, res, next) => {
   return next();
 };
 
+const addServiceController = async (req, res, next) => {
+  const { service_name } = req.body;
+
+  const exists = await serviceDbService.serviceExists(service_name);
+  if (exists) {
+    return res.status(409).json({ success: false, message: `Service '${service_name}' already exists` });
+  }
+
+  const result = await serviceDbService.createService(req.body);
+
+  res.locals = {
+    success: true,
+    message: "Service added successfully",
+    result
+  };
+  req.statusCode = 200;
+  return next();
+};
+
 export default {
   getAllServiceModelsController,
-  getAllServiceController
+  getAllServiceController,
+  addServiceController
 };

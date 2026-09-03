@@ -1,5 +1,19 @@
 import Joi from "joi";
 
+const toolResponseEntrySchema = Joi.object({
+  recordings: Joi.array()
+    .items(
+      Joi.object({
+        args: Joi.object().unknown(true).optional(),
+        response: Joi.any().optional(),
+        recorded_at: Joi.alternatives().try(Joi.date(), Joi.string()).optional()
+      }).unknown(true)
+    )
+    .optional()
+}).unknown(true);
+
+const toolsResponseSchema = Joi.object().pattern(Joi.string(), toolResponseEntrySchema).optional();
+
 const createTestcaseSchema = Joi.object({
   bridge_id: Joi.string().required().messages({
     "any.required": "bridge_id is required"
@@ -17,7 +31,8 @@ const createTestcaseSchema = Joi.object({
     "any.required": "matching_type is required"
   }),
   variables: Joi.object().optional(),
-  user_urls: Joi.array().optional()
+  user_urls: Joi.array().optional(),
+  tools_response: toolsResponseSchema
 }).unknown(true);
 
 const testcaseIdSchema = Joi.object({
@@ -60,7 +75,8 @@ const testcaseUpdateSchema = Joi.object({
   }),
   matching_type: Joi.string().required().messages({
     "any.required": "matching_type is required"
-  })
+  }),
+  tools_response: toolsResponseSchema
 }).unknown(true);
 
 const bulkDeleteTestcaseSchema = Joi.object({

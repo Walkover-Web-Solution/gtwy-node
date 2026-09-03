@@ -1311,9 +1311,9 @@ const getAllAgentsWithLastPublishers = async (org_id) => {
 
 const getAgentUsers = async (agent_id, org_id) => {
   try {
-    const agent = await configurationModel.findOne({ _id: new ObjectId(agent_id), org_id: org_id }, { users: 1 }).lean();
-
-    return agent ? agent.users : null;
+    const agent = await configurationModel.findOne({ _id: new ObjectId(agent_id), org_id: org_id }, { "settings.editAccess": 1 }).lean();
+    const editAccess = agent?.settings?.editAccess;
+    return editAccess?.length ? editAccess : null;
   } catch (error) {
     console.error(`Error fetching agent users: ${error}`);
     return null;

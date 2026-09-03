@@ -71,6 +71,9 @@ const getBaseUrl = (name) => field(name, "base_url");
 const getDefaultModel = (name) => field(name, "default_model");
 const apikeyStatusCodes = (name) => field(name, "apikey_status_codes", {});
 const getValidationConfig = (name) => field(name, "validation_config", {});
+const reasoningParamStyle = (name) => field(name, "reasoning_param_style", null);
+const extraBody = (name) => field(name, "extra_body", {});
+const reasoningExtraBody = (name) => field(name, "reasoning_extra_body", {});
 
 // --- Capability predicates (mirror the Python registry) --------------------
 const usesOpenAISdk = (name) => client(name) === "openai_sdk" && wireFormat(name) === "openai_chat";
@@ -90,6 +93,9 @@ export {
   getDefaultModel,
   apikeyStatusCodes,
   getValidationConfig,
+  reasoningParamStyle,
+  extraBody,
+  reasoningExtraBody,
   usesOpenAISdk,
   hasOpenAIChoicesShape,
   getServiceNames

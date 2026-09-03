@@ -471,15 +471,17 @@ const getAgentAccessRole = async (user_id, org_id, bridge_id, original_role_name
 
     // Query configuration collection for the bridge
     try {
-      const bridge_doc = await configurationModel.findOne({ _id: new mongoose.Types.ObjectId(bridge_id), org_id: org_id }, { users: 1 }).lean();
+      const bridge_doc = await configurationModel
+        .findOne({ _id: new mongoose.Types.ObjectId(bridge_id), org_id: org_id }, { "settings.editAccess": 1 })
+        .lean();
 
       if (!bridge_doc) {
         // Bridge not found, return original role_name
         return original_role_name;
       }
 
-      // Check if 'users' key exists
-      const users_array = bridge_doc.users;
+      // Check if 'users' key exists (now settings.editAccess; empty = no ACL)
+      const users_array = bridge_doc.settings?.editAccess?.length ? bridge_doc.settings.editAccess : undefined;
 
       if (users_array === null || users_array === undefined) {
         // 'users' key doesn't exist, return original role_name

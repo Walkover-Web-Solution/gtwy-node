@@ -35,6 +35,10 @@ const testcaseSchema = new mongoose.Schema({
     type: [],
     default: []
   },
+  tools_response: {
+    type: Object,
+    default: {}
+  },
   execution: {
     lastExecutedAt: {
       type: Date,
