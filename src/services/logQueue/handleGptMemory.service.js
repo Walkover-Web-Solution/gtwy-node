@@ -1,8 +1,9 @@
-import { callAiMiddleware } from "../utils/aiCall.utils.js";
+import { callAiMiddlewareWithUsage } from "../utils/aiCall.utils.js";
 import { bridge_ids } from "../../configs/constant.js";
 import prebuiltPromptDbService from "../../db_services/prebuiltPrompt.service.js";
 import { refreshGptMemoryCache } from "../utils/gptMemory.service.js";
 import logger from "../../logger.js";
+import { debitBackgroundJob } from "./backgroundJobBilling.service.js";
 
 function normalizeContent(value) {
   if (value && typeof value === "object") return JSON.stringify(value);
@@ -34,7 +35,8 @@ async function handleGptMemory({
   thread_id,
   sub_thread_id,
   bridge_id,
-  version_id
+  version_id,
+  background_billing
 }) {
   try {
     const memoryVar = purpose && typeof purpose === "object" ? JSON.stringify(purpose) : purpose;
@@ -58,7 +60,13 @@ async function handleGptMemory({
     const memoryContext = gpt_memory_context ? `\n\nMemory storage instructions: ${gpt_memory_context}` : "";
     const message = `${bridgeContext}\n\n${memoryContext}`;
 
-    const response = await callAiMiddleware(message, bridge_ids.gpt_memory, variables, configuration, "text");
+    const { result: response, usage } = await callAiMiddlewareWithUsage({
+      user: message,
+      bridge_id: bridge_ids.gpt_memory,
+      variables,
+      configuration,
+      response_type: "text"
+    });
 
     if (response === "True") {
       try {
@@ -77,6 +85,14 @@ async function handleGptMemory({
     } else {
       logger.warn(`handleGptMemory: unexpected response for ${id}: ${response}`);
     }
+
+    // Billed regardless of the True/False verdict: the model ran either way.
+    await debitBackgroundJob({
+      job: "gpt_memory",
+      usage,
+      billing: background_billing,
+      bridge_id: bridge_ids.gpt_memory
+    });
 
     return response;
   } catch (err) {

@@ -17,6 +17,13 @@ import {
   updateConversationHistory
 } from "../services/logQueue/saveHistory.service.js";
 
+// Payer + message_id for the background AI jobs below (suggestions, gpt memory,
+// canonicalizer, sub-thread title). Sent by gtwy-ai as a single top-level block;
+// null when the customer ran on their own API key, which tells the billing
+// helper to skip. Threaded explicitly rather than read from a module global so
+// each job's dependency on it is visible at the call site.
+const billingOf = (messages) => messages["background_billing"] ?? null;
+
 async function saveHistoryBlock(messages) {
   // Insert first, then resolve + persist display_name via UPDATE (only when AI generates it)
   await saveConversationHistory(messages["save_history"]);
@@ -29,7 +36,8 @@ async function saveHistoryBlock(messages) {
       bridge_id: conv.bridge_id,
       user: conv.user,
       thread_flag: conv.thread_flag,
-      response_format: conv.response_format
+      response_format: conv.response_format,
+      background_billing: billingOf(messages)
     });
   }
 }
@@ -38,7 +46,7 @@ async function saveOrchestratorHistoryBlock(messages) {
   await saveOrchestratorHistory(messages["save_orchestrator_history"]);
   const orchestratorSubThreadData = messages["save_orchestrator_history"]?.sub_thread_data;
   if (orchestratorSubThreadData) {
-    await saveSubThreadIdAndName(orchestratorSubThreadData);
+    await saveSubThreadIdAndName({ ...orchestratorSubThreadData, background_billing: billingOf(messages) });
   }
 }
 
@@ -53,7 +61,8 @@ async function saveBatchHistoryBlock(messages) {
       bridge_id: batchEntry.bridge_id,
       user: batchEntry.user,
       thread_flag: batchEntry.thread_flag,
-      response_format: batchEntry.response_format
+      response_format: batchEntry.response_format,
+      background_billing: billingOf(messages)
     });
   }
 }
@@ -67,6 +76,22 @@ async function validateResponseBlock(messages) {
   }
   await validateResponse(messages["validateResponse"]);
 }
+
+// These jobs are launched un-awaited so they never delay the ack, but they now
+// carry a wallet debit — and `inFlight` in consumers/index.js is decremented in
+// the processor's finally, i.e. immediately after ack, so the 30s shutdown drain
+// used to wait exactly zero seconds for them. SIGKILL would lose the charge with
+// no log and no failed_billing_debits row. Track them so the drain is real.
+let pendingBackgroundJobs = 0;
+
+function trackBackgroundJob(promise) {
+  pendingBackgroundJobs += 1;
+  promise.finally(() => {
+    pendingBackgroundJobs -= 1;
+  });
+}
+
+const getPendingBackgroundJobs = () => pendingBackgroundJobs;
 
 async function processLogQueueMessage(messages) {
   // Run all independent history writes in parallel
@@ -104,7 +129,8 @@ async function processLogQueueMessage(messages) {
         bridge_name: agent_memory_data.bridge_name || "",
         system_prompt: agent_memory_data.system_prompt || "",
         is_cache_hit: agent_memory_data.is_cache_hit || false,
-        cached_resource_id: agent_memory_data.resource_id || null
+        cached_resource_id: agent_memory_data.resource_id || null,
+        background_billing: billingOf(messages)
       })
     );
   }
@@ -116,17 +142,21 @@ async function processLogQueueMessage(messages) {
 
   // Fire-and-forget: AI calls and outbound webhooks — don't block ack
   if (messages["check_handle_gpt_memory"]?.gpt_memory) {
-    handleGptMemory(messages["handle_gpt_memory"]).catch((err) => {
-      logger.error(`Error in handleGptMemory: ${err.message}`);
-      unknown_error_handler_alert("handleGptMemory", null, err.message);
-    });
+    trackBackgroundJob(
+      handleGptMemory({ ...messages["handle_gpt_memory"], background_billing: billingOf(messages) }).catch((err) => {
+        logger.error(`Error in handleGptMemory: ${err.message}`);
+        unknown_error_handler_alert("handleGptMemory", null, err.message);
+      })
+    );
   }
 
   if (messages["check_chatbot_suggestions"]?.bridgeType) {
-    chatbotSuggestions(messages["chatbot_suggestions"]).catch((err) => {
-      logger.error(`Error in chatbotSuggestions: ${err.message}`);
-      unknown_error_handler_alert("chatbotSuggestions", null, err.message);
-    });
+    trackBackgroundJob(
+      chatbotSuggestions({ ...messages["chatbot_suggestions"], background_billing: billingOf(messages) }).catch((err) => {
+        logger.error(`Error in chatbotSuggestions: ${err.message}`);
+        unknown_error_handler_alert("chatbotSuggestions", null, err.message);
+      })
+    );
   }
 
   if (messages.broadcast_response_webhook) {
@@ -150,4 +180,4 @@ async function logQueueProcessor(message, channel) {
   }
 }
 
-export { logQueueProcessor };
+export { logQueueProcessor, getPendingBackgroundJobs };

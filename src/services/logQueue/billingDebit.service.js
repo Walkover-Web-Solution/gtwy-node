@@ -5,6 +5,7 @@ import { walletDebit, isWalletNotFoundError } from "../lago.service.js";
 import { unknown_error_handler_alert } from "../utils/utility.service.js";
 const MAX_ATTEMPTS = 3;
 const RETRY_DELAY_MS = 500;
+const PLATFORM_ORG_ID = process.env.GTWY_PLATFORM_ORG_ID;
 
 // Lago's async event ingestion does NOT enforce transaction_id uniqueness
 // (verified live: the same transaction_id posted twice was counted twice), so a
@@ -16,6 +17,69 @@ const RETRY_DELAY_MS = 500;
 const REDIS_PREFIX = `AIMIDDLEWARE_${process.env.ENVIRONMENT}_`;
 const DISPATCHED_KEY = "nd_billing_lago_dispatched_";
 const DISPATCHED_TTL = 86400;
+
+// Python owns the Redis shadow balance that the request admission gate reads,
+// and seeds it with NX and NO TTL (billing_utils.py _sync_balance_from_lago), so
+// nothing ever refreshes it while it exists and there is no reconciliation cron.
+// For MAIN calls Python decrements it itself. For BACKGROUND-JOB charges (billed
+// here, never seen by Python) nobody would — and the shadow would drift above
+// Lago permanently and monotonically, so with reserve_overdraft_floor = -100 the
+// gate would over-admit forever.
+//
+// We claim PYTHON'S OWN key, which makes this self-guarding with no branch:
+// - main-call events: Python already claimed it, the script returns DUPLICATE, no-op
+// - background-job events: only we ever see them, so the decrement lands
+// It also recovers main-call decrements Python lost when its Redis write threw
+// (billing_utils.apply_debit swallows).
+const BALANCE_KEY = "nd_billing_credit_balance_";
+const APPLIED_KEY = "nd_billing_credit_applied_";
+const APPLIED_TTL = 86400;
+
+// Byte-for-byte Python's _DEBIT_SCRIPT (billing_utils.py), with ONE deliberate
+// difference at the call site below: on MISSING we give up instead of seeding.
+// KEYS[1]=claim  KEYS[2]=balance  ARGV[1]=credits  ARGV[2]=claim ttl
+const DEBIT_SCRIPT = `
+if redis.call('EXISTS', KEYS[2]) == 0 then
+  return 'MISSING'
+end
+local claimed = redis.call('SET', KEYS[1], '1', 'NX', 'EX', ARGV[2])
+if not claimed then
+  return 'DUPLICATE'
+end
+redis.call('INCRBYFLOAT', KEYS[2], -tonumber(ARGV[1]))
+return 'OK'
+`;
+
+// The {org_id} hash tag is MANDATORY: the script touches the claim key and the
+// balance key together, so both must hash to one Redis Cluster slot. Brace
+// placement mirrors Python's _key()/_hold_key() exactly.
+const balanceKey = (org_id) => `${REDIS_PREFIX}${BALANCE_KEY}{${org_id}}`;
+const appliedKey = (org_id, transaction_id) => `${REDIS_PREFIX}${APPLIED_KEY}{${org_id}}_${transaction_id}`;
+
+// Mirror a charge Lago accepted into the gate's shadow balance. Never throws:
+// the money already moved, and the shadow is only a cache in front of the gate.
+const applyShadowDebit = async (org_id, credits, transaction_id) => {
+  if (!client.isReady) {
+    logger.warn(`[billing] shadow debit skipped for org=${org_id} tx=${transaction_id}: redis unavailable`);
+    return;
+  }
+  try {
+    // credits stays a STRING — it is a 4dp decimal Python produced, and Lua's
+    // tonumber reads it directly without a JS float round-trip.
+    const status = await client.eval(DEBIT_SCRIPT, {
+      keys: [appliedKey(org_id, transaction_id), balanceKey(org_id)],
+      arguments: [String(credits), String(APPLIED_TTL)]
+    });
+    // MISSING: no balance key, so nothing to decrement — and deliberately NOT
+    // seeded here. Python's seed path reads credits_ongoing_balance, which
+    // already includes rated-but-uninvoiced usage, so seeding then decrementing
+    // would double-count. An absent key needs no action: the next customer
+    // request seeds it NX from a Lago figure that already reflects this event.
+    if (status === "DUPLICATE" || status === "MISSING") return;
+  } catch (err) {
+    logger.error(`[billing] shadow debit failed for org=${org_id} tx=${transaction_id}: ${err.message}`);
+  }
+};
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -55,12 +119,35 @@ const postDebit = async (event) => {
     service: event.service,
     bridge_id: event.bridge_id,
     user_id: event.user_id,
-    folder_id: event.folder_id
+    folder_id: event.folder_id,
+    // thread_id and is_embed are sent by Python and used to be dropped here;
+    // job distinguishes a background-AI charge from a main completion.
+    thread_id: event.thread_id,
+    is_embed: event.is_embed,
+    job: event.job
   });
+  // Lago FIRST, shadow SECOND, and only on success: decrementing the gate's
+  // balance for a charge Lago rejected would block the customer's next request
+  // for revenue we never booked, then double-decrement when the replay lands.
+  // Lives here rather than in debitOne because replayFailedDebits calls
+  // postDebit directly — anything added to debitOne is skipped on replay.
+  await applyShadowDebit(org_id, credits, transaction_id);
 };
 
 async function debitOne(event) {
   const { org_id, credits, transaction_id } = event || {};
+
+  // Second line of defence behind gtwy-ai's platform-org suppression: internal
+  // traffic (our background jobs calling our own agents) must never be billed to
+  // the platform org. If one of these shows up, the Python guard was bypassed.
+  if (PLATFORM_ORG_ID && String(org_id) === String(PLATFORM_ORG_ID)) {
+    logger.error(
+      `[billing] REFUSING debit against the platform org (${org_id}) transaction_id=${transaction_id} — ` +
+        `GTWY_PLATFORM_ORG_ID suppression in gtwy-ai's reserve_credits_and_api_key_setup is not working`
+    );
+    return;
+  }
+
   if (!org_id || !credits || !transaction_id) {
     logger.error(`[billing] dropping malformed llm_usage_debit event: ${JSON.stringify(event)}`);
     unknown_error_handler_alert("billingDebitMalformedEvent", null, JSON.stringify(event));

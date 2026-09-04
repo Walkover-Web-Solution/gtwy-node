@@ -1,8 +1,9 @@
 import axios from "axios";
 import mongoose from "mongoose";
-import { callAiMiddleware } from "../utils/aiCall.utils.js";
+import { callAiMiddlewareWithUsage } from "../utils/aiCall.utils.js";
 import { bridge_ids } from "../../configs/constant.js";
 import logger from "../../logger.js";
+import { debitBackgroundJob } from "./backgroundJobBilling.service.js";
 
 const HIPPOCAMPUS_BASE_URL = process.env.HIPPOCAMPUS_BASE_URL || "http://hippocampus.gtwy.ai";
 const HIPPOCAMPUS_SEARCH_URL = `${HIPPOCAMPUS_BASE_URL}/search`;
@@ -63,10 +64,19 @@ async function updateFrequencyInMongodb(resource_id) {
   }
 }
 
-async function callCanonicalizerAgent({ system_prompt, user_message, llm_response }) {
+async function callCanonicalizerAgent({ system_prompt, user_message, llm_response, background_billing }) {
   try {
     const user = `System: ${system_prompt}\n\nUser: ${user_message}\n\nAssistant: ${llm_response}`;
-    const result = await callAiMiddleware(user, bridge_ids.canonicalizer);
+    const { result, usage } = await callAiMiddlewareWithUsage({ user, bridge_id: bridge_ids.canonicalizer });
+    // Billed here rather than in saveToAgentMemory: `usage` only exists at this
+    // call site, and the caller returns early on several branches below it.
+    // This call is itself conditional — it only runs on a Hippocampus miss.
+    await debitBackgroundJob({
+      job: "canonicalizer",
+      usage,
+      billing: background_billing,
+      bridge_id: bridge_ids.canonicalizer
+    });
     return result;
   } catch (err) {
     logger.error(`Agent Memory: Error calling canonicalizer agent: ${err.message}`);
@@ -111,7 +121,16 @@ async function createMemoryInHippocampusAndMongodb({ canonical_question, origina
   }
 }
 
-async function saveToAgentMemory({ user_question, assistant_answer, agent_id, system_prompt, bridge_name = "", is_cache_hit, cached_resource_id }) {
+async function saveToAgentMemory({
+  user_question,
+  assistant_answer,
+  agent_id,
+  system_prompt,
+  bridge_name = "",
+  is_cache_hit,
+  cached_resource_id,
+  background_billing
+}) {
   try {
     if (!process.env.HIPPOCAMPUS_API_KEY || !process.env.HIPPOCAMPUS_COLLECTION_ID) {
       logger.warn("Agent Memory: Hippocampus not configured");
@@ -145,7 +164,8 @@ async function saveToAgentMemory({ user_question, assistant_answer, agent_id, sy
     const canonical_data = await callCanonicalizerAgent({
       system_prompt,
       user_message: user_question,
-      llm_response: assistant_answer
+      llm_response: assistant_answer,
+      background_billing
     });
 
     if (!canonical_data) {

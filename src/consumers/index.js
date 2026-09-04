@@ -1,7 +1,7 @@
 import dotenv from "dotenv";
 import logger from "../logger.js";
 import rabbitmqService from "../services/rabbitmq.service.js";
-import { logQueueProcessor } from "./logQueueConsumer.js";
+import { logQueueProcessor, getPendingBackgroundJobs } from "./logQueueConsumer.js";
 import { metricsQueueProcessor } from "./metricsQueueConsumer.js";
 
 dotenv.config();
@@ -100,13 +100,19 @@ export async function stopConsumers() {
           await c.channel.cancel(c.consumerTag);
         }
 
-        // Wait for in-flight messages to finish acking (up to 30s)
+        // Wait for in-flight messages to finish acking (up to 30s), and for the
+        // log queue's fire-and-forget jobs too: those are launched un-awaited and
+        // carry a wallet debit, but inFlight is decremented right after ack, so
+        // without this the drain returned instantly and SIGKILL silently dropped
+        // the charge.
         const deadline = Date.now() + 30_000;
-        while (c.inFlight > 0 && Date.now() < deadline) {
+        const stillBusy = () => c.inFlight > 0 || (c.processor === logQueueProcessor && getPendingBackgroundJobs() > 0);
+        while (stillBusy() && Date.now() < deadline) {
           await new Promise((r) => setTimeout(r, 100));
         }
-        if (c.inFlight > 0) {
-          logger.warn(`[CONSUMER] ${c.queueName} - ${c.inFlight} messages still in-flight after timeout`);
+        if (stillBusy()) {
+          const pending = c.processor === logQueueProcessor ? getPendingBackgroundJobs() : 0;
+          logger.warn(`[CONSUMER] ${c.queueName} - ${c.inFlight} messages in-flight and ${pending} background jobs still pending after timeout`);
         }
 
         if (c.channel) await c.channel.close();

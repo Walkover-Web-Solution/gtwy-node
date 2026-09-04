@@ -22,10 +22,21 @@ const SIGNUP_GRANT_EXPIRY_DAYS = process.env.LAGO_SIGNUP_GRANT_EXPIRY_DAYS;
 // see scripts/provisionLagoOrgs.js.)
 export const subscriptionExternalId = (org_id) => String(org_id);
 
+// Lago sits in front of user-visible work (a debit runs right after a chatbot
+// reply is delivered), and axios has NO default timeout — a hung Lago would hang
+// the caller forever. Python's Lago client caps itself at 3s for the same reason
+// (src/services/billing/lago_service.py). Fail fast; the debit is stored in
+// failed_billing_debits and replayed.
+const BILLING_TIMEOUT_MS = Number(process.env.BILLING_API_TIMEOUT_MS || 5000);
+
 const billingHeaders = () => ({
   Authorization: `Bearer ${BILLING_API_KEY}`,
   "Content-Type": "application/json"
 });
+
+// Spread into an axios config so every Lago call inherits the timeout. The GET
+// call sites build their own config object and must spread this too.
+const billingRequestConfig = () => ({ headers: billingHeaders(), timeout: BILLING_TIMEOUT_MS });
 
 const lagoRequest = async (fn) => {
   try {
@@ -46,7 +57,7 @@ const lagoRequest = async (fn) => {
 export const createCustomer = async (org_id) =>
   lagoRequest(() =>
     axios
-      .post(`${BILLING_API_URL}/customers`, { customer: { external_id: String(org_id), name: String(org_id) } }, { headers: billingHeaders() })
+      .post(`${BILLING_API_URL}/customers`, { customer: { external_id: String(org_id), name: String(org_id) } }, billingRequestConfig())
       .then((r) => r.data)
   );
 
@@ -64,7 +75,7 @@ export const createSubscription = async (org_id) =>
             billing_time: "calendar"
           }
         },
-        { headers: billingHeaders() }
+        billingRequestConfig()
       )
       .then((r) => r.data)
   );
@@ -84,7 +95,7 @@ export const createWallet = async (org_id) => {
     const expiry = new Date(Date.now() + Number(SIGNUP_GRANT_EXPIRY_DAYS) * 24 * 60 * 60 * 1000);
     wallet.expiration_at = expiry.toISOString();
   }
-  const response = await axios.post(`${BILLING_API_URL}/wallets`, { wallet }, { headers: billingHeaders() });
+  const response = await axios.post(`${BILLING_API_URL}/wallets`, { wallet }, billingRequestConfig());
   return response.data;
 };
 
@@ -166,7 +177,7 @@ export const ensureOrgSubscribed = async (org_id) => {
 };
 export const getWallet = async (org_id) => {
   const response = await axios.get(`${BILLING_API_URL}/wallets`, {
-    headers: billingHeaders(),
+    ...billingRequestConfig(),
     params: { external_customer_id: org_id }
   });
   const wallets = response?.data?.wallets || [];
@@ -206,7 +217,7 @@ const releaseTopupClaim = async (reference_id) => {
 
 const findActiveWalletId = async (org_id) => {
   const response = await axios.get(`${BILLING_API_URL}/wallets`, {
-    headers: billingHeaders(),
+    ...billingRequestConfig(),
     params: { external_customer_id: org_id }
   });
   const wallets = response?.data?.wallets || [];
@@ -227,7 +238,7 @@ export const walletCredit = async (org_id, credits, metadata = {}) =>
       granted_credits: String(credits),
       metadata: Object.entries(metadata).map(([key, value]) => ({ key, value: String(value) }))
     };
-    const response = await axios.post(`${BILLING_API_URL}/wallet_transactions`, { wallet_transaction }, { headers: billingHeaders() });
+    const response = await axios.post(`${BILLING_API_URL}/wallet_transactions`, { wallet_transaction }, billingRequestConfig());
     return response.data;
   });
 
@@ -291,7 +302,7 @@ export const walletDebit = async (org_id, credits, transaction_id, metadata = {}
       code: CREDIT_USAGE_EVENT_CODE,
       properties
     };
-    return axios.post(`${BILLING_API_URL}/events`, { event }, { headers: billingHeaders() }).then((r) => r.data);
+    return axios.post(`${BILLING_API_URL}/events`, { event }, billingRequestConfig()).then((r) => r.data);
   });
 
 export const isWalletNotFoundError = (err) => {

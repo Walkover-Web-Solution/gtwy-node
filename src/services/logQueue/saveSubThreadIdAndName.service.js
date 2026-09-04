@@ -1,9 +1,10 @@
 import { findInCache, storeInCache, deleteInCache } from "../../cache_service/index.js";
-import { callAiMiddleware } from "../utils/aiCall.utils.js";
+import { callAiMiddlewareWithUsage } from "../utils/aiCall.utils.js";
 import { sendResponse } from "../utils/utility.service.js";
 import { bridge_ids, redis_keys } from "../../configs/constant.js";
 import models from "../../../models/index.js";
 import logger from "../../logger.js";
+import { debitBackgroundJob } from "./backgroundJobBilling.service.js";
 
 /**
  * Resolve and persist the display name for a sub-thread.
@@ -14,7 +15,7 @@ import logger from "../../logger.js";
  * endpoints (pending key) is still surfaced to the cache + realtime response, but
  * does not trigger a PG write.
  */
-async function saveSubThreadIdAndName({ thread_id, sub_thread_id, org_id, thread_flag, response_format, bridge_id, user }) {
+async function saveSubThreadIdAndName({ thread_id, sub_thread_id, org_id, thread_flag, response_format, bridge_id, user, background_billing }) {
   const cache_key = `sub_thread_${org_id}_${bridge_id}_${thread_id}_${sub_thread_id}`;
 
   // Cache hit -> name already resolved on a previous message, nothing to do
@@ -27,6 +28,9 @@ async function saveSubThreadIdAndName({ thread_id, sub_thread_id, org_id, thread
   const current_time = new Date();
   let display_name = sub_thread_id;
   let aiGenerated = false;
+  // Held until the end of the function so billing never delays the PG write or
+  // the realtime response below. This job IS awaited by the consumer.
+  let nameUsage = null;
 
   // Name pre-chosen via POST /api/thread before the first message (key has no
   // bridge_id — the create endpoints don't know it)
@@ -48,7 +52,14 @@ async function saveSubThreadIdAndName({ thread_id, sub_thread_id, org_id, thread
   // Wait for it to finish; only a successful generation is persisted.
   if (display_name === sub_thread_id && thread_flag) {
     try {
-      const generated = await callAiMiddleware("generate description", bridge_ids.generate_description, { user }, null, "text");
+      const { result: generated, usage } = await callAiMiddlewareWithUsage({
+        user: "generate description",
+        bridge_id: bridge_ids.generate_description,
+        variables: { user },
+        response_type: "text"
+      });
+      // Captured even when the generated name is unusable below — the model ran.
+      nameUsage = usage;
       if (generated && generated !== sub_thread_id) {
         display_name = generated;
         aiGenerated = true;
@@ -87,6 +98,16 @@ async function saveSubThreadIdAndName({ thread_id, sub_thread_id, org_id, thread
     } catch (err) {
       logger.error(`sendResponse failed for ${sub_thread_id}: ${err.message}`);
     }
+  }
+
+  // Last, so nothing user-visible waits on Lago.
+  if (nameUsage) {
+    await debitBackgroundJob({
+      job: "generate_description",
+      usage: nameUsage,
+      billing: background_billing,
+      bridge_id: bridge_ids.generate_description
+    });
   }
 }
 
