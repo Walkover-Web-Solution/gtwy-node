@@ -1,5 +1,7 @@
 import metrics_sevice from "../db_services/metrics.service.js";
 import { buildWhereClause, selectTable } from "../utils/metrics.utils.js";
+import analyticsService from "../db_services/analytics.service.js";
+import configurationService from "../db_services/configuration.service.js";
 
 const getMetricsData = async (req, res, next) => {
   const org_id = req.profile?.org?.id;
@@ -23,23 +25,27 @@ const getMetricsData = async (req, res, next) => {
     start_date = req.body.start_date;
     end_date = req.body.end_date;
   }
-  const whereClause = buildWhereClause(params, values, factor, range, start_date, end_date);
+  const extraDimension = factor === "bridge_id" ? ", model" : "";
+  const embedBridgeIds = await configurationService.getEmbedBridgeIds(org_id);
+  const whereClause = buildWhereClause(params, values, factor, range, true, start_date, end_date, extraDimension, embedBridgeIds);
   // const table = selectTable(startTime, endTime, range);
   const table = selectTable(range);
-  const query = `SELECT ${factor}, created_at, SUM(cost_sum) as cost_sum, AVG(latency_sum/NULLIF(record_count, 0)) as latency_sum, SUM(success_count) as success_count, SUM(total_token_count) AS total_token_count FROM ${table} ${whereClause} ORDER BY created_at ASC`;
+  const query = `SELECT ${factor}${extraDimension}, created_at, SUM(cost_sum) as cost_sum, AVG(latency_sum/NULLIF(record_count, 0)) as latency_sum, SUM(success_count) as success_count, SUM(total_token_count) AS total_token_count FROM ${table} ${whereClause} ORDER BY created_at ASC`;
 
-  const today_whereClause = buildWhereClause(params, values, factor, range, false, start_date, end_date);
-  const today_query = `SELECT ${factor}, created_at, SUM(cost_sum) as cost_sum, AVG(latency_sum/NULLIF(record_count, 0)) as latency_sum, SUM(success_count) as success_count, SUM(total_token_count) AS total_token_count FROM fifteen_minute_data ${today_whereClause} ORDER BY created_at ASC`;
+  const windowIncludesToday = range !== 10 || !end_date || new Date(end_date).getTime() >= Date.now() - 2 * 24 * 60 * 60 * 1000;
 
-  const data = await metrics_sevice.find(query, values);
-  const today_data = await metrics_sevice.find(today_query, values);
-  if (range > 5) {
+  if (range > 5 && windowIncludesToday) {
+    const today_whereClause = buildWhereClause(params, values, factor, range, false, start_date, end_date, extraDimension, embedBridgeIds);
+    const today_query = `SELECT ${factor}${extraDimension}, created_at, SUM(cost_sum) as cost_sum, AVG(latency_sum/NULLIF(record_count, 0)) as latency_sum, SUM(success_count) as success_count, SUM(total_token_count) AS total_token_count FROM fifteen_minute_data ${today_whereClause} ORDER BY created_at ASC`;
+    const data = await metrics_sevice.find(query, values);
+    const today_data = await metrics_sevice.find(today_query, values);
     res.locals = {
       statusCode: 200,
       data: [...data, ...today_data],
       message: "Successfully get request data"
     };
   } else {
+    const data = await metrics_sevice.find(query, values);
     res.locals = {
       statusCode: 200,
       data,
@@ -91,7 +97,33 @@ const getBridgeMetrics = async (req, res, next) => {
   return next();
 };
 
+const getRequestsActivity = async (req, res, next) => {
+  const org_id = req.profile?.org?.id;
+  const { bridge_id, model, service, start_date, end_date } = req.body;
+
+  const end = end_date ? new Date(end_date) : new Date();
+  const start = start_date ? new Date(start_date) : new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const durationHours = Math.max(1, (end.getTime() - start.getTime()) / 3600000);
+  const bucket = durationHours <= 72 ? "hour" : "day";
+
+  const embedBridgeIds = await configurationService.getEmbedBridgeIds(org_id);
+  const [data, by_agent] = await Promise.all([
+    analyticsService.getOrgRequestsOverTime({ org_id, bridge_id, model, service, start, end, bucket, excludeBridgeIds: embedBridgeIds }),
+    analyticsService.getAgentTokenBreakdown({ org_id, bridge_id, model, service, start, end, excludeBridgeIds: embedBridgeIds })
+  ]);
+
+  res.locals = {
+    statusCode: 200,
+    data,
+    by_agent,
+    message: "Successfully get request activity data"
+  };
+  req.statusCode = 200;
+  return next();
+};
+
 export default {
   getMetricsData,
-  getBridgeMetrics
+  getBridgeMetrics,
+  getRequestsActivity
 };
