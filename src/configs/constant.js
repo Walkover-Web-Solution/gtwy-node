@@ -60,7 +60,7 @@ const embed_cache = {
   keys: {
     folder: (folderId) => `embed:folder_${folderId}`,
     org: (orgId) => `embed:org_${orgId}`,
-    user: (userId, orgId) => `embed:user_${userId}:${orgId}`
+    user: (userId, orgId, folderId) => `embed:user_${userId}:${orgId}:${folderId}`
   }
 };
 
