@@ -20,7 +20,7 @@ async function getallOrgs() {
 }
 
 const createOrGetUser = async (checkToken, decodedToken, orgTokenFromDb) => {
-  const cacheKeyUser = embed_cache.keys.user(decodedToken.user_id, decodedToken.org_id);
+  const cacheKeyUser = embed_cache.keys.user(decodedToken.user_id, decodedToken.org_id, decodedToken.folder_id);
   const cachedUser = await findInCache(cacheKeyUser);
 
   if (cachedUser) {
@@ -31,9 +31,9 @@ const createOrGetUser = async (checkToken, decodedToken, orgTokenFromDb) => {
     }
   }
   const userDetails = {
-    name: generateIdentifier(14, "emb", false),
-    email: `${decodedToken.org_id}${checkToken.user_id}@gtwy.ai`,
-    meta: { type: "embed" }
+    name: decodedToken?.name || generateIdentifier(14, "emb", false),
+    email: `${decodedToken.org_id}_${decodedToken.folder_id}_${checkToken.user_id}@gtwy.ai`,
+    meta: { type: "embed", email: decodedToken?.email, user_id: decodedToken?.user_id }
   };
   const orgDetials = {
     name: orgTokenFromDb?.name,
