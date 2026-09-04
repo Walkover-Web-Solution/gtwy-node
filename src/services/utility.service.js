@@ -27,8 +27,10 @@ const parseCsv = (csvBuffer) =>
     readableStream.pipe(csvStream);
   });
 
-const ensureChatbotPreview = async (org_id, user_id, agents) => {
-  if (agents.some((item) => item.slugName === "chatbot_preview")) return null;
+const ensureChatbotPreview = async (org_id, user_id) => {
+  // Existence is checked directly instead of scanning a caller-supplied list: that list is
+  // now filtered and paginated, so it can no longer prove the preview is absent.
+  if (await ConfigurationServices.agentExistsBySlug(org_id, "chatbot_preview")) return null;
   const name = "chatbot preview";
   const { name: uniqueName, slugName: uniqueSlugName } = await ConfigurationServices.getUniqueAgentNameAndSlug(org_id, name);
 

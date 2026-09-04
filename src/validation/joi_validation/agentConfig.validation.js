@@ -138,6 +138,18 @@ const cloneAgentSchema = Joi.object({
   })
 }).unknown(true);
 
+// No defaults on page/limit: their absence is what selects the legacy unpaginated
+// response in the controller. Do not add .default() here.
+const getAllAgentsQuerySchema = Joi.object()
+  .keys({
+    deleted: Joi.boolean().optional().default(false),
+    page: Joi.number().integer().min(1).optional(),
+    limit: Joi.number().integer().min(1).max(100).optional().messages({
+      "number.max": "limit cannot exceed 100"
+    })
+  })
+  .unknown(true);
+
 // Validation objects for use with validate middleware
 const createAgent = {
   body: createBridgeSchema
@@ -159,12 +171,24 @@ const getAgent = {
   params: bridgeIdParamSchema
 };
 
+const getAllAgents = {
+  query: getAllAgentsQuerySchema
+};
+
 const updateBridge = {
   body: updateBridgeSchema
 };
 
 // Export both the schemas and validation objects
-export { createBridgeSchema, updateBridgeSchema, bridgeIdParamSchema, modelNameParamSchema, cloneAgentSchema, createAgentFromTemplateParamSchema };
+export {
+  createBridgeSchema,
+  updateBridgeSchema,
+  bridgeIdParamSchema,
+  modelNameParamSchema,
+  cloneAgentSchema,
+  createAgentFromTemplateParamSchema,
+  getAllAgentsQuerySchema
+};
 
 export default {
   createAgent,
@@ -172,5 +196,6 @@ export default {
   getAgentsByModel,
   cloneAgent,
   getAgent,
+  getAllAgents,
   updateBridge
 };
