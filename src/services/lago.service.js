@@ -2,7 +2,6 @@ import axios from "axios";
 
 import client from "./cache.service.js";
 import logger from "../logger.js";
-import OrgBillingModel from "../mongoModel/OrgBilling.model.js";
 import { DEFAULT_PLAN_SLUG, planCodeFor, planSlugForCode } from "../configs/billingPlans.js";
 import billingPlanService from "../db_services/billingPlan.service.js";
 
@@ -188,28 +187,22 @@ const invalidatePlanCache = async (org_id) => {
   await client.del(`${REDIS_PREFIX}${ORG_PLAN_KEY}${org_id}`).catch(() => {});
 };
 
+// Lago is the source of truth for which plan an org is on — there is no local
+// copy any more. "Ensuring" a plan is therefore just: read what Lago says and
+// make sure the cache is not holding something older.
 export const ensureOrgPlan = async (org_id) => {
-  // Creates the row as "free" for new orgs; never downgrades an existing org.
-  const doc = await OrgBillingModel.findOneAndUpdate(
-    { org_id: String(org_id) },
-    { $setOnInsert: { org_id: String(org_id), plan: "free" } },
-    { upsert: true, new: true }
-  );
   await invalidatePlanCache(org_id);
-  return doc.plan;
+  const subscription = await getSubscription(org_id).catch(() => null);
+  return subscription?.plan_slug || DEFAULT_PLAN_SLUG;
 };
 
-// Writes ANY plan slug. Replaces markOrgPaid, which hardcoded "paid" and so
-// could only ratchet an org upward — leaving no way to undo a mistaken upgrade
-// except editing Mongo by hand.
+// With Lago as the only store, "recording" a plan is just dropping the cached
+// answer so the next read picks up what Lago now says. Kept as a named function
+// because the call sites read better for it and because it is the single place
+// to hook if a local copy is ever reintroduced.
 export const markOrgPlan = async (org_id, plan_slug) => {
-  const doc = await OrgBillingModel.findOneAndUpdate(
-    { org_id: String(org_id) },
-    { $set: { plan: String(plan_slug), upgraded_at: new Date() } },
-    { upsert: true, new: true }
-  );
   await invalidatePlanCache(org_id);
-  return doc.plan;
+  return String(plan_slug);
 };
 
 export const ensureOrgSubscribed = async (org_id, { plan_slug = DEFAULT_PLAN_SLUG } = {}) => {
@@ -272,10 +265,11 @@ export const ensureOrgSubscribed = async (org_id, { plan_slug = DEFAULT_PLAN_SLU
     }
   }
 
-  // Reconcile Mongo to what Lago ACTUALLY reports, not to what was requested —
-  // an org that was already on Pro must not be recorded as free.
-  const lagoSlug = subscription?.plan_slug || existingSubscription?.plan_slug;
-  const plan = lagoSlug && lagoSlug !== DEFAULT_PLAN_SLUG ? await markOrgPlan(org_id, lagoSlug) : await ensureOrgPlan(org_id);
+  // Lago already holds the answer — provisioning does not decide it. Just drop
+  // any cached value so the next read reflects whatever the subscription says,
+  // and report it back.
+  const plan = subscription?.plan_slug || existingSubscription?.plan_slug || DEFAULT_PLAN_SLUG;
+  await invalidatePlanCache(org_id);
 
   return { customer, subscription, wallet, plan };
 };
@@ -331,35 +325,33 @@ export const changeOrgPlan = async (org_id, plan_slug, { actor = "", reason = ""
   }
 };
 
-// The org's plan slug as recorded in Mongo, defaulting for an org with no row
-// yet. Kept here so controllers never reach into OrgBillingModel directly.
+// The org's plan slug, straight from Lago. Used by the customer-facing
+// GET /plan/me, which is a page load rather than a hot path, so the extra call
+// is acceptable there.
 export const getOrgPlanSlug = async (org_id) => {
-  const doc = await OrgBillingModel.findOne({ org_id: String(org_id) }).lean();
-  return doc?.plan || DEFAULT_PLAN_SLUG;
+  const subscription = await getSubscription(org_id).catch(() => null);
+  return subscription?.plan_slug || DEFAULT_PLAN_SLUG;
 };
 
 // Read-only drift check across the three places a plan is recorded. These are
 // updated in sequence with no transaction, so a crash mid-change leaves them
 // disagreeing — and without this that is completely invisible.
 export const reconcileOrgPlan = async (org_id) => {
-  const [subscription, doc] = await Promise.all([
-    getSubscription(org_id).catch(() => null),
-    OrgBillingModel.findOne({ org_id: String(org_id) }).lean()
-  ]);
+  const subscription = await getSubscription(org_id).catch(() => null);
   let redis_plan = null;
   if (client.isReady) {
     redis_plan = await client.get(`${REDIS_PREFIX}${ORG_PLAN_KEY}${org_id}`).catch(() => null);
   }
   const lago_plan = subscription?.plan_slug ?? null;
-  const mongo_plan = doc?.plan ?? null;
-  // Redis absent is NOT drift — it is the normal state after an invalidation;
-  // gtwy-ai repopulates it from Mongo on the next request.
-  const drift = lago_plan !== mongo_plan || (redis_plan !== null && redis_plan !== mongo_plan);
+  // Two stores now, not three: Lago is the truth and Redis is a cache of it.
+  // Redis absent is NOT drift — that is the normal state after an invalidation.
+  // Redis holding something Lago disagrees with IS drift, and means an
+  // invalidation was missed.
+  const drift = redis_plan !== null && redis_plan !== lago_plan;
   return {
     org_id: String(org_id),
     lago_plan_code: subscription?.plan_code ?? null,
     lago_plan,
-    mongo_plan,
     redis_plan,
     pending: subscription?.pending ?? null,
     drift
@@ -486,8 +478,11 @@ export const topupWallet = async (org_id, credits, { reference_id, metadata = {}
   }
 
   // A real top-up upgrades the org to the paid plan (admin/comp top-ups too).
+  // This MUST be changeOrgPlan, not markOrgPlan: with Lago as the only store,
+  // "upgrade" means moving the Lago subscription. markOrgPlan now merely drops
+  // the cache, which would leave the org on free and look like it worked.
   try {
-    await markOrgPlan(org_id, "paid");
+    await changeOrgPlan(org_id, "paid", { actor: "topup", reason: reference_id || "wallet top-up" });
   } catch (err) {
     console.error(`[lago] top-up succeeded but plan flip failed for org ${org_id}: ${err.message}`);
   }
