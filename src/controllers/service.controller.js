@@ -3,18 +3,12 @@ import { modelConfigDocument } from "../services/utils/loadModelConfigs.js";
 import { getSupportedModelSet } from "../services/utils/notDiamond.utils.js";
 import serviceDbService from "../db_services/service.service.js";
 
-const getAllServiceModelsController = async (req, res, next) => {
-  const { service } = req.params;
-  const service_lower = service.toLowerCase();
-
-  if (!modelConfigDocument[service_lower]) {
-    res.locals = {};
-    req.statusCode = 200;
-    return next();
-  }
+// Builds the Service payload for one service, null if unknown.
+const buildServiceModels = (service_lower) => {
+  const service_models = modelConfigDocument[service_lower];
+  if (!service_models) return null;
 
   const result = { chat: {}, "fine-tune": {}, reasoning: {}, image: {}, embedding: {} };
-  const service_models = modelConfigDocument[service_lower];
 
   for (const [model_name, config] of Object.entries(service_models)) {
     if (config.status !== 1) continue;
@@ -46,6 +40,32 @@ const getAllServiceModelsController = async (req, res, next) => {
 
       result[type][model_name] = transformedConfig;
     }
+  }
+
+  return result;
+};
+
+const getAllServiceModelsController = async (req, res, next) => {
+  const { service } = req.params;
+  const service_lower = service.toLowerCase();
+
+  // Single-service call (existing behavior)
+  if (service_lower !== "all") {
+    const result = buildServiceModels(service_lower);
+    res.locals = result || {};
+    req.statusCode = 200;
+    return next();
+  }
+
+  // Multi-service call: /api/service/all[?services=openai,anthropic]
+  const servicesFilter = req.query.services
+    ? req.query.services.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean)
+    : Object.keys(modelConfigDocument);
+
+  const result = {};
+  for (const svc of servicesFilter) {
+    const built = buildServiceModels(svc);
+    if (built) result[svc] = built;
   }
 
   res.locals = result;
