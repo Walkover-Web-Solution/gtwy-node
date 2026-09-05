@@ -15,8 +15,8 @@ const getAllServiceModelsController = async (req, res, next) => {
 
   const result = { chat: {}, "fine-tune": {}, reasoning: {}, image: {}, embedding: {} };
   const service_models = modelConfigDocument[service_lower];
-  const models = [];
 
+  // service_models key order comes from DB sort (created_at desc) at load time.
   for (const [model_name, config] of Object.entries(service_models)) {
     if (config.status !== 1) continue;
     const type = config.validationConfig?.type || "chat";
@@ -46,20 +46,8 @@ const getAllServiceModelsController = async (req, res, next) => {
       }
     }
 
-    models.push({
-      model_name,
-      type,
-      createdAtMs: created_at ? new Date(created_at).getTime() : 0,
-      transformedConfig
-    });
+    result[type][model_name] = transformedConfig;
   }
-
-  // Latest models first; object key insertion order is preserved per type.
-  models
-    .sort((a, b) => b.createdAtMs - a.createdAtMs)
-    .forEach(({ model_name, type, transformedConfig }) => {
-      result[type][model_name] = transformedConfig;
-    });
 
   res.locals = result;
   req.statusCode = 200;

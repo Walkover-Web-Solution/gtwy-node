@@ -4,7 +4,8 @@ let modelConfigDocument = {};
 
 const getModelConfigurations = async () => {
   try {
-    const configs = await ModelsConfigModel.find({}).lean();
+    // Newest first so in-memory object key order (and API response) stays date-sorted.
+    const configs = await ModelsConfigModel.find({}).sort({ created_at: -1 }).lean();
     const formattedConfigs = {};
 
     for (const config of configs) {
