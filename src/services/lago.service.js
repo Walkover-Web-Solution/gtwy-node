@@ -4,6 +4,7 @@ import client from "./cache.service.js";
 import logger from "../logger.js";
 import OrgBillingModel from "../mongoModel/OrgBilling.model.js";
 import { DEFAULT_PLAN_SLUG, planCodeFor, planSlugForCode } from "../configs/billingPlans.js";
+import billingPlanService from "../db_services/billingPlan.service.js";
 
 const BILLING_API_URL = process.env.BILLING_API_URL;
 const BILLING_API_KEY = process.env.BILLING_API_KEY;
@@ -12,7 +13,17 @@ const BILLING_API_KEY = process.env.BILLING_API_KEY;
 // is no default — createWallet refuses to run without it.
 const WALLET_RATE_AMOUNT = process.env.LAGO_CREDIT_RATE_USD;
 const WALLET_CURRENCY = "USD";
-const SIGNUP_GRANT_CREDITS = process.env.LAGO_SIGNUP_GRANT_CREDITS || "1000";
+// Credits granted once, when an org's wallet is created.
+//
+// NO `|| "1000"` fallback. That silent default is exactly how every signup was
+// getting 1000 credits — $2.50 of real inference — while the intended number
+// was still undecided. Unset now grants NOTHING and says so loudly: giving away
+// zero is a visible bug, giving away $2.50 a head is an invisible one.
+//
+// This is the DEFAULT. A plan document may carry its own `credit_grant`, which
+// wins for that plan — so the number can move to per-plan values later without
+// another code change.
+const DEFAULT_GRANT_CREDITS = process.env.LAGO_SIGNUP_GRANT_CREDITS;
 
 // Canonical Lago subscription external_id = the bare org_id — what the
 // original createSubscription wrote, so every already-provisioned org keeps
@@ -105,7 +116,31 @@ export const getSubscription = async (org_id) => {
   };
 };
 
-export const createWallet = async (org_id) => {
+// How many credits a new wallet is granted: the plan's own figure if it has
+// one, otherwise the env default.
+const resolveGrantCredits = async (plan_slug) => {
+  try {
+    const plan = await billingPlanService.getPlan(plan_slug);
+    const fromPlan = plan?.credit_grant;
+    if (fromPlan != null && Number.isFinite(Number(fromPlan)) && Number(fromPlan) >= 0) {
+      return String(fromPlan);
+    }
+  } catch (err) {
+    // Falling through to the env default is right: a Mongo blip must not stop
+    // an org being provisioned, and the default is a known-safe number.
+    logger.error(`[lago] could not read credit_grant for plan '${plan_slug}': ${err.message}`);
+  }
+  if (DEFAULT_GRANT_CREDITS == null || String(DEFAULT_GRANT_CREDITS).trim() === "") {
+    logger.error(
+      "[lago] LAGO_SIGNUP_GRANT_CREDITS is not set and the plan carries no credit_grant — " +
+        "granting 0 credits. New orgs will have an empty wallet until this is configured."
+    );
+    return "0";
+  }
+  return String(DEFAULT_GRANT_CREDITS);
+};
+
+export const createWallet = async (org_id, plan_slug = DEFAULT_PLAN_SLUG) => {
   if (!WALLET_RATE_AMOUNT) {
     throw new Error("LAGO_CREDIT_RATE_USD is not set — refusing to create a wallet with an undefined credit rate");
   }
@@ -121,12 +156,14 @@ export const createWallet = async (org_id) => {
   // all assume exactly one and would each silently pick an arbitrary one.
   // At LAGO_CREDIT_RATE_USD 0.0025 a 100-credit grant is $0.25, so that
   // machinery would exist to reclaim a quarter per dormant signup. Dropped.
+  const granted_credits = await resolveGrantCredits(plan_slug);
+  logger.info(`[lago] creating wallet for org ${org_id} on plan '${plan_slug}' with ${granted_credits} credits`);
   const wallet = {
     external_customer_id: org_id,
     name: `wallet-${org_id}`,
     currency: WALLET_CURRENCY,
     rate_amount: WALLET_RATE_AMOUNT,
-    granted_credits: SIGNUP_GRANT_CREDITS
+    granted_credits
   };
   const response = await axios.post(`${BILLING_API_URL}/wallets`, { wallet }, billingRequestConfig());
   return response.data;
@@ -228,7 +265,7 @@ export const ensureOrgSubscribed = async (org_id, { plan_slug = DEFAULT_PLAN_SLU
     wallet = { skipped: true, reason: "active wallet already exists" };
   } else {
     try {
-      wallet = await createWallet(org_id);
+      wallet = await createWallet(org_id, plan_slug);
     } catch (err) {
       if (!isAlreadyExists(err)) throw err;
       wallet = { skipped: true, reason: "wallet already exists" };

@@ -21,6 +21,9 @@
  * anything else to "free", so a new slug would silently restrict paying orgs.
  * "Pro" is display_name only.
  *
+ * Neither plan sets credit_grant: the signup grant is still undecided, so it
+ * comes from LAGO_SIGNUP_GRANT_CREDITS until someone puts a number on a plan.
+ *
  * $setOnInsert throughout: re-running must never clobber a deliberate admin
  * edit. (Contrast 20260831120000-add_free_tier_flag.js, whose $set re-forces
  * every value on every run.)
@@ -91,7 +94,12 @@ export const up = async (db) => {
       plan_code: "free",
       display_name: "Free",
       services,
-      credit_grant: 100,
+      // credit_grant deliberately OMITTED. The signup grant is still being
+      // decided, so it is governed by LAGO_SIGNUP_GRANT_CREDITS for now and
+      // one env change moves it. Adding credit_grant to a plan document
+      // overrides the env for that plan — the mechanism is already in
+      // lago.service.resolveGrantCredits, so switching to per-plan grants later
+      // needs no code change.
       status: 1,
       updated_by: "migration:20260904120000"
     },
@@ -99,7 +107,6 @@ export const up = async (db) => {
       plan_code: "paid",
       display_name: "Pro",
       services: "*",
-      credit_grant: 0,
       status: 1,
       updated_by: "migration:20260904120000"
     }
