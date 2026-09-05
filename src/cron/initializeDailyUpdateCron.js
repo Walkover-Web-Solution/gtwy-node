@@ -13,9 +13,6 @@ const initializeDailyUpdateCron = () => {
       // await moveDataRedisToMongodb(redis_keys.folderusedcost_, collectionNames.Folder, {
       //   folder_usage: { type: "number" }
       // });
-      // await moveDataRedisToMongodb(redis_keys.apikeyusedcost_, collectionNames.ApikeyCredentials, {
-      //   apikey_usage: { type: "number" }
-      // });
       await moveDataRedisToMongodb(redis_keys.apikeylastused_, collectionNames.ApikeyCredentials, {
         last_used: { type: "date" }
       });
