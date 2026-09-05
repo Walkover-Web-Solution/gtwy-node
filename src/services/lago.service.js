@@ -13,7 +13,6 @@ const BILLING_API_KEY = process.env.BILLING_API_KEY;
 const WALLET_RATE_AMOUNT = process.env.LAGO_CREDIT_RATE_USD;
 const WALLET_CURRENCY = "USD";
 const SIGNUP_GRANT_CREDITS = process.env.LAGO_SIGNUP_GRANT_CREDITS || "1000";
-const SIGNUP_GRANT_EXPIRY_DAYS = process.env.LAGO_SIGNUP_GRANT_EXPIRY_DAYS;
 
 // Canonical Lago subscription external_id = the bare org_id — what the
 // original createSubscription wrote, so every already-provisioned org keeps
@@ -110,6 +109,18 @@ export const createWallet = async (org_id) => {
   if (!WALLET_RATE_AMOUNT) {
     throw new Error("LAGO_CREDIT_RATE_USD is not set — refusing to create a wallet with an undefined credit rate");
   }
+  // NO expiration_at, deliberately. LAGO_SIGNUP_GRANT_EXPIRY_DAYS used to be
+  // set here, meaning to expire the unused SIGNUP GRANT — but in Lago
+  // expiration_at expires the ENTIRE WALLET and voids everything left in it,
+  // and topupWallet never clears it. So an org provisioned on day 0 that pays
+  // on day 80 loses those PAID credits on day 90.
+  //
+  // Lago has no per-transaction expiry (checked: POST /wallet_transactions
+  // accepts no expiration_at), so expiring only the grant would mean a second
+  // wallet per org — and getWallet/findActiveWalletId/syncWalletBalanceToRedis
+  // all assume exactly one and would each silently pick an arbitrary one.
+  // At LAGO_CREDIT_RATE_USD 0.0025 a 100-credit grant is $0.25, so that
+  // machinery would exist to reclaim a quarter per dormant signup. Dropped.
   const wallet = {
     external_customer_id: org_id,
     name: `wallet-${org_id}`,
@@ -117,10 +128,6 @@ export const createWallet = async (org_id) => {
     rate_amount: WALLET_RATE_AMOUNT,
     granted_credits: SIGNUP_GRANT_CREDITS
   };
-  if (SIGNUP_GRANT_EXPIRY_DAYS) {
-    const expiry = new Date(Date.now() + Number(SIGNUP_GRANT_EXPIRY_DAYS) * 24 * 60 * 60 * 1000);
-    wallet.expiration_at = expiry.toISOString();
-  }
   const response = await axios.post(`${BILLING_API_URL}/wallets`, { wallet }, billingRequestConfig());
   return response.data;
 };
