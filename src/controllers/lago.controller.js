@@ -1,4 +1,13 @@
-import { ensureOrgSubscribed, getWallet, syncWalletBalanceToRedis, topupWallet } from "../services/lago.service.js";
+import {
+  changeOrgPlan,
+  ensureOrgSubscribed,
+  getOrgPlanSlug,
+  getWallet,
+  reconcileOrgPlan,
+  syncWalletBalanceToRedis,
+  topupWallet
+} from "../services/lago.service.js";
+import billingPlanService from "../db_services/billingPlan.service.js";
 import { replayFailedDebits } from "../services/logQueue/billingDebit.service.js";
 
 // MSG91 signup webhook — the path that provisions every NEW org. Contract is
@@ -119,4 +128,60 @@ const replayDebits = async (req, res, next) => {
   return next();
 };
 
-export default { provisionWebhook, provisionOrg, getWalletBalance, topupOrgWallet, syncWalletBalance, replayDebits };
+// Move an org between plans. The ONLY route that may do so — provisioning is
+// deliberately read-before-write, and a top-up no longer decides the plan.
+const setOrgPlan = async (req, res, next) => {
+  const { org_id, plan, reason } = req.body;
+  const result = await changeOrgPlan(String(org_id), plan, {
+    actor: req.profile?.user?.email || "",
+    reason: reason || ""
+  });
+
+  res.locals = {
+    success: true,
+    message: result.changed ? `org moved to '${result.plan}'` : `org already on '${result.plan}'`,
+    data: { org_id: String(org_id), ...result }
+  };
+  req.statusCode = 200;
+  return next();
+};
+
+// Drift check across Lago / Mongo / Redis. Read-only.
+const getOrgPlan = async (req, res, next) => {
+  const report = await reconcileOrgPlan(String(req.params.org_id));
+  res.locals = {
+    success: true,
+    message: report.drift ? "PLAN DRIFT — Lago, Mongo and Redis disagree" : "in sync",
+    data: report
+  };
+  req.statusCode = 200;
+  return next();
+};
+
+// The caller's OWN plan, for the UI. Org comes from the auth profile, never the
+// URL — same rule as GET /wallet. Returns the display name so the frontend
+// never has to know the slug -> label mapping.
+const getMyPlan = async (req, res, next) => {
+  const org_id = String(req.profile?.org?.id || req.org_id || "");
+  const slug = await getOrgPlanSlug(org_id);
+  const definition = await billingPlanService.getPlan(slug);
+
+  res.locals = {
+    success: true,
+    data: { plan: slug, label: definition?.display_name || slug }
+  };
+  req.statusCode = 200;
+  return next();
+};
+
+export default {
+  provisionWebhook,
+  provisionOrg,
+  getWalletBalance,
+  topupOrgWallet,
+  syncWalletBalance,
+  replayDebits,
+  setOrgPlan,
+  getOrgPlan,
+  getMyPlan
+};

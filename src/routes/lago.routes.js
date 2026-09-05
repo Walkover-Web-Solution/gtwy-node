@@ -24,4 +24,16 @@ router.post("/wallet/:org_id/sync", middleware, InternalAuth, validate(lagoValid
 // Re-post debits that failed against Lago (stored, never silently dropped).
 router.post("/debits/replay", middleware, InternalAuth, lagoController.replayDebits);
 
+// The only route that moves an org between plans. Provisioning deliberately
+// cannot, and a top-up should not decide a plan as a side effect.
+router.post("/plan", middleware, InternalAuth, validate(lagoValidation.setOrgPlan), lagoController.setOrgPlan);
+
+// Caller's own plan, for the UI (org from the auth profile, never the URL).
+// MUST be declared before /plan/:org_id — Express matches in order, so the
+// param route would otherwise swallow "me" and reject the caller on InternalAuth.
+router.get("/plan/me", middleware, lagoController.getMyPlan);
+
+// Drift check: Lago plan_code vs Mongo slug vs the Redis cache.
+router.get("/plan/:org_id", middleware, InternalAuth, validate(lagoValidation.getOrgPlan), lagoController.getOrgPlan);
+
 export default router;

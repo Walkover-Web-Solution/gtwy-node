@@ -6,7 +6,6 @@ import { chatbotSuggestions } from "../services/logQueue/chatbotSuggestions.serv
 import { handleGptMemory } from "../services/logQueue/handleGptMemory.service.js";
 import { saveToAgentMemory } from "../services/logQueue/saveToAgentMemory.service.js";
 import { saveFilesToRedis } from "../services/logQueue/saveFilesToRedis.service.js";
-import { sendApiHitEvent } from "../services/logQueue/sendApiHitEvent.service.js";
 import { processBillingEvents } from "../services/logQueue/billingDebit.service.js";
 import { broadcastResponseWebhook } from "../services/logQueue/broadcastResponseWebhook.service.js";
 import {
@@ -68,12 +67,12 @@ async function saveBatchHistoryBlock(messages) {
 }
 
 async function validateResponseBlock(messages) {
-  if (!messages["validateResponse"]?.alert_flag && !messages["billing"]) {
-    await sendApiHitEvent({
-      message_id: messages["validateResponse"]?.message_id,
-      org_id: messages["validateResponse"]?.org_id
-    });
-  }
+  // sendApiHitEvent used to fire here. It posted BILLING_EVENT_CODE — a Lago
+  // PLAN code — as a billable-metric code, and Lago ingests an event whose code
+  // matches no metric without post-processing it. So every api-hit event since
+  // launch was accepted and discarded; the meter never existed. Removed rather
+  // than repaired: turning on a real billing dimension for every org at once is
+  // its own change, not a side effect of introducing plans.
   await validateResponse(messages["validateResponse"]);
 }
 

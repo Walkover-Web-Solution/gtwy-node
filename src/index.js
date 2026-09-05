@@ -45,6 +45,7 @@ import lagoRoutes from "./routes/lago.routes.js";
 import userCreditLimitRoutes from "./routes/userCreditLimit.routes.js";
 import platformApiKeyRoutes from "./routes/platformApiKey.routes.js";
 import billingPlanRoutes from "./routes/billingPlan.routes.js";
+import { assertBillingPlansConfigured } from "./configs/billingPlans.js";
 import batchHistoryRoutes from "./routes/batchHistory.routes.js";
 import observabilityRoutes from "./routes/observability.routes.js";
 import analyticsRoutes from "./routes/analytics.routes.js";
@@ -142,6 +143,10 @@ import { initModelConfiguration, backgroundListenForChanges } from "./services/u
 import { initServicesRegistry, backgroundListenForServiceChanges } from "./services/utils/loadServicesRegistry.js";
 
 const cronTasks = [initializeMonthlyLatencyReport(), initializeWeeklyLatencyReport(), initializeDailyUpdateCron()];
+
+// Fail at boot, not at 2am on the first upgrade: a missing LAGO_PLAN_CODE_*
+// means changeOrgPlan cannot tell Lago which plan to move an org to.
+assertBillingPlansConfigured();
 
 initModelConfiguration();
 backgroundListenForChanges();
