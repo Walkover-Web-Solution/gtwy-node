@@ -27,7 +27,10 @@ const ConfigurationSchema = new mongoose.Schema(
     display_name: { type: String, required: false },
     org_id: { type: String, required: false }
   },
-  { strict: true }
+  {
+    strict: true,
+    timestamps: { createdAt: "created_at", updatedAt: "updated_at" }
+  }
 );
 
 ConfigurationSchema.index({ model_name: 1, service: 1 }, { unique: true });
