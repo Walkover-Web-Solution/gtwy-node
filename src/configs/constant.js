@@ -30,7 +30,8 @@ const bridge_ids = {
   prompt_checker: "692ee19da04fbf2a132b252c",
   rich_ui_template: "6967b36c17a69473fa7fdb90",
   canonicalizer: "6973200cf60dd5bf64eeb325",
-  template_validator: "69c134229df6d4d2d1dd2ae5"
+  template_validator: "69c134229df6d4d2d1dd2ae5",
+  ranger_user_memory: "6a97f2a6caa7adebbf5a8611" // writer agent for both ranger + user memory
 };
 
 // cd_ = can delete (DB-backed caches, safe to regenerate)

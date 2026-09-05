@@ -89,6 +89,15 @@ const configuration = new mongoose.Schema({
     type: String,
     default: null
   },
+  // No ranger_memory/user_memory booleans — both scopes are always on for a Ranger, gated by folder_id.
+  ranger_memory_context: {
+    type: String,
+    default: null
+  },
+  user_memory_context: {
+    type: String,
+    default: null
+  },
   folder_id: {
     type: String,
     default: null

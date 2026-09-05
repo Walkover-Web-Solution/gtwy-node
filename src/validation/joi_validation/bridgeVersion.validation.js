@@ -74,6 +74,8 @@ const updateVersionSchema = Joi.object({
   user_reference: Joi.string().optional(),
   gpt_memory: Joi.boolean().optional(),
   gpt_memory_context: Joi.string().allow("").optional(),
+  ranger_memory_context: Joi.string().allow("").optional(),
+  user_memory_context: Joi.string().allow("").optional(),
   doc_ids: Joi.array().items(Joi.object()).optional(),
   IsstarterQuestionEnable: Joi.boolean().optional(),
   starterQuestion: Joi.array().items(Joi.string()).optional(),

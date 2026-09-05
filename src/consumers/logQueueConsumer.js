@@ -4,6 +4,7 @@ import { saveSubThreadIdAndName } from "../services/logQueue/saveSubThreadIdAndN
 import { validateResponse } from "../services/logQueue/validateResponse.service.js";
 import { chatbotSuggestions } from "../services/logQueue/chatbotSuggestions.service.js";
 import { handleGptMemory } from "../services/logQueue/handleGptMemory.service.js";
+import { handleRangerUserMemory } from "../services/logQueue/handleRangerUserMemory.service.js";
 import { saveToAgentMemory } from "../services/logQueue/saveToAgentMemory.service.js";
 import { saveFilesToRedis } from "../services/logQueue/saveFilesToRedis.service.js";
 import { sendApiHitEvent } from "../services/logQueue/sendApiHitEvent.service.js";
@@ -111,6 +112,13 @@ async function processLogQueueMessage(messages) {
     handleGptMemory(messages["handle_gpt_memory"]).catch((err) => {
       logger.error(`Error in handleGptMemory: ${err.message}`);
       unknown_error_handler_alert("handleGptMemory", null, err.message);
+    });
+  }
+
+  if (messages["check_handle_ranger_user_memory"]?.fire) {
+    handleRangerUserMemory(messages["handle_ranger_user_memory"]).catch((err) => {
+      logger.error(`Error in handleRangerUserMemory: ${err.message}`);
+      unknown_error_handler_alert("handleRangerUserMemory", null, err.message);
     });
   }
 
