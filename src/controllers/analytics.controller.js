@@ -281,7 +281,8 @@ const getEmbedAnalytics = async (req, res, next) => {
 
   const agentQuery = {
     org_id: { $in: orgVariants },
-    folder_id: { $in: folderIdVariants }
+    folder_id: { $in: folderIdVariants },
+    deletedAt: null
   };
   if (filterUserId) {
     agentQuery.user_id = String(filterUserId);
@@ -296,50 +297,50 @@ const getEmbedAnalytics = async (req, res, next) => {
       service: 1,
       versions: 1,
       published_version_id: 1,
-      "configuration.model": 1,
-      deletedAt: 1
+      "configuration.model": 1
     })
     .lean();
 
-  const agents = (agentDocs || [])
-    .filter((a) => !a.deletedAt)
-    .map((a) => {
-      const version_ids = [];
-      if (Array.isArray(a.versions)) {
-        for (const v of a.versions) {
-          if (v != null) version_ids.push(String(v));
-        }
-      }
-      if (a.published_version_id) version_ids.push(String(a.published_version_id));
-      return {
-        bridge_id: a._id.toString(),
-        name: a.name || "Untitled",
-        user_id: a.user_id != null ? String(a.user_id) : null,
-        service: a.service || null,
-        model: a.configuration?.model || null,
-        version_ids: [...new Set(version_ids)]
-      };
-    });
+  const agents = (agentDocs || []).map((a) => {
+    const version_ids = new Set();
+    for (const v of a.versions || []) {
+      if (v != null) version_ids.add(String(v));
+    }
+    if (a.published_version_id) version_ids.add(String(a.published_version_id));
+    return {
+      bridge_id: a._id.toString(),
+      name: a.name || "Untitled",
+      user_id: a.user_id != null ? String(a.user_id) : null,
+      service: a.service || null,
+      model: a.configuration?.model || null,
+      version_ids: [...version_ids]
+    };
+  });
 
   logger.info(
     `embed analytics folder=${folderIdStr} org=${org_id} agents=${agents.length} versions=${agents.reduce((n, a) => n + (a.version_ids?.length || 0), 0)} range=${range || "30d"} start=${window.start?.toISOString?.()} end=${window.end?.toISOString?.()}`
   );
 
+  // The proxy user lookup is independent of the analytics aggregation, so kick
+  // it off here and let the service await it only when it builds the user rows.
   const neededUserIds = agents.map((a) => a.user_id).filter(Boolean);
-  const userMap = await loadOrgUserMap(org_id, neededUserIds);
+  const userMapPromise = loadOrgUserMap(org_id, neededUserIds).catch((err) => {
+    logger.warn(`embed analytics: user map lookup failed: ${err.message}`);
+    return {};
+  });
 
   const result = await embedAnalyticsService.getEmbedAnalytics({
     org_id: String(org_id),
     window,
     agents,
-    userMap,
+    userMapPromise,
     userSearch: search,
     userPage: page,
     userLimit: limit
   });
 
   logger.info(
-    `embed analytics result folder=${folderIdStr} range_req=${result?.summary?.total_requests} lifetime_req=${result?.meta?.lifetime_requests} cost=${result?.summary?.est_cost} users=${result?.users?.length}`
+    `embed analytics result folder=${folderIdStr} range_req=${result?.summary?.total_requests} lifetime_req=${result?.meta?.lifetime_requests} cost=${result?.summary?.est_cost} cost_source=${result?.meta?.cost_source} users=${result?.users?.length}`
   );
 
   res.locals = {
