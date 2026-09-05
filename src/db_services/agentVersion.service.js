@@ -346,7 +346,7 @@ async function getPromptEnhancerPercentage(parentId, prompt) {
   }
 }
 
-async function deleteAgentVersion(org_id, version_id) {
+async function deleteAgentVersion(org_id, version_id, user_id) {
   if (!version_id) throw new Error("Invalid version id provided");
 
   const versionDoc = await bridgeVersionModel.findOne({ _id: version_id, org_id }).lean();
@@ -368,6 +368,27 @@ async function deleteAgentVersion(org_id, version_id) {
 
   const apiCallsImpacted = await _cleanupApiCalls(version_id);
   await _cleanupApikeyCredentials(version_id);
+
+  // Record history before hard-delete so bridge-scoped Updates History can show it
+  if (parentId && user_id) {
+    await conversationDbService.addBulkUserEntries([
+      {
+        user_id,
+        org_id,
+        bridge_id: String(parentId),
+        version_id: String(version_id),
+        type: "Version deleted",
+        time: new Date(),
+        previous_value: {
+          version_description: versionDoc.version_description ?? null,
+          model: versionDoc.configuration?.model ?? null,
+          service: versionDoc.service ?? null,
+          type: versionDoc.configuration?.type ?? versionDoc.type ?? null
+        },
+        current_value: null
+      }
+    ]);
+  }
 
   const deleteResult = await bridgeVersionModel.deleteOne({ _id: version_id, org_id });
   if (deleteResult.deletedCount === 0) throw new Error("Failed to delete version");
@@ -507,9 +528,11 @@ async function publish(org_id, version_id, user_id, generate_summary = false) {
     {
       user_id,
       org_id,
-      bridge_id: parentId, // Database column name, keeping as bridge_id for compatibility
-      version_id,
-      type: "Version published"
+      bridge_id: parentId.toString(),
+      version_id: version_id.toString(),
+      type: "Version published",
+      previous_value: previousPublishedVersionId ? String(previousPublishedVersionId) : null,
+      current_value: publishedVersionId
     }
   ]);
 
