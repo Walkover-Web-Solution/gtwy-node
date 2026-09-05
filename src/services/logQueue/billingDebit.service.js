@@ -124,7 +124,11 @@ const postDebit = async (event) => {
     // job distinguishes a background-AI charge from a main completion.
     thread_id: event.thread_id,
     is_embed: event.is_embed,
-    job: event.job
+    job: event.job,
+    // What the charge is made of. Without these a 110-credit charge on a
+    // 100-credit call is unexplainable after the fact.
+    base_credits: event.base_credits,
+    commission_pct: event.commission_pct
   });
   // Lago FIRST, shadow SECOND, and only on success: decrementing the gate's
   // balance for a charge Lago rejected would block the customer's next request
