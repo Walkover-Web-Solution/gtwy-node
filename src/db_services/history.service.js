@@ -92,7 +92,17 @@ async function findBatchConversationLogsCountByAgentId(org_id, bridge_id) {
   }
 }
 
-async function findConversationLogsByIds(org_id, bridge_id, thread_id, sub_thread_id, page = 1, limit = 30, version_id = null, testcase_id = null) {
+async function findConversationLogsByIds(
+  org_id,
+  bridge_id,
+  thread_id,
+  sub_thread_id,
+  page = 1,
+  limit = 30,
+  version_id = null,
+  testcase_id = null,
+  excludeUsage = false
+) {
   try {
     const offset = (page - 1) * limit;
 
@@ -116,9 +126,11 @@ async function findConversationLogsByIds(org_id, bridge_id, thread_id, sub_threa
       where: whereConditions
     });
 
-    // Get paginated data
+    // Get paginated data. Embed callers never see usage, so don't select the
+    // `tokens` column at all.
     const logs = await models.pg.conversation_logs.findAll({
       where: whereConditions,
+      ...(excludeUsage ? { attributes: { exclude: ["tokens"] } } : {}),
       order: [["created_at", "DESC"]],
       limit: limit,
       offset: offset
@@ -660,13 +672,15 @@ async function findThreadHistoryFormatted(org_id, thread_id, bridge_id, sub_thre
   }
 }
 
-const findHistoryByMessageId = async (message_id, agent_id) => {
+const findHistoryByMessageId = async (message_id, agent_id, excludeUsage = false) => {
   const whereConditions = { message_id };
   if (agent_id) {
     whereConditions.bridge_id = agent_id;
   }
   const result = await models.pg.conversation_logs.findOne({
-    where: whereConditions
+    where: whereConditions,
+    // Embed callers never see usage — don't select the `tokens` column at all.
+    ...(excludeUsage ? { attributes: { exclude: ["tokens"] } } : {})
   });
   return result;
 };

@@ -10,9 +10,9 @@ const GtwyEmbeddecodeToken = async (req, res, next) => {
   }
   try {
     const decodedToken = jwt.decode(token);
-    if (!decodedToken.user_id || !decodedToken.folder_id || !decodedToken.org_id) {
+    if ((!decodedToken.user_id && !decodedToken.unique_identifier) || !decodedToken.folder_id || !decodedToken.org_id) {
       unknown_error_handler_alert("embed", token, "user id, folder id or org id not provided");
-      return res.status(401).json({ message: "unauthorized user, user id, folder id or org id not provided" });
+      return res.status(401).json({ message: "unauthorized user, user_id (or unique_identifier), folder id or org id not provided" });
     }
     if (decodedToken) {
       const orgTokenFromDb = await getOrganizationById(decodedToken?.org_id);
@@ -20,14 +20,17 @@ const GtwyEmbeddecodeToken = async (req, res, next) => {
       if (orgToken) {
         const checkToken = jwt.verify(token, orgToken);
         if (checkToken) {
-          if (checkToken.user_id) checkToken.user_id = encryptString(checkToken.user_id);
+          const embedUserId = checkToken.user_id || checkToken.unique_identifier;
+          if (embedUserId) checkToken.user_id = encryptString(embedUserId);
 
           const proxyUserData = await createOrGetUser(checkToken, decodedToken, orgTokenFromDb);
           const { proxyResponse, name, email } = proxyUserData;
+          const meta = proxyResponse.data.user.meta;
           req.Embed = {
             ...checkToken,
             email: email,
             name: name,
+            meta: meta,
             org_name: orgTokenFromDb?.name,
             org_id: proxyResponse.data.company.id,
             folder_id: decodedToken.folder_id,
@@ -36,7 +39,8 @@ const GtwyEmbeddecodeToken = async (req, res, next) => {
           req.profile = {
             user: {
               id: proxyResponse.data.user.id,
-              name: name
+              name: name,
+              meta: meta
             },
             org: {
               id: proxyResponse.data.company.id,

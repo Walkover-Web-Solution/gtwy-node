@@ -28,9 +28,7 @@ const embedLogin = async (req, res) => {
       id: req.Embed.user_id,
       name: embeduser_name,
       email: embeduser_email,
-      meta: {
-        type: "embed"
-      }
+      meta: req.Embed.meta
     },
     org: {
       id: req.Embed.org_id,

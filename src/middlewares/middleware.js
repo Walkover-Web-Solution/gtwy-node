@@ -265,8 +265,8 @@ const EmbeddecodeToken = async (req, res, next) => {
   try {
     const decodedToken = jwt.decode(token);
     if (decodedToken) {
-      if (!decodedToken.user_id || !decodedToken.folder_id || !decodedToken.org_id) {
-        return res.status(401).json({ message: "unauthorized user, user id, folder id or org id not provided" });
+      if ((!decodedToken.user_id && !decodedToken.unique_identifier) || !decodedToken.folder_id || !decodedToken.org_id) {
+        return res.status(401).json({ message: "unauthorized user, user_id (or unique_identifier), folder id or org id not provided" });
       }
       // const orgTokenFromDb = await orgDbServices.find(decodedToken.org_id);
       const orgTokenFromDb = await getOrganizationById(decodedToken?.org_id);
@@ -274,7 +274,8 @@ const EmbeddecodeToken = async (req, res, next) => {
       if (orgToken && !decodedToken?.gtwyAIDocs) {
         const checkToken = jwt.verify(token, orgToken);
         if (checkToken) {
-          if (checkToken.user_id) checkToken.user_id = encryptString(checkToken.user_id);
+          const embedUserId = checkToken.user_id || checkToken.unique_identifier;
+          if (embedUserId) checkToken.user_id = encryptString(embedUserId);
           const { proxyResponse, name, email } = await createOrGetUser(checkToken, decodedToken, orgTokenFromDb);
           req.Embed = {
             ...checkToken,
@@ -374,8 +375,8 @@ const combinedAuthMiddleware = async (req, res, next) => {
       return res.status(401).json({ message: "invalid token" });
     }
 
-    // Try embed token first if it has user_id, folder_id, org_id
-    if (decodedToken.user_id && decodedToken.folder_id && decodedToken.org_id) {
+    // Try embed token first if it has user_id (or unique_identifier), folder_id, org_id
+    if ((decodedToken.user_id || decodedToken.unique_identifier) && decodedToken.folder_id && decodedToken.org_id) {
       try {
         if (req.headers.pauthkey || req.headers.pauthtoken) {
           const res = await makeDataIfPauthKeyGiven(req);
@@ -390,7 +391,8 @@ const combinedAuthMiddleware = async (req, res, next) => {
         if (orgToken) {
           const checkToken = jwt.verify(token, orgToken);
           if (checkToken) {
-            if (checkToken.user_id) checkToken.user_id = encryptString(checkToken.user_id);
+            const embedUserId = checkToken.user_id || checkToken.unique_identifier;
+            if (embedUserId) checkToken.user_id = encryptString(embedUserId);
 
             const proxyUserData = await createOrGetUser(checkToken, decodedToken, orgTokenFromDb);
             const { proxyResponse, name } = proxyUserData;
