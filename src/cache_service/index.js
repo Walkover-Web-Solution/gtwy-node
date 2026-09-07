@@ -114,4 +114,14 @@ async function invalidateByTag(entityType, entityId) {
   }
 }
 
-export { deleteInCache, storeInCache, findInCache, scanCacheKeys, verifyTTL, invalidateByTag };
+async function sMembersInCache(identifier) {
+  if (!client.isReady) return [];
+  try {
+    return (await timeAsync("redis", `SMEMBERS ${identifier}`, () => client.sMembers(REDIS_PREFIX + identifier))) || [];
+  } catch (error) {
+    console.error(`sMembersInCache error for ${identifier}:`, error);
+    return [];
+  }
+}
+
+export { deleteInCache, storeInCache, findInCache, scanCacheKeys, verifyTTL, invalidateByTag, sMembersInCache };

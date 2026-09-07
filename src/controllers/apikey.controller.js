@@ -5,6 +5,7 @@ import { validateApiKey } from "../services/utils/aiServices.js";
 import { getBaseUrl, getDefaultModel, getValidationConfig } from "../services/utils/loadServicesRegistry.js";
 import { redis_keys, cost_types, new_agent_service } from "../configs/constant.js";
 import { cleanupCache } from "../services/utils/redis.utils.js";
+import { periodKey, allPeriodKeys } from "../services/utils/periodKey.utils.js";
 
 const saveApikey = async (req, res, next) => {
   const { service, name, apikey_limit = 0, apikey_limit_reset_period, apikey_limit_start_date } = req.body;
@@ -70,7 +71,11 @@ const getAllApikeys = async (req, res, next) => {
 
         // Get last used data from cache (runs in parallel)
         const lastUsedData = await findInCache(`${redis_keys.apikeylastused_}${plainObj._id}`);
-        const cachedVal = await findInCache(`${redis_keys.apikeyusedcost_}${apiKeyObj._id}`);
+
+        // Live spend for the current window. The period is part of the key, so a
+        // finished window is simply a different key and never read.
+        const currentPeriod = periodKey(plainObj.apikey_limit_reset_period);
+        const counter = await findInCache(`${redis_keys.apikeyperiodcost_}${plainObj._id}_${currentPeriod}`);
 
         // Create the final object with all properties
         const processedObj = {
@@ -83,9 +88,12 @@ const getAllApikeys = async (req, res, next) => {
           processedObj.last_used = JSON.parse(lastUsedData);
         }
 
-        if (cachedVal) {
-          let usagecost = JSON.parse(cachedVal);
-          processedObj.apikey_usage = usagecost?.usage_value;
+        if (counter !== null && counter !== false && counter !== undefined) {
+          processedObj.apikey_usage = Number(counter) || 0;
+        } else {
+          // Redis had nothing. The document copy only counts when it belongs to
+          // the window we are showing; otherwise this window has no spend yet.
+          processedObj.apikey_usage = plainObj.apikey_usage_period === currentPeriod ? plainObj.apikey_usage || 0 : 0;
         }
 
         return processedObj;
@@ -141,7 +149,11 @@ const updateApikey = async (req, res, next) => {
     // Clean up cache using the universal Redis utility for cost
     await cleanupCache(cost_types.apikey, apikey_object_id, org_id);
     if (apikey_usage == 0) {
-      await deleteInCache(`${redis_keys.apikeyusedcost_}${apikey_object_id}`);
+      // Drop the live counters. Covers every reset-period format, since this same
+      // request may have just changed which one applies. The document's
+      // apikey_usage_period is nulled by updateApikeyRecord, so a stale value
+      // cannot be read back as current either.
+      await deleteInCache(allPeriodKeys().map((period) => `${redis_keys.apikeyperiodcost_}${apikey_object_id}_${period}`));
     }
     res.locals = {
       success: true,

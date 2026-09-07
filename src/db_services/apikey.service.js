@@ -96,6 +96,10 @@ async function updateApikeyRecord(
     }
     if (apikey_usage == 0) {
       updateFields.apikey_usage = 0;
+      // Clear the window too. Leaving a period behind with usage 0 is harmless,
+      // but nulling it means nothing can match it, so the reset holds even if the
+      // reset period changes in this same update.
+      updateFields.apikey_usage_period = null;
     }
     if (apikey_limit_reset_period) {
       updateFields.apikey_limit_reset_period = apikey_limit_reset_period;

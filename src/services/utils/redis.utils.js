@@ -1,5 +1,6 @@
-import { findInCache, deleteInCache, invalidateByTag } from "../../cache_service/index.js";
-import { redis_keys } from "../../configs/constant.js";
+import { findInCache, deleteInCache, invalidateByTag, sMembersInCache } from "../../cache_service/index.js";
+import { redis_keys, cost_types } from "../../configs/constant.js";
+import { allPeriodKeys } from "./periodKey.utils.js";
 
 const createRedisKeys = (data, org_id) => {
   const keys_to_delete = [];
@@ -78,7 +79,52 @@ export async function purgeAgentCache({ bridge_id, bridge_usage = -1, org_id, ve
   }
 }
 
+/**
+ * Cache keys to purge for one agent/version id, in both shapes cleanupCache uses.
+ */
+const agentCacheKeys = (kind, id, org_id) => [
+  `${redis_keys.bridge_data_with_tools_}${org_id}_${kind}_${id}`,
+  `${redis_keys.get_bridge_data_}${org_id}_${id}`
+];
+
+/**
+ * Purge the agent-config caches that embedded an API key's cap.
+ *
+ * The version and bridge ids live in a Redis set alongside the period-keyed
+ * counter, written by the Python service. Members are prefixed `v:` / `b:`
+ * because each kind needs a different cache-key shape.
+ */
+async function cleanupApikeyCache(apikey_object_id, org_id) {
+  const refSets = await Promise.all(allPeriodKeys().map((period) => sMembersInCache(`${redis_keys.apikeyperiodrefs_}${apikey_object_id}_${period}`)));
+  const members = [...new Set(refSets.flat())];
+
+  const allcachekeys = members.flatMap((member) => {
+    const id = member.slice(2);
+    if (!id) return [];
+    if (member.startsWith("v:")) return agentCacheKeys("version", id, org_id);
+    if (member.startsWith("b:")) return agentCacheKeys("bridge", id, org_id);
+    return [];
+  });
+
+  if (allcachekeys.length > 0) {
+    await deleteInCache(allcachekeys);
+    console.log(`Deleted ${allcachekeys.length} cache keys for apikey: ${apikey_object_id}`);
+  }
+  return true;
+}
+
 export async function cleanupCache(type, id, org_id) {
+  // apikey refs moved to a Redis set when its counter became a bare number;
+  // bridge and folder still keep their ids inside the legacy JSON blob.
+  if (type === cost_types.apikey) {
+    try {
+      return await cleanupApikeyCache(id, org_id);
+    } catch (error) {
+      console.error("Error deleting apikey cache:", error);
+      return false;
+    }
+  }
+
   try {
     const cacheKey = `${redis_keys[type + "usedcost_"]}${id}`;
     const cacheobject = await findInCache(cacheKey);
