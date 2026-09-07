@@ -491,7 +491,7 @@ async function getUserUpdates(org_id, version_id, page = 1, pageSize = 10, users
         const user = Array.isArray(userData) ? userData.find((user) => user?.id === entry?.dataValues?.user_id) : null;
         return {
           ...entry?.dataValues,
-          user_name: user ? user?.name : "Unknown"
+          user_name: user ? user?.name : "Former User"
         };
       });
 
