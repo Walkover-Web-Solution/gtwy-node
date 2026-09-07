@@ -7,6 +7,7 @@ import apikeyCredentialsModel from "../mongoModel/Api.model.js"; // Check if thi
 import conversationDbService from "./conversation.service.js";
 import { deleteInCache } from "../cache_service/index.js";
 import { purgeAgentCache } from "../services/utils/redis.utils.js";
+import { purgeAgentMemoriesForAgent } from "../services/logQueue/saveToAgentMemory.service.js";
 import { callAiMiddleware } from "../services/utils/aiCall.utils.js";
 import { redis_keys, bridge_ids, AI_OPERATION_CONFIG } from "../configs/constant.js";
 import { getReqOptVariablesInPrompt, transformAgentVariableToToolCallFormat } from "../utils/agentVariables.js";
@@ -502,6 +503,8 @@ async function publish(org_id, version_id, user_id, generate_summary = false) {
     await deleteInCache(cacheKeysToDelete);
   }
   await purgeAgentCache({ org_id, bridge_id: parentId, agent_config: parentConfiguration });
+  // Clear old cached responses for the agent
+  purgeAgentMemoriesForAgent(parentId).catch((err) => console.error("Failed purging agent memories on publish:", err));
 
   await conversationDbService.addBulkUserEntries([
     {

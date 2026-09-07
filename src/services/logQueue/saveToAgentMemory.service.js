@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import { callAiMiddleware } from "../utils/aiCall.utils.js";
 import { bridge_ids } from "../../configs/constant.js";
 import logger from "../../logger.js";
+import { deleteResourcesByOwner } from "../hippocampus.service.js";
 
 const HIPPOCAMPUS_BASE_URL = process.env.HIPPOCAMPUS_BASE_URL || "http://hippocampus.gtwy.ai";
 const HIPPOCAMPUS_SEARCH_URL = `${HIPPOCAMPUS_BASE_URL}/search`;
@@ -176,4 +177,29 @@ async function saveToAgentMemory({ user_question, assistant_answer, agent_id, sy
   }
 }
 
-export { saveToAgentMemory };
+// Delete cached memories for an agent (Hippocampus + Mongo), independently. Called on publish.
+async function purgeAgentMemoriesForAgent(agent_id) {
+  if (!agent_id) return false;
+  let ok = true;
+
+  if (process.env.HIPPOCAMPUS_API_KEY && process.env.HIPPOCAMPUS_COLLECTION_ID) {
+    try {
+      await deleteResourcesByOwner(process.env.HIPPOCAMPUS_COLLECTION_ID, agent_id);
+    } catch (err) {
+      logger.error(`Agent Memory: Error deleting Hippocampus resources for agent_id=${agent_id}: ${err.message}`);
+      ok = false;
+    }
+  }
+
+  try {
+    await AgentMemory.deleteMany({ agent_id });
+    logger.info(`Agent Memory: Purged cached memories for agent_id=${agent_id} (publish)`);
+  } catch (err) {
+    logger.error(`Agent Memory: Error deleting Mongo memories for agent_id=${agent_id}: ${err.message}`);
+    ok = false;
+  }
+
+  return ok;
+}
+
+export { saveToAgentMemory, purgeAgentMemoriesForAgent };
