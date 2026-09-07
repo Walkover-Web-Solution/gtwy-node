@@ -48,6 +48,8 @@ import analyticsRoutes from "./routes/analytics.routes.js";
 import { logSlowCall } from "./services/utils/slowCallLogger.js";
 import blockedOrgRoutes from "./routes/blockedOrg.routes.js";
 import showCaseRoutes from "./routes/showCase.routes.js";
+import { yoga } from "./graphql/yoga.js";
+import { combinedAllAuth } from "./middlewares/interfaceMiddlewares.js";
 const app = express();
 const PORT = process.env.PORT || 7072;
 
@@ -60,6 +62,9 @@ app.use(
     preflightContinue: true
   })
 );
+// before express.json() — yoga reads the raw request body itself
+app.use("/graphql", combinedAllAuth, yoga);
+
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ limit: "10mb", extended: true }));
 // app.use(multer().array());
