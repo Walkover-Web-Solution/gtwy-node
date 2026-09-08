@@ -2,19 +2,45 @@ import axios from "axios";
 import { configDotenv } from "dotenv";
 configDotenv();
 
-async function callAiMiddleware(
-  user,
-  bridge_id,
-  variables = {},
-  configuration = null,
-  response_type = null,
-  thread_id = null,
-  orchestrator_flag = false
-) {
+/**
+ * Call GTWY chat/completion for an internal agent.
+ *
+ * Positional (legacy):
+ *   callAiMiddleware(user, bridge_id, variables, configuration, response_type, thread_id, orchestrator_flag)
+ *
+ * Options object (preferred when passing environment / version_id):
+ *   callAiMiddleware(user, { bridge_id, variables, configuration, response_type, thread_id, orchestrator_flag, environment, version_id })
+ */
+async function callAiMiddleware(user, bridgeIdOrOptions, ...rest) {
+  let bridge_id;
+  let variables = {};
+  let configuration = null;
+  let response_type = null;
+  let thread_id = null;
+  let orchestrator_flag = false;
+  let environment = null;
+  let version_id = null;
+
+  if (bridgeIdOrOptions && typeof bridgeIdOrOptions === "object" && !Array.isArray(bridgeIdOrOptions)) {
+    ({
+      bridge_id,
+      variables = {},
+      configuration = null,
+      response_type = null,
+      thread_id = null,
+      orchestrator_flag = false,
+      environment = null,
+      version_id = null
+    } = bridgeIdOrOptions);
+  } else {
+    bridge_id = bridgeIdOrOptions;
+    [variables = {}, configuration = null, response_type = null, thread_id = null, orchestrator_flag = false] = rest;
+  }
+
   const requestBody = {
-    user: user,
-    bridge_id: bridge_id,
-    variables: variables
+    user,
+    bridge_id,
+    variables
   };
 
   if (response_type !== null) {
@@ -31,6 +57,14 @@ async function callAiMiddleware(
 
   if (orchestrator_flag) {
     requestBody.orchestrator_flag = orchestrator_flag;
+  }
+
+  if (environment) {
+    requestBody.environment = environment;
+  }
+
+  if (version_id) {
+    requestBody.version_id = version_id;
   }
 
   try {
