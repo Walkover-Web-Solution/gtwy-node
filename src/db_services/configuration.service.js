@@ -255,6 +255,39 @@ const getAgentsWithSelectedData = async (agent_id) => {
   }
 };
 
+const findAgentsUsingAsReviewer = async (agent_id, org_id = null) => {
+  const agentIdStr = agent_id?.toString?.() || String(agent_id);
+  const match = {
+    "settings.review_agent.reviewer_agent": agentIdStr
+  };
+  if (org_id != null) {
+    match.org_id = org_id;
+  }
+
+  const [fromVersions, fromConfigs] = await Promise.all([
+    versionModel.find(match).select({ parent_id: 1, _id: 1 }).lean(),
+    configurationModel.find(match).select({ _id: 1, name: 1 }).lean()
+  ]);
+
+  const referencingAgentIds = [...fromVersions.map((v) => (v.parent_id || v._id)?.toString()), ...fromConfigs.map((c) => c._id?.toString())].filter(
+    (id) => id && id !== agentIdStr
+  );
+
+  const uniqueIds = [...new Set(referencingAgentIds)];
+  if (uniqueIds.length === 0) {
+    return [];
+  }
+
+  const query = {
+    _id: { $in: uniqueIds.map((id) => new ObjectId(id)) }
+  };
+  if (org_id != null) {
+    query.org_id = org_id;
+  }
+
+  return configurationModel.find(query).select({ _id: 1, name: 1 }).lean();
+};
+
 const deleteAgent = async (agent_id, org_id) => {
   try {
     // First, find the agent to get its data including versions
@@ -352,6 +385,16 @@ const deleteAgent = async (agent_id, org_id) => {
       return {
         success: false,
         error: `Cannot delete agent. It is connected to the following ${agentNames.length === 1 ? "agent" : "agents"}: ${agentNames.join(", ")}`
+      };
+    }
+
+    // Block delete when this agent is configured as a reviewer on other agents/versions
+    const reviewerOfAgents = await findAgentsUsingAsReviewer(agent_id, org_id);
+    if (reviewerOfAgents.length > 0) {
+      const agentNames = reviewerOfAgents.map((a) => a.name || `Agent ${a._id}`);
+      return {
+        success: false,
+        error: `Cannot delete agent. It is used as a reviewer agent in the following ${agentNames.length === 1 ? "agent" : "agents"}: ${agentNames.join(", ")}`
       };
     }
 
@@ -494,6 +537,16 @@ const permanentlyDeleteAgent = async (agent_id) => {
         success: false,
         error: `Cannot delete agent. It is connected to the following ${agentNames.length === 1 ? "agent" : "agents"}: ${agentNames.join(", ")}`,
         connected_agents: connectedAgents.map((a) => ({ _id: a._id, name: a.name }))
+      };
+    }
+
+    const reviewerOfAgents = await findAgentsUsingAsReviewer(agent_id, agent.org_id);
+    if (reviewerOfAgents.length > 0) {
+      const agentNames = reviewerOfAgents.map((a) => a.name || `Agent ${a._id}`);
+      return {
+        success: false,
+        error: `Cannot delete agent. It is used as a reviewer agent in the following ${agentNames.length === 1 ? "agent" : "agents"}: ${agentNames.join(", ")}`,
+        connected_agents: reviewerOfAgents.map((a) => ({ _id: a._id, name: a.name }))
       };
     }
 
