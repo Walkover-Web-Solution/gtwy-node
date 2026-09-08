@@ -46,6 +46,7 @@ async function saveConversationHistory(historyEntries) {
       parent_id: data.parent_id ?? null,
       child_id: data.child_id ?? null,
       plans: data.plans ?? null,
+      response_format: data.response_format ?? null,
       testcase_id: data.testcase_id ?? null,
       testcase_data: data.testcase_data ?? null,
       created_at: data.created_at ?? new Date()
