@@ -128,6 +128,77 @@ async function getResponseTime({ bridge_id, org_id, start, end, bucket, filters 
   return pgSelect(query, finalParams);
 }
 
+const toArray = (v) => (Array.isArray(v) ? v : v == null || v === "" ? [] : [v]);
+const litValue = (v) => `'${String(v).replace(/'/g, "''")}'`;
+
+const INPUT_TOKENS_EXPR = `(
+    COALESCE((tokens->>'input_tokens')::numeric, 0)
+    + COALESCE((tokens->>'text_input_tokens')::numeric, 0)
+    + COALESCE((tokens->>'image_input_tokens')::numeric, 0)
+  )`;
+const OUTPUT_TOKENS_EXPR = `(
+    COALESCE((tokens->>'output_tokens')::numeric, 0)
+    + COALESCE((tokens->>'text_output_tokens')::numeric, 0)
+    + COALESCE((tokens->>'image_output_tokens')::numeric, 0)
+  )`;
+
+async function getOrgRequestsOverTime({ org_id, bridge_id, model, service, start, end, bucket, excludeBridgeIds }) {
+  const { bucketSql, finalParams } = getBucketExpressionAndParams(bucket, { org_id, start, end });
+
+  const bridgeIds = toArray(bridge_id).map(String).filter(Boolean);
+
+  let bridgeClause = "";
+  if (bridgeIds.length) {
+    bridgeClause = ` AND "conversation_logs"."bridge_id" IN (${bridgeIds.map(litValue).join(", ")})`;
+  }
+  const excludeIds = toArray(excludeBridgeIds).map(String).filter(Boolean);
+  let excludeClause = "";
+  if (excludeIds.length) {
+    excludeClause = ` AND "conversation_logs"."bridge_id" NOT IN (${excludeIds.map(litValue).join(", ")})`;
+  }
+
+  const inputTokensExpr = INPUT_TOKENS_EXPR;
+  const outputTokensExpr = OUTPUT_TOKENS_EXPR;
+
+  const query = `
+    SELECT
+      ${bucketSql} AS t,
+      COUNT(*) FILTER (WHERE status = true)::int  AS success,
+      COUNT(*) FILTER (WHERE status = false)::int AS failed,
+      AVG((latency->>'over_all_time')::float) FILTER (WHERE status = true) AS avg_latency,
+      SUM(${inputTokensExpr}) AS input_tokens,
+      SUM(${outputTokensExpr}) AS output_tokens
+    FROM conversation_logs
+    WHERE org_id = :org_id AND created_at BETWEEN :start AND :end
+      ${bridgeClause} ${excludeClause} ${filterClause({ model, service })}
+    GROUP BY 1 ORDER BY 1 ASC`;
+  return pgSelect(query, finalParams);
+}
+
+async function getAgentTokenBreakdown({ org_id, bridge_id, model, service, start, end, excludeBridgeIds }) {
+  const bridgeIds = toArray(bridge_id).map(String).filter(Boolean);
+  let bridgeClause = "";
+  if (bridgeIds.length) {
+    bridgeClause = ` AND "conversation_logs"."bridge_id" IN (${bridgeIds.map(litValue).join(", ")})`;
+  }
+  const excludeIds = toArray(excludeBridgeIds).map(String).filter(Boolean);
+  let excludeClause = "";
+  if (excludeIds.length) {
+    excludeClause = ` AND "conversation_logs"."bridge_id" NOT IN (${excludeIds.map(litValue).join(", ")})`;
+  }
+
+  const query = `
+    SELECT
+      bridge_id,
+      SUM(${INPUT_TOKENS_EXPR}) AS input_tokens,
+      SUM(${OUTPUT_TOKENS_EXPR}) AS output_tokens
+    FROM conversation_logs
+    WHERE org_id = :org_id AND created_at BETWEEN :start AND :end
+      ${bridgeClause} ${excludeClause} ${filterClause({ model, service })}
+    GROUP BY bridge_id`;
+  return pgSelect(query, { org_id, start, end });
+}
+
 async function pushAnalytics(channel, data) {
   await responseSender.sendResponse({
     rtlLayer: true,
@@ -280,5 +351,7 @@ async function getFilterOptions({ bridge_id, org_id }) {
 export default {
   computeWindow,
   runAndPush,
-  getFilterOptions
+  getFilterOptions,
+  getOrgRequestsOverTime,
+  getAgentTokenBreakdown
 };
