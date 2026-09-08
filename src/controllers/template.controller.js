@@ -277,15 +277,24 @@ const createAgentFromTemplateController = async (req, res, next) => {
     const allDocPairs = new Map();
     collectAllResources(template_content, allFunctionIds, allDocPairs);
 
+    // Collects resource-copy failures that must NOT be silently swallowed (GTWY-392)
+    const templateWarnings = { docs: [], functions: [] };
+
     // Clone all unique functions once → functionIdMap (old → new)
     const functionIdMap = new Map();
     if (allFunctionIds.size > 0) {
       const uniqueIds = [...allFunctionIds];
       const isEmbedUser = req.IsEmbedUser || false;
-      const clonedIds = await cloneFunctionsForAgent(uniqueIds, org_id, result.bridge._id.toString(), folder_id, user_id, isEmbedUser);
-      uniqueIds.forEach((oldId, i) => {
-        if (clonedIds[i]) functionIdMap.set(oldId, clonedIds[i]);
-      });
+      const { cloned_function_map, failures } = await cloneFunctionsForAgent(
+        uniqueIds,
+        org_id,
+        result.bridge._id.toString(),
+        folder_id,
+        user_id,
+        isEmbedUser
+      );
+      Object.entries(cloned_function_map).forEach(([oldId, newId]) => functionIdMap.set(oldId, newId));
+      templateWarnings.functions.push(...failures);
     }
 
     // Copy all unique doc resources in parallel → docIdMap (collection_id:resource_id → new entry)
@@ -306,9 +315,18 @@ const createAgentFromTemplateController = async (req, res, next) => {
           }).then((copied) => ({ key, copied }))
         )
       );
-      docResults.forEach((result) => {
-        if (result.status === "fulfilled") docIdMap.set(result.value.key, result.value.copied);
-        else console.error("Error copying doc resource:", result.reason?.message);
+      docResults.forEach((settled, i) => {
+        const [key, doc] = docEntries[i];
+        if (settled.status === "fulfilled") {
+          docIdMap.set(settled.value.key, settled.value.copied);
+        } else {
+          console.error("Error copying doc resource:", settled.reason?.message);
+          templateWarnings.docs.push({
+            resource: key,
+            resource_name: doc?.name || doc?.resource_id,
+            reason: settled.reason?.message || "Failed to copy this knowledge-base resource to the new agent"
+          });
+        }
       });
     }
 
@@ -545,15 +563,26 @@ const createAgentFromTemplateController = async (req, res, next) => {
 
     const updated_agent_result = await ConfigurationServices.getAgentsWithTools(result.bridge._id.toString(), org_id);
 
+    const hasWarnings = templateWarnings.docs.length > 0 || templateWarnings.functions.length > 0;
+    if (hasWarnings) {
+      console.warn(
+        `[template->agent] Agent ${result.bridge._id.toString()} created with ${templateWarnings.docs.length} doc failure(s) and ${templateWarnings.functions.length} function failure(s)`
+      );
+    }
+
     res.locals = {
       success: true,
-      message: "Agent created from template successfully",
-      agent: updated_agent_result.bridges
+      message: hasWarnings
+        ? "Agent created from template, but some resources could not be fully copied — see warnings."
+        : "Agent created from template successfully",
+      agent: updated_agent_result.bridges,
+      ...(hasWarnings && { warnings: templateWarnings })
     };
     req.statusCode = 200;
 
     return next();
   } catch (e) {
+    console.error("Error creating agent from template:", e);
     res.locals = { success: false, message: "Error creating agent from template: " + e.message };
     req.statusCode = 400;
     return next();
