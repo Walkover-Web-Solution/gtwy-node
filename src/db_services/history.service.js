@@ -259,7 +259,21 @@ async function findRecentThreadsByBridgeId(org_id, bridge_id, filters, error, pa
           orConditions.push(Sequelize.literal(`"conversation_logs"."batch_data"->>'batch_id' ILIKE ${pat} ESCAPE '\\'`));
         } else if (FILTERBY_TEXT_COLUMNS.includes(col)) {
           if (!keyword || keyword === "") continue;
-          orConditions.push({ [col]: { [Sequelize.Op.iLike]: `%${escapeLike(keyword)}%` } });
+          const FREE_TEXT_MESSAGE_COLUMNS = ["llm_message", "updated_llm_message", "chatbot_message"];
+          if (FREE_TEXT_MESSAGE_COLUMNS.includes(col)) {
+            // Message columns store raw markdown; text pasted from the rendered UI has
+            // markdown/whitespace stripped, so a single %blob% never matches. Match
+            // every whitespace-delimited token (AND of ILIKE) so a full pasted response
+            // or any snippet matches regardless of formatting differences.
+            const tokens = String(keyword).split(/\s+/).map((t) => t.trim()).filter(Boolean);
+            if (tokens.length) {
+              orConditions.push({
+                [Sequelize.Op.and]: tokens.map((t) => ({ [col]: { [Sequelize.Op.iLike]: `%${escapeLike(t)}%` } })),
+              });
+            }
+          } else {
+            orConditions.push({ [col]: { [Sequelize.Op.iLike]: `%${escapeLike(keyword)}%` } });
+          }
         } else if (FILTERBY_ID_COLUMNS.includes(col)) {
           if (!keyword || keyword === "") continue;
           orConditions.push({ [col]: { [Sequelize.Op.like]: `${escapeLike(keyword)}%` } });
