@@ -14,6 +14,9 @@ import { ResponseSender } from "../services/utils/customResponse.utils.js";
 
 const responseSender = new ResponseSender();
 
+// Page size used when only `page` is sent on GET /api/agent.
+const DEFAULT_AGENTS_PAGE_SIZE = 50;
+
 const createAgentInBackground = async (req) => {
   // flag=true → return agent in HTTP response; flag=false → notify via RTLayer
   const flag = req.body?.flag === true;
@@ -505,10 +508,17 @@ const getAllAgentController = async (req, res, next) => {
     const folder_id = req.folder_id || null;
     const user_id = req.profile.user.id || null;
     const isEmbedUser = req.embed;
+    const { deleted = false, page: rawPage, limit: rawLimit } = req.query;
 
-    const agents = await ConfigurationServices.getAllAgentsInOrg(org_id, folder_id, user_id, isEmbedUser);
-    if (!isEmbedUser && !folder_id) {
-      await ensureChatbotPreview(org_id, user_id, agents);
+    // Pagination is opt-in: without page/limit the response keeps its original unpaginated shape.
+    const paginated = rawPage !== undefined || rawLimit !== undefined;
+    const page = paginated ? (rawPage ?? 1) : undefined;
+    const limit = paginated ? (rawLimit ?? DEFAULT_AGENTS_PAGE_SIZE) : undefined;
+
+    const { agents, total } = await ConfigurationServices.getAllAgentsInOrg({ org_id, folder_id, user_id, isEmbedUser, deleted, page, limit });
+    // Skip on the trash view: listing deleted agents should not create one.
+    if (!isEmbedUser && !folder_id && !deleted) {
+      await ensureChatbotPreview(org_id, user_id);
     }
 
     // Get role_name from middleware (first layer check)
@@ -567,7 +577,8 @@ const getAllAgentController = async (req, res, next) => {
     res.locals = {
       success: true,
       message: "Get all agents successfully",
-      agent: agents.filter((agent) => agent.slugName !== "chatbot_preview"),
+      agent: agents,
+      ...(paginated ? { page, limit, total, totalPages: Math.ceil(total / limit), count: agents.length } : {}),
       org_id: org_id,
       access: role_name,
       embed_token: embed_token,

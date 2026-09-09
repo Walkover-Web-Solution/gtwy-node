@@ -1195,9 +1195,7 @@ const getAgentsWithTools = async (agent_id, org_id, version_id = null) => {
   }
 };
 
-const getAllAgentsInOrg = async (org_id, folder_id, user_id, isEmbedUser) => {
-  // First, get all bridge_ids and their last publishers from PostgreSQL
-  const lastPublishersMap = await getAllAgentsWithLastPublishers(org_id);
+const getAllAgentsInOrg = async ({ org_id, folder_id, user_id, isEmbedUser, deleted = false, page, limit }) => {
   const folderIds = await folderService.getFolderIdsByOrgAndType(org_id, "agent");
 
   // Build MongoDB query
@@ -1217,8 +1215,18 @@ const getAllAgentsInOrg = async (org_id, folder_id, user_id, isEmbedUser) => {
   }
   if (user_id && isEmbedUser) query.user_id = user_id;
 
-  // Get agents from MongoDB
-  const agents = await configurationModel
+  // Active agents have deletedAt null or missing (restoreAgent $unsets the field);
+  // soft-deleted ones carry a date. Same predicate restoreAgent uses.
+  query.deletedAt = deleted ? { $ne: null } : null;
+  // chatbot_preview is an internal agent and is never part of this listing. Excluded
+  // here rather than after the fetch so limit and total stay accurate.
+  query.slugName = { $ne: "chatbot_preview" };
+
+  const paginated = Boolean(page && limit);
+
+  // _id breaks createdAt ties (cloned/bulk-created agents share timestamps), otherwise
+  // skip/limit pages can repeat or drop agents.
+  const cursor = configurationModel
     .find(query)
     .select({
       _id: 1,
@@ -1257,8 +1265,18 @@ const getAllAgentsInOrg = async (org_id, folder_id, user_id, isEmbedUser) => {
       meta: 1,
       folder_id: 1
     })
-    .sort({ createdAt: -1 })
-    .lean();
+    .sort({ createdAt: -1, _id: -1 });
+
+  if (paginated) cursor.skip((page - 1) * limit).limit(limit);
+
+  // Get agents from MongoDB. Only pay for the count when a page was actually asked for.
+  const [agents, total] = await Promise.all([cursor.lean(), paginated ? configurationModel.countDocuments(query) : null]);
+
+  // Fetch last publishers from PostgreSQL only for the agents we are returning
+  const lastPublishersMap = await getAllAgentsWithLastPublishers(
+    org_id,
+    agents.map((agent) => agent._id.toString())
+  );
 
   // Process agents and assign last publisher data
   const processedAgents = agents.map((agent) => {
@@ -1278,11 +1296,15 @@ const getAllAgentsInOrg = async (org_id, folder_id, user_id, isEmbedUser) => {
     return agent;
   });
 
-  return processedAgents;
+  return { agents: processedAgents, total: paginated ? total : processedAgents.length };
 };
 
-// Get all agents with their last publishers for an organization in a single query
-const getAllAgentsWithLastPublishers = async (org_id) => {
+// Get all agents with their last publishers for an organization in a single query.
+// Pass bridge_ids to restrict the scan to a known set of agents (e.g. one page).
+const getAllAgentsWithLastPublishers = async (org_id, bridge_ids = null) => {
+  const scoped = Array.isArray(bridge_ids);
+  if (scoped && bridge_ids.length === 0) return {};
+
   // Simple query to get all bridge_ids and their last publishers for the organization
   const agentsWithPublishers = await models.pg.sequelize.query(
     `
@@ -1292,10 +1314,11 @@ const getAllAgentsWithLastPublishers = async (org_id) => {
       FROM user_bridge_config_history 
       WHERE org_id = :org_id 
         AND type = 'Version published'
+        ${scoped ? "AND bridge_id IN (:bridge_ids)" : ""}
       ORDER BY bridge_id, time DESC
     `,
     {
-      replacements: { org_id },
+      replacements: scoped ? { org_id, bridge_ids } : { org_id },
       type: models.pg.sequelize.QueryTypes.SELECT
     }
   );
@@ -1318,6 +1341,13 @@ const getAgentUsers = async (agent_id, org_id) => {
     console.error(`Error fetching agent users: ${error}`);
     return null;
   }
+};
+
+// Existence check by slug. Intentionally ignores deletedAt: a soft-deleted agent still
+// occupies the unique {org_id, slugName} index, so it must count as existing.
+const agentExistsBySlug = async (org_id, slugName) => {
+  const existing = await configurationModel.exists({ org_id: String(org_id), slugName });
+  return Boolean(existing);
 };
 
 const getUniqueAgentNameAndSlug = async (org_id, baseName) => {
@@ -1393,6 +1423,7 @@ export default {
   getAgentIdBySlugname,
   gettemplateById,
   getAllAgentsWithLastPublishers,
+  agentExistsBySlug,
   addActionInAgent,
   removeActionInAgent,
   getAgents,

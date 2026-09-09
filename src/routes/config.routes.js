@@ -8,7 +8,7 @@ import { transformAgentAdvanceParametersMiddleware, transformToFrontendFormatMid
 
 const router = express.Router();
 
-router.get("/", middleware, agentConfigController.getAllAgentController);
+router.get("/", middleware, validate(agentConfigValidation.getAllAgents), agentConfigController.getAllAgentController);
 
 router.get(
   "/:agent_id",
