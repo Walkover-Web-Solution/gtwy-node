@@ -5,7 +5,6 @@ const getMetricsData = async (req, res, next) => {
   const org_id = req.profile?.org?.id;
   const { startTime, endTime } = req.query;
   const { apikey_id, service, model, thread_id, bridge_id, version_id, range, factor } = req.body;
-  const values = [];
   const params = {
     org_id,
     bridge_id,
@@ -17,23 +16,31 @@ const getMetricsData = async (req, res, next) => {
     startTime,
     endTime
   };
-  let start_date = new Date();
-  let end_date = new Date();
+
+  let start_date = null;
+  let end_date = null;
   if (range === 10) {
     start_date = req.body.start_date;
     end_date = req.body.end_date;
   }
-  const whereClause = buildWhereClause(params, values, factor, range, start_date, end_date);
-  // const table = selectTable(startTime, endTime, range);
+
   const table = selectTable(range);
+  const mainValues = [];
+  // Pass flag=true explicitly so start_date/end_date land in the correct parameters.
+  const whereClause = buildWhereClause(params, mainValues, factor, range, true, start_date, end_date, {
+    // For longer ranges we also load recent 15-min buckets; exclude that window from daily to avoid double-count.
+    excludeRecentDays: range > 5 ? 2 : undefined
+  });
   const query = `SELECT ${factor}, created_at, SUM(cost_sum) as cost_sum, AVG(latency_sum/NULLIF(record_count, 0)) as latency_sum, SUM(success_count) as success_count, SUM(total_token_count) AS total_token_count FROM ${table} ${whereClause} ORDER BY created_at ASC`;
 
-  const today_whereClause = buildWhereClause(params, values, factor, range, false, start_date, end_date);
-  const today_query = `SELECT ${factor}, created_at, SUM(cost_sum) as cost_sum, AVG(latency_sum/NULLIF(record_count, 0)) as latency_sum, SUM(success_count) as success_count, SUM(total_token_count) AS total_token_count FROM fifteen_minute_data ${today_whereClause} ORDER BY created_at ASC`;
+  const data = await metrics_sevice.find(query, mainValues);
 
-  const data = await metrics_sevice.find(query, values);
-  const today_data = await metrics_sevice.find(today_query, values);
   if (range > 5) {
+    const recentValues = [];
+    const today_whereClause = buildWhereClause(params, recentValues, factor, range, false, start_date, end_date);
+    const today_query = `SELECT ${factor}, created_at, SUM(cost_sum) as cost_sum, AVG(latency_sum/NULLIF(record_count, 0)) as latency_sum, SUM(success_count) as success_count, SUM(total_token_count) AS total_token_count FROM fifteen_minute_data ${today_whereClause} ORDER BY created_at ASC`;
+    const today_data = await metrics_sevice.find(today_query, recentValues);
+
     res.locals = {
       statusCode: 200,
       data: [...data, ...today_data],
