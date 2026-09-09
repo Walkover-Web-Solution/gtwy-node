@@ -124,4 +124,4 @@ async function sMembersInCache(identifier) {
   }
 }
 
-export { deleteInCache, storeInCache, findInCache, scanCacheKeys, verifyTTL, invalidateByTag, sMembersInCache };
+export { REDIS_PREFIX, deleteInCache, storeInCache, findInCache, scanCacheKeys, verifyTTL, invalidateByTag, sMembersInCache };

@@ -42,6 +42,9 @@ import internalRoutes from "./routes/internal.routes.js";
 import promptWrapperRoutes from "./routes/promptWrapper.routes.js";
 import richUiTemplateRoutes from "./routes/richUiTemplate.routes.js";
 import lagoRoutes from "./routes/lago.routes.js";
+import platformApiKeyRoutes from "./routes/platformApiKey.routes.js";
+import billingPlanRoutes from "./routes/billingPlan.routes.js";
+import { assertBillingPlansConfigured } from "./configs/billingPlans.js";
 import batchHistoryRoutes from "./routes/batchHistory.routes.js";
 import observabilityRoutes from "./routes/observability.routes.js";
 import analyticsRoutes from "./routes/analytics.routes.js";
@@ -122,6 +125,8 @@ app.use("/api/prompt_wrappers", promptWrapperRoutes);
 app.use("/api/internal", internalRoutes);
 app.use("/api/rich_ui_templates", richUiTemplateRoutes);
 app.use("/api/lago", lagoRoutes);
+app.use("/api/platform-keys", platformApiKeyRoutes);
+app.use("/api/billing-plans", billingPlanRoutes);
 app.use("/api/observability", observabilityRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/block_org", blockedOrgRoutes);
@@ -138,6 +143,9 @@ import { initModelConfiguration, backgroundListenForChanges } from "./services/u
 import { initServicesRegistry, backgroundListenForServiceChanges } from "./services/utils/loadServicesRegistry.js";
 
 const cronTasks = [initializeMonthlyLatencyReport(), initializeWeeklyLatencyReport(), initializeDailyUpdateCron()];
+
+// Fail at boot rather than on the first plan change if LAGO_PLAN_CODE_* is missing.
+assertBillingPlansConfigured();
 
 initModelConfiguration();
 backgroundListenForChanges();
