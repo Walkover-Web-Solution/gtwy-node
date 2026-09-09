@@ -8,6 +8,7 @@ import configurationModel from "../mongoModel/Configuration.model.js";
 import mongoose from "mongoose";
 import ConfigurationServices from "../db_services/configuration.service.js";
 import agentVersionDbService from "../db_services/agentVersion.service.js";
+import { resolveGtwyEmbedToken } from "./gtwyEmbedMiddleware.js";
 
 dotenv.config();
 import { findInCache } from "../cache_service/index.js";
@@ -141,7 +142,13 @@ const makeDataIfPauthKeyGiven = async (req) => {
 
 const middleware = async (req, res, next) => {
   try {
-    if (req.get("Authorization")) {
+    const embedToken = req.get("embedToken");
+    if (embedToken) {
+      const { Embed, profile } = await resolveGtwyEmbedToken(embedToken);
+      req.Embed = Embed;
+      req.profile = profile;
+      req.profile.user.role_name = determineRoleFromPermissions([], true);
+    } else if (req.get("Authorization")) {
       const token = req.get("Authorization");
       if (!token) {
         return res.status(401).json({ message: "invalid token" });
