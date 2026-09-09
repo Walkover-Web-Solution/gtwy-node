@@ -361,6 +361,20 @@ export const updateResourceInCollection = async (req, res, next) => {
       }
     );
 
+    // The resource description is stored as a denormalized copy inside every
+    // agent's doc_ids array, and gtwy-ai builds the system prompt from that copy.
+    // Propagate the new description to all bridges/versions using this resource so
+    // agents don't keep showing the old text. Failures here must not break the
+    // primary resource update, so this is best-effort and logged on error.
+    if (description !== undefined) {
+      try {
+        const org_id = req.profile?.org?.id;
+        await ragCollectionService.propagateResourceDescription(id, org_id, description);
+      } catch (propagationError) {
+        console.error("Error propagating resource description to agents:", propagationError);
+      }
+    }
+
     res.locals = {
       success: true,
       message: "Resource updated successfully",
