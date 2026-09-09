@@ -142,13 +142,7 @@ const makeDataIfPauthKeyGiven = async (req) => {
 
 const middleware = async (req, res, next) => {
   try {
-    const embedToken = req.get("embedToken");
-    if (embedToken) {
-      const { Embed, profile } = await resolveGtwyEmbedToken(embedToken);
-      req.Embed = Embed;
-      req.profile = profile;
-      req.profile.user.role_name = determineRoleFromPermissions([], true);
-    } else if (req.get("Authorization")) {
+    if (req.get("Authorization")) {
       const token = req.get("Authorization");
       if (!token) {
         return res.status(401).json({ message: "invalid token" });
@@ -159,18 +153,28 @@ const middleware = async (req, res, next) => {
         return res.status(401).json({ message: "token revoked" });
       }
 
-      req.profile = jwt.verify(token, process.env.SecretKey);
-      // Determine role_name from permissions in JWT token
-      const userPermissions = req.profile?.user?.permissions || [];
-      // Check if user is embed user
-      const isEmbed = req.profile?.extraDetails?.type === "embed" || req.profile?.extraDetails?.tokenType || false;
-      const determinedRole = determineRoleFromPermissions(userPermissions, isEmbed);
+      // A gtwy embed token carries folder_id at the top level; a normal token nests it
+      // under extraDetails. So a top-level folder_id means this is an embed token.
+      const decodedToken = jwt.decode(token);
+      if (decodedToken?.folder_id) {
+        const { Embed, profile } = await resolveGtwyEmbedToken(token);
+        req.Embed = Embed;
+        req.profile = profile;
+        req.profile.user.role_name = determineRoleFromPermissions([], true);
+      } else {
+        req.profile = jwt.verify(token, process.env.SecretKey);
+        // Determine role_name from permissions in JWT token
+        const userPermissions = req.profile?.user?.permissions || [];
+        // Check if user is embed user
+        const isEmbed = req.profile?.extraDetails?.type === "embed" || req.profile?.extraDetails?.tokenType || false;
+        const determinedRole = determineRoleFromPermissions(userPermissions, isEmbed);
 
-      // Set role_name in user object for consistency
-      if (!req.profile.user) {
-        req.profile.user = {};
+        // Set role_name in user object for consistency
+        if (!req.profile.user) {
+          req.profile.user = {};
+        }
+        req.profile.user.role_name = determinedRole;
       }
-      req.profile.user.role_name = determinedRole;
     } else if (req.headers.pauthkey || req.headers.pauthtoken) {
       req.profile = await makeDataIfPauthKeyGiven(req);
     } else if (req.headers["proxy_auth_token"]) {
