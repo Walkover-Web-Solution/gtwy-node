@@ -46,7 +46,11 @@ export default (sequelize, DataTypes) => {
       },
       latency: DataTypes.FLOAT,
       success: DataTypes.BOOLEAN,
-      cost: DataTypes.FLOAT
+      cost: DataTypes.FLOAT,
+      user_id: {
+        type: DataTypes.STRING,
+        allowNull: true
+      }
     },
     {
       sequelize,
