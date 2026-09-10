@@ -42,6 +42,14 @@ export default (sequelize, DataTypes) => {
       org_id: {
         allowNull: false,
         type: DataTypes.STRING
+      },
+      previous_value: {
+        type: DataTypes.JSON,
+        allowNull: true
+      },
+      current_value: {
+        type: DataTypes.JSON,
+        allowNull: true
       }
     },
     {

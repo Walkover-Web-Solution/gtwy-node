@@ -165,6 +165,30 @@ export async function getUsers(org_id, page = 1, pageSize = 10, exclude_role_ids
   }
 }
 
+export async function getUsersByIds(user_ids = []) {
+  if (!user_ids.length) return [];
+
+  const fetchUser = async (user_id) => {
+    const cacheKey = `user_data_${user_id}`;
+    const cached = await findInCache(cacheKey);
+    if (cached) {
+      try {
+        return JSON.parse(cached);
+      } catch {
+        await deleteInCache(cacheKey);
+      }
+    }
+    const user = await getProxyDetails({ user_id })
+      .then((res) => res?.data?.data?.[0] ?? null)
+      .catch(() => null);
+    if (user) await storeInCache(cacheKey, user, 86400);
+    return user;
+  };
+
+  const results = await Promise.allSettled(user_ids.map((user_id) => fetchUser(user_id)));
+  return results.filter((r) => r.status === "fulfilled" && r.value).map((r) => r.value);
+}
+
 export async function validateCauthKey(pauthkey) {
   try {
     const response = await axios.post(

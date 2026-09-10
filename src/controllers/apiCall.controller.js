@@ -189,7 +189,9 @@ const addPreTool = async (req, res, next) => {
           bridge_id: String(parent_id),
           version_id: version_id ? String(version_id) : null,
           type: "pre_tools",
-          time: new Date()
+          time: new Date(),
+          previous_value: current_pre_tools ?? [],
+          current_value: data_to_update["pre_tools"] ?? []
         }
       ]);
     } catch (historyError) {

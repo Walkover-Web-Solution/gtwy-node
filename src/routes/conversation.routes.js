@@ -20,6 +20,7 @@ router.put("/gethistory/:bridge_id", middleware, validate(conversationValidation
 router.put("/status/:status", chatBotAuth, validate(conversationValidation.updateMessageStatus), common.updateMessageStatus);
 router.get("/get-message-history/:thread_id/:bridge_id", middleware, validate(conversationValidation.getThreadMessages), common.getThreadMessages); //used by some else
 router.get("/getuserupdates/:version_id", middleware, validate(conversationValidation.getAllUserUpdates), common.getAllUserUpdates);
+router.get("/getbridgeuserupdates/:bridge_id", middleware, validate(conversationValidation.getAllBridgeUserUpdates), common.getAllBridgeUserUpdates);
 router.get("/gethistory-chatbot/:thread_id/:bridge_slugName", combinedAuthWithChatBotAndPublicChatbot, common.getThreads); //Route Deprecated //Public API for getting history for particular thread
 
 export default router;
