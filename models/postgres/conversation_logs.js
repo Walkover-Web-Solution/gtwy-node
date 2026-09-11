@@ -141,6 +141,10 @@ export default (sequelize, DataTypes) => {
         type: DataTypes.JSONB,
         allowNull: true
       },
+      response_format: {
+        type: DataTypes.JSONB,
+        allowNull: true
+      },
       plans: {
         type: DataTypes.JSONB,
         allowNull: true

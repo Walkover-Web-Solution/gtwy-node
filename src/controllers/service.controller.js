@@ -2,6 +2,7 @@ import { servicesRegistry } from "../services/utils/loadServicesRegistry.js";
 import { modelConfigDocument } from "../services/utils/loadModelConfigs.js";
 import { getSupportedModelSet } from "../services/utils/notDiamond.utils.js";
 import serviceDbService from "../db_services/service.service.js";
+import { yoga } from "../graphql/yoga.js";
 
 const getAllServiceModelsController = async (req, res, next) => {
   const { service } = req.params;
@@ -105,8 +106,12 @@ const addServiceController = async (req, res, next) => {
   return next();
 };
 
+// yoga handles the response itself
+const graphqlController = (req, res) => yoga(req, res);
+
 export default {
   getAllServiceModelsController,
   getAllServiceController,
-  addServiceController
+  addServiceController,
+  graphqlController
 };
