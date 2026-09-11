@@ -256,6 +256,7 @@ const getAllInBuiltToolsController = async (req, res, next) => {
       {
         id: "3",
         name: "GTWY Web Search",
+        isGtwyTool: true,
         description: "Allow models that support tool calling to search the web for the latest information before generating a response.",
         value: "Gtwy_Web_Search"
       },
@@ -263,6 +264,7 @@ const getAllInBuiltToolsController = async (req, res, next) => {
         id: "4",
         name: "GTWY Browser",
         description: "Allow models that support Browser to run and access any website.",
+        isGtwyTool: true,
         value: "Gtwy_Browser"
       }
     ]
