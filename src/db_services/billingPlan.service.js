@@ -15,7 +15,8 @@ async function getPlan(plan_code) {
 // Active plans only, with just the fields safe to show an end user —
 // `services` (the internal per-plan model allowlist) is deliberately omitted.
 async function listActivePlans() {
-  return BillingPlanModel.find({ status: 1 }).select("plan_code display_name credit_grant").sort({ plan_code: 1 }).lean();
+  // monthly_credits is shown ("8,000 credits / month"); stripe_price_id is not needed by the UI.
+  return BillingPlanModel.find({ status: 1 }).select("plan_code display_name credit_grant monthly_credits").sort({ plan_code: 1 }).lean();
 }
 
 // Create or update a plan and return the stored document.

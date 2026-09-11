@@ -184,6 +184,101 @@ code guessed differently. `walletDebit` now reads the real id from Lago and
 caches it, so a wipe is not _required_ for correctness — but it does clean the
 history up.
 
+## Stripe: the $20/month Pro subscription
+
+Stripe is money + subscription + dunning. Lago stays the credit ledger and the
+plan gtwy-ai enforces. They meet in one webhook. gtwy-ai needs nothing.
+
+**What a payment does.** `invoice.paid` is the single "money landed" signal,
+for the first payment and every renewal alike. It runs `applyProCycle`:
+`ensureOrgSubscribed` (a Lago wallet exists) → top the wallet up TO
+`billing_plans.paid.monthly_credits` (Lago wallets only add, so "reset to
+8,000" is `max(0, 8000 − balance)`; nothing is ever clawed back) →
+`changeOrgPlan(org, "paid")` → `syncWalletBalanceToRedis`. Each step is
+checkpointed on the event row, so a retry resumes rather than repeats.
+
+**What a failed card does.** `invoice.payment_failed` only mirrors `past_due`
+and alerts. Stripe retries for ~2 weeks and emails the customer itself (turn
+that on in the Dashboard — this repo has no email sender). The org is dropped
+to free ONLY on a terminal status: `customer.subscription.deleted`, or
+`.updated` with `unpaid`/`canceled`. Credits stay spendable within the free
+allowlist.
+
+### Env
+
+| var                                                                                     | why                                                                                                                                                                  |
+| --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `STRIPE_SECRET_KEY`                                                                     | empty = `/api/billing` (checkout, portal, webhook, reconcile) is disabled. `sk_test_…` / `sk_live_…` also decides which events are accepted (`livemode` must match). |
+| `STRIPE_WEBHOOK_SECRET`                                                                 | the endpoint's `whsec_…`; comma-separated `old,new` rotates with zero downtime                                                                                       |
+| `STRIPE_CHECKOUT_SUCCESS_URL`, `STRIPE_CHECKOUT_CANCEL_URL`, `STRIPE_PORTAL_RETURN_URL` | where Stripe sends the customer back                                                                                                                                 |
+| `STRIPE_API_VERSION`                                                                    | optional; MUST equal the API version set on the Dashboard endpoint                                                                                                   |
+
+`assertStripeConfigured()` runs at boot: a key without the secret or the URLs
+refuses to start, as does a live key with `localhost` URLs.
+
+### Per environment, once
+
+1. Dashboard → Products: "Pro", Price **$20.00 USD, monthly**. Copy its `price_…`.
+2. `PUT /api/billing-plans` (InternalAuth) with
+   `{"plan_code":"paid","display_name":"Pro","services":"*","stripe_price_id":"price_…","monthly_credits":8000}`.
+   Until this is set, checkout and `invoice.paid` fail loudly as _transient_
+   (500 → Stripe keeps retrying); they never credit a guess.
+3. Dashboard → Developers → Webhooks: endpoint `https://<host>/api/billing/webhook`,
+   events `checkout.session.completed, invoice.paid, invoice.payment_failed,
+customer.subscription.created, customer.subscription.updated,
+customer.subscription.deleted, charge.refunded, charge.dispute.created,
+invoice.voided, invoice.marked_uncollectible`. **Set the API version
+   explicitly** to the SDK's pinned version. Copy `whsec_…` into env.
+4. Dashboard → Billing → Manage failed payments: Smart Retries **on**;
+   after all retries **cancel the subscription** (this is what makes
+   `customer.subscription.deleted` the terminal signal); customer emails for
+   failed payments **on**.
+5. Dashboard → Customer portal: allow update payment method + cancel **at period
+   end**; **disable** plan switching and quantity changes.
+
+### Routes
+
+| route                                             | auth                       | does                                                                                                                                                    |
+| ------------------------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /api/billing/checkout`                      | signed-in user (not embed) | Checkout URL for the org in the token. 409 if the org already has a live subscription (checked in Stripe, not just our mirror). Reuses an open session. |
+| `POST /api/billing/portal`                        | signed-in user (not embed) | Stripe portal URL: update card, cancel at period end, invoices                                                                                          |
+| `GET /api/billing/subscription`                   | signed-in user             | the plan Lago enforces + the Stripe mirror (`status`, `current_period_end`, `cancel_at_period_end`, `last_payment_error`) — for the UI banner           |
+| `POST /api/billing/webhook`                       | **Stripe signature only**  | raw body, mounted before `express.json`                                                                                                                 |
+| `GET /api/billing/admin/:org_id`                  | InternalAuth               | the org's `org_billings` row                                                                                                                            |
+| `GET /api/billing/admin/:org_id/events`           | InternalAuth               | the org's `stripe_events`                                                                                                                               |
+| `POST /api/billing/admin/events/:event_id/replay` | InternalAuth               | re-run one event (also un-sticks a permanent failure after the cause is fixed)                                                                          |
+| `GET`/`POST /api/billing/admin/reconcile`         | InternalAuth               | `GET` = dry run; `POST {"dry_run":false}` runs the nightly job now                                                                                      |
+
+### `stripe_events.status`
+
+| status                       | meaning                                                                                                                                                                                | who acts                     |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| `processed`                  | done; `steps.*` say which parts ran (`credit_delta` = credits added)                                                                                                                   | nobody                       |
+| `ignored`                    | not for us (unhandled type, livemode mismatch, duplicate id for an invoice already handled)                                                                                            | nobody                       |
+| `processing`                 | in flight; a row older than 2 min is a crashed replica and gets taken over by the next delivery                                                                                        | nobody                       |
+| `failed`, `permanent: false` | transient (Lago/Redis/Mongo down, plan-change lock held, `stripe_price_id`/`monthly_credits` not set). We answered 500; Stripe retries for 3 days and the nightly reconcile replays it | fix the cause; it self-heals |
+| `failed`, `permanent: true`  | unknown org (set `metadata.org_id` on the Stripe customer), non-USD invoice, unresolvable plan. We answered 200 so the endpoint is not disabled                                        | fix, then replay             |
+
+`org_billings` mirrors the subscription from a fresh `subscriptions.retrieve`
+on every event, so out-of-order deliveries cannot regress it. A second live
+subscription on the same org lands in `duplicate_subscription_ids` with an
+alert; it is never cancelled automatically.
+
+### Nightly reconcile (03:15 UTC, one replica via Redis lock)
+
+1. For every active/past_due Stripe subscription: any **paid** cycle invoice in
+   the last 45 days without a processed event is credited now. This is the
+   guarantee behind "money taken, credits never granted".
+2. Stripe terminal but Lago paid → downgrade; Stripe live but Lago free → upgrade.
+3. Lago-vs-Redis plan drift → cache invalidated.
+4. Retryable `failed` events older than 10 min → replayed (up to 10 attempts).
+
+### Out of scope in v1 (recorded + alerted, no automatic action)
+
+Refunds, disputes, voided/uncollectible invoices, cancelling duplicate
+subscriptions, one-off credit packs, `paid_credits` in Lago (every Stripe top-up
+is still a `granted_credits` transaction tagged `source: stripe, invoice_id`).
+
 ## Verifying an environment
 
 ```bash

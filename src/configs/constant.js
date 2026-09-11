@@ -71,7 +71,11 @@ const redis_keys = {
   billing_lago_dispatched_: "nd_billing_lago_dispatched_",
   billing_plan_lock_: "nd_billing_plan_lock_",
   billing_sub_external_id_: "nd_billing_sub_external_id_",
-  org_billing_plan_: "nd_org_billing_plan_"
+  org_billing_plan_: "nd_org_billing_plan_",
+  // Stripe. Per-org: one Checkout Session creation at a time (15s). Global: the
+  // nightly reconcile runs on one replica only (1h) — there is no leader election.
+  stripe_checkout_lock_: "nd_stripe_checkout_lock_",
+  stripe_reconcile_lock: "nd_stripe_reconcile_lock"
 };
 
 const embed_cache = {
