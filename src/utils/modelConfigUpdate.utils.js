@@ -9,7 +9,7 @@ function isPlainObject(value) {
   return Object.prototype.toString.call(value) === "[object Object]";
 }
 
-function isBlockedPath(path) {
+export function isBlockedPath(path) {
   if (path === "configuration.model" || path.startsWith("configuration.model.")) {
     return true;
   }
@@ -17,7 +17,7 @@ function isBlockedPath(path) {
   return BLOCKED_MODEL_CONFIG_PATHS.some((blockedPath) => path === blockedPath || path.startsWith(`${blockedPath}.`));
 }
 
-function isAllowedPath(path) {
+export function isAllowedPath(path) {
   return ALLOWED_MODEL_CONFIG_ROOTS.some((root) => path === root || path.startsWith(`${root}.`));
 }
 
