@@ -23,6 +23,18 @@ const BillingPlanSchema = new mongoose.Schema(
       type: Number,
       default: 0
     },
+    // Stripe. The Price this plan is sold as (price_…, per environment) and the
+    // balance every paid invoice tops the wallet up TO. 0 = not sold via Stripe.
+    // Lives here rather than in env so it is editable through the admin API
+    // with no deploy. gtwy-ai's loader ignores both fields.
+    stripe_price_id: {
+      type: String,
+      default: null
+    },
+    monthly_credits: {
+      type: Number,
+      default: 0
+    },
     status: {
       type: Number,
       default: 1

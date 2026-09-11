@@ -206,8 +206,9 @@ export const createWallet = async (org_id, plan_slug = DEFAULT_PLAN_SLUG) => {
   return response.data;
 };
 
-// Drop the cached plan so the next read comes from Lago.
-const invalidatePlanCache = async (org_id) => {
+// Drop the cached plan so the next read comes from Lago. Exported for the
+// Stripe reconcile, which repairs Lago-vs-Redis drift it finds.
+export const invalidatePlanCache = async (org_id) => {
   if (!client.isReady) return;
   await client.del(`${REDIS_PREFIX}${redis_keys.org_billing_plan_}${org_id}`).catch(() => {});
 };
@@ -363,7 +364,12 @@ export const getWallet = async (org_id) => {
     rate_amount: active.rate_amount,
     ongoing_balance_cents: active.ongoing_balance_cents,
     expiration_at: active.expiration_at,
-    credits_ongoing_balance: active.credits_ongoing_balance
+    credits_ongoing_balance: active.credits_ongoing_balance,
+    // Usage consumed but not yet invoiced. credits_balance minus this is the
+    // spendable amount, and unlike credits_ongoing_balance it does not depend on
+    // Lago's asynchronous refresh job (a brand-new wallet reports ongoing 0.0
+    // while credits_balance already holds the grant).
+    credits_ongoing_usage_balance: active.credits_ongoing_usage_balance
   };
 };
 

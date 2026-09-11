@@ -28,7 +28,14 @@ const setBillingPlan = {
     display_name: Joi.string().min(1).required().messages({ "any.required": "display_name required" }),
     services: servicesSchema,
     credit_grant: Joi.number().min(0).default(0),
-    status: Joi.number().valid(0, 1).default(1)
+    status: Joi.number().valid(0, 1).default(1),
+    // Stripe: the Price this plan is sold as, and the balance a paid invoice tops up TO.
+    stripe_price_id: Joi.string()
+      .pattern(/^price_[A-Za-z0-9]+$/)
+      .allow(null, "")
+      .optional()
+      .messages({ "string.pattern.base": "stripe_price_id must look like price_…" }),
+    monthly_credits: Joi.number().integer().min(0).optional()
   })
 };
 
