@@ -63,6 +63,11 @@ const updateVersionSchema = Joi.object({
           })
         )
         .optional()
+    }).optional(),
+    provider_config: Joi.object({
+      provider: Joi.string().optional(),
+      base_url: Joi.string().optional(),
+      provider_model_id: Joi.string().optional()
     }).optional()
   }).optional(),
   service: Joi.string()

@@ -175,6 +175,10 @@ const updateVersionController = async (req, res, next) => {
       update_fields.configuration = { ...current_configuration, ...new_configuration };
     }
 
+    if (body.configuration.provider_config) {
+      update_fields.configuration.provider_config = { ...current_configuration.provider_config, ...body.configuration.provider_config };
+    }
+
     if (body.variables_path) {
       const updated_variables_path = { ...current_variables_path, ...body.variables_path };
       for (const key in updated_variables_path) {
