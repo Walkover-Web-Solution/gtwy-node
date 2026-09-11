@@ -8,7 +8,7 @@ const router = express.Router();
 
 // Active plans, safe fields only — any signed-in user (e.g. the plans page). Must stay
 // above /:plan_code, which is admin-only and would otherwise match "public" as a code.
-router.get("/public", middleware, billingPlanController.listPublicBillingPlans);
+router.get("/org/public", middleware, billingPlanController.listPublicBillingPlans);
 
 // Admin-only: what each plan includes. Moving an org between plans is POST /api/lago/plan.
 router.put("/", middleware, InternalAuth, validate(billingPlanValidation.setBillingPlan), billingPlanController.setBillingPlan);

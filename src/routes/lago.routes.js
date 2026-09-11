@@ -25,7 +25,7 @@ router.post("/debits/replay", middleware, InternalAuth, lagoController.replayDeb
 router.post("/plan", middleware, InternalAuth, validate(lagoValidation.setOrgPlan), lagoController.setOrgPlan);
 
 // Caller's own plan, for the UI. Must stay above /plan/:org_id, which would otherwise match "me".
-router.get("/plan/me", middleware, lagoController.getMyPlan);
+router.get("/plan/org/me", middleware, lagoController.getMyPlan);
 
 // Drift check: the Lago plan against the Redis cache.
 router.get("/plan/:org_id", middleware, InternalAuth, validate(lagoValidation.getOrgPlan), lagoController.getOrgPlan);
