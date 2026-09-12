@@ -356,6 +356,27 @@ const updateAgentController = async (req, res, next) => {
       update_fields.settings = { ...agent.settings, ...body.settings };
     }
 
+    if (body.connected_tool && body.operation) {
+      const { operation } = body;
+      const tool = body.connected_tool;
+      const current = agent.connected_tools || [];
+
+      // Handle both string and numeric operations
+      const op = operation === 1 ? "add" : operation === 0 ? "remove" : operation === 2 ? "update" : operation;
+
+      if (op === "add") {
+        // Only one "post_tool" entry may exist at a time; adding a new one replaces the old.
+        const base = tool.type === "post_tool" ? current.filter((t) => t.type !== "post_tool") : current;
+        update_fields.connected_tools = [...base, tool];
+      } else if (op === "update") {
+        update_fields.connected_tools = current.map((t) => (t.id === tool.id && t.type === tool.type ? { ...t, ...tool } : t));
+      } else if (op === "remove") {
+        update_fields.connected_tools = current.filter((t) => !(t.id === tool.id && t.type === tool.type));
+      }
+    } else if (body.connected_tools !== undefined) {
+      update_fields.connected_tools = body.connected_tools;
+    }
+
     update_fields.updatedAt = new Date();
     await ConfigurationServices.updateAgent(agent_id, update_fields);
 
