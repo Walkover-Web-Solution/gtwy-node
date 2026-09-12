@@ -161,7 +161,7 @@ const getMyPlan = async (req, res, next) => {
 
   res.locals = {
     success: true,
-    data: { plan: slug, label: definition?.display_name || slug }
+    data: { plan: slug, label: definition?.display_name || slug, services: definition?.services ?? "*" }
   };
   req.statusCode = 200;
   return next();
