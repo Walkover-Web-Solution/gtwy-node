@@ -11,6 +11,7 @@ import { ensureChatbotPreview } from "../services/utility.service.js";
 import { modelConfigDocument } from "../services/utils/loadModelConfigs.js";
 import { sendAgentCreatedWebhook } from "../services/utils/agentWebhook.utils.js";
 import { ResponseSender } from "../services/utils/customResponse.utils.js";
+import isEqual from "lodash/isEqual.js";
 
 const responseSender = new ResponseSender();
 
@@ -241,7 +242,7 @@ const createAgentInBackground = async (req) => {
       {
         user_id: user_id,
         org_id: org_id,
-        bridge_id: result.bridge._id.toString(),
+        config_id: result.bridge._id.toString(),
         version_id: create_version._id.toString(),
         type: "Version created",
         time: new Date()
@@ -249,7 +250,7 @@ const createAgentInBackground = async (req) => {
       {
         user_id: user_id,
         org_id: org_id,
-        bridge_id: result.bridge._id.toString(),
+        config_id: result.bridge._id.toString(),
         version_id: create_version._id.toString(),
         type: "Agent created",
         time: new Date()
@@ -362,20 +363,35 @@ const updateAgentController = async (req, res, next) => {
     const historyBase = {
       user_id,
       org_id,
-      bridge_id: agent_id,
+      config_id: agent_id,
       version_id: null,
       time: new Date()
     };
 
     const agentVersions = Array.isArray(agent.versions) ? agent.versions : [];
-    for (const key of Object.keys(body)) {
+    const pushChange = (type, before, after) => {
+      if (isEqual(before, after)) return;
       for (const version of agentVersions) {
         user_history.push({
           ...historyBase,
           version_id: String(version),
-          type: key === "settings" ? "editAccess" : key
+          type,
+          previous_value: before ?? null,
+          current_value: after ?? null
         });
       }
+    };
+
+    for (const key of Object.keys(body)) {
+      // agent_info is a nested object: log each field inside it so the history
+      // says which detail changed, not just that agent_info changed.
+      if (key === "agent_info") {
+        for (const field of Object.keys(body.agent_info || {})) {
+          pushChange(field, agent.agent_info?.[field], update_fields.agent_info?.[field]);
+        }
+        continue;
+      }
+      pushChange(key === "settings" ? "editAccess" : key, agent[key], update_fields[key] ?? body[key]);
     }
 
     if (user_history.length > 0) {

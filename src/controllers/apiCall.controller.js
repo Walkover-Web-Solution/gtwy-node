@@ -1,3 +1,4 @@
+import isEqual from "lodash/isEqual.js";
 import service from "../db_services/apiCall.service.js";
 import { validateRequiredParams } from "../services/utils/apiCall.utils.js";
 import ConfigurationServices from "../db_services/configuration.service.js";
@@ -9,6 +10,11 @@ import conversationDbService from "../db_services/conversation.service.js";
 import apiCallService from "../db_services/apiCall.service.js";
 
 const { addBulkUserEntries } = conversationDbService;
+
+// The only fields a user edits on a tool. The client sends the whole document
+// back on save, so everything else it carries — old_fields, updatedAt, __v —
+// would be logged as a change without this list.
+const TOOL_HISTORY_FIELDS = ["title", "description", "fields", "required"];
 
 const getAllApiCalls = async (req, res, next) => {
   const org_id = req.profile?.org?.id;
@@ -52,6 +58,36 @@ const updateApiCalls = async (req, res, next) => {
     });
   } catch (error) {
     console.error(`Failed to sync tool ${updated_function?.data?.script_id} to viasocket embed:`, error.message);
+  }
+
+  try {
+    // flattenMaps: `fields` is a Map, and a Map serialises into JSON as {}.
+    const before = data.toObject({ flattenMaps: true });
+    const after = updated_function.data.toObject({ flattenMaps: true });
+    const historyBase = {
+      user_id: String(req.profile?.user?.id),
+      org_id: String(org_id),
+      // The tool is its own subject here — it has no version of its own.
+      config_id: String(function_id),
+      version_id: "",
+      time: new Date()
+    };
+
+    // One row per changed field, the same way an agent logs its own fields, so the
+    // history says which detail changed rather than just that the tool changed.
+    const user_history = TOOL_HISTORY_FIELDS.filter((key) => !isEqual(before[key], after[key])).map((key) => ({
+      ...historyBase,
+      type: key,
+      previous_value: before[key] ?? null,
+      current_value: after[key] ?? null
+    }));
+
+    if (user_history.length > 0) {
+      await addBulkUserEntries(user_history);
+    }
+  } catch (historyError) {
+    // History should not block tool update responses.
+    console.error("Failed to add tool history:", historyError);
   }
 
   const bridge_ids = updated_function?.data?.bridge_ids || [];
@@ -186,10 +222,12 @@ const addPreTool = async (req, res, next) => {
         {
           user_id: String(user_id),
           org_id: String(org_id),
-          bridge_id: String(parent_id),
+          config_id: String(parent_id),
           version_id: version_id ? String(version_id) : null,
           type: "pre_tools",
-          time: new Date()
+          time: new Date(),
+          previous_value: current_pre_tools ?? [],
+          current_value: data_to_update["pre_tools"] ?? []
         }
       ]);
     } catch (historyError) {
