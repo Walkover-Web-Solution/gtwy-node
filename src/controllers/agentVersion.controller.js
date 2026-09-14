@@ -39,7 +39,7 @@ const createVersion = async (req, res, next) => {
     {
       user_id,
       org_id,
-      bridge_id: parent_id,
+      config_id: parent_id,
       version_id: create_new_version,
       type: "Version created",
       time: new Date()
@@ -198,7 +198,7 @@ const updateVersionController = async (req, res, next) => {
     }
 
     appendVersionUpdateHistory(user_history, {
-      base: { user_id, org_id, bridge_id: parent_id || "", version_id, time: new Date() },
+      base: { user_id, org_id, config_id: parent_id || "", version_id, time: new Date() },
       body,
       version,
       update_fields,
