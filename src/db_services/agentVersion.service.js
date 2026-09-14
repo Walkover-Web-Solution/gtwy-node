@@ -375,7 +375,7 @@ async function deleteAgentVersion(org_id, version_id, user_id) {
       {
         user_id,
         org_id,
-        bridge_id: String(parentId),
+        config_id: String(parentId),
         version_id: String(version_id),
         type: "Version deleted",
         time: new Date(),
@@ -528,7 +528,7 @@ async function publish(org_id, version_id, user_id, generate_summary = false) {
     {
       user_id,
       org_id,
-      bridge_id: parentId.toString(),
+      config_id: parentId.toString(),
       version_id: version_id.toString(),
       type: "Version published",
       previous_value: previousPublishedVersionId ? String(previousPublishedVersionId) : null,

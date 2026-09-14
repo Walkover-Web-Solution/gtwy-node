@@ -5,6 +5,10 @@ import token from "../services/commonService/generateToken.js";
 import { generateIdentifier } from "../services/utils/utility.service.js";
 import { generateToken } from "../services/utils/users.service.js";
 import mongoose from "mongoose";
+import isEqual from "lodash/isEqual.js";
+import conversationDbService from "../db_services/conversation.service.js";
+
+const { addBulkUserEntries } = conversationDbService;
 
 const getAllChatBots = async (req, res, next) => {
   const org_id = req.profile.org.id;
@@ -86,7 +90,11 @@ const getOneChatBot = async (req, res, next) => {
 
 const updateChatBotConfig = async (req, res, next) => {
   const { botId } = req.params;
-  const { config } = req.body;
+  const { config, reverted_from_id } = req.body;
+
+  // Read before writing: updateChatbotConfig returns only the updated document, so
+  // the previous config has to be captured here for the history diff below.
+  const before = await ChatbotDbService.findById(botId);
 
   const chatBotData = await ChatbotDbService.updateChatbotConfig(botId, config);
 
@@ -94,6 +102,40 @@ const updateChatBotConfig = async (req, res, next) => {
     res.locals = { success: false, message: "Chatbot not found" };
     req.statusCode = 404;
     return next();
+  }
+
+  try {
+    const beforeConfig = before?.config || {};
+    const afterConfig = chatBotData.config || {};
+    const historyBase = {
+      user_id: String(req.profile?.user?.id),
+      // The chatbot document spells this orgId; the history table spells it org_id.
+      org_id: String(req.profile?.org?.id),
+      // The chatbot is its own subject here — it has no version of its own.
+      config_id: String(botId),
+      version_id: "",
+      time: new Date()
+    };
+
+    // Union of both sides, so a key that was removed is logged too — iterating only
+    // the new config would silently drop every deletion.
+    const user_history = [];
+    for (const key of new Set([...Object.keys(beforeConfig), ...Object.keys(afterConfig)])) {
+      if (isEqual(beforeConfig[key], afterConfig[key])) continue;
+      user_history.push({
+        ...historyBase,
+        type: key,
+        previous_value: beforeConfig[key] ?? null,
+        current_value: reverted_from_id != null ? { value: afterConfig[key] ?? null, reverted_from_id } : (afterConfig[key] ?? null)
+      });
+    }
+
+    if (user_history.length > 0) {
+      await addBulkUserEntries(user_history);
+    }
+  } catch (historyError) {
+    // History should not block chatbot config updates.
+    console.error("Failed to add chatbot history:", historyError);
   }
 
   res.locals = chatBotData;

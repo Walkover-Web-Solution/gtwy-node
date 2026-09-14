@@ -31,7 +31,7 @@ export default (sequelize, DataTypes) => {
         allowNull: false,
         type: DataTypes.STRING
       },
-      bridge_id: {
+      config_id: {
         allowNull: false,
         type: DataTypes.STRING
       },

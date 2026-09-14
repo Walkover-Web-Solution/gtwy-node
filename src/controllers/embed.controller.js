@@ -11,6 +11,21 @@ import { cost_types, redis_keys, embed_cache } from "../configs/constant.js";
 import { generateAuthToken } from "../services/utils/utility.service.js";
 import jwt from "jsonwebtoken";
 import { validateJsonSchemaConfiguration } from "../services/utils/common.utils.js";
+import isEqual from "lodash/isEqual.js";
+import conversationDbService from "../db_services/conversation.service.js";
+
+const { addBulkUserEntries } = conversationDbService;
+
+// An embed gains a key whenever a toggle is added to the config panel, so history
+// logs every key and skips only what is not a user edit: the embed's own identity,
+// and the legacy mirror the client writes alongside showPlayground — without it a
+// single playground toggle would be recorded twice.
+const EMBED_HISTORY_SKIP = new Set(["embed_id", "hideplayground"]);
+
+// These live on the folder document rather than inside `config`, so they are
+// diffed separately. folder_usage and folder_limit_start_date are bookkeeping,
+// not user edits, and are left out on purpose.
+const EMBED_FOLDER_FIELDS = ["name", "apikey_object_id", "folder_limit", "folder_limit_reset_period"];
 
 const embedLogin = async (req, res) => {
   const { name: embeduser_name, email: embeduser_email } = req.Embed;
@@ -138,7 +153,8 @@ const updateEmbed = async (req, res, next) => {
       variables_path,
       tools_id,
       pre_tool_id,
-      name
+      name,
+      reverted_from_id
     } = req.body;
     const org_id = req.profile.org.id;
 
@@ -157,6 +173,10 @@ const updateEmbed = async (req, res, next) => {
       req.statusCode = 404;
       return next();
     }
+
+    // Taken before any mutation below: `folder.config` is replaced wholesale further
+    // down, so reading it afterwards would compare the new value against itself.
+    const before = folder.toObject();
 
     const newTools = tools_id !== undefined ? tools_id : config?.tools_id;
     if (newTools !== undefined && Array.isArray(newTools) && folder) {
@@ -214,6 +234,46 @@ const updateEmbed = async (req, res, next) => {
       folder.name = name;
     }
     await folder.save();
+
+    try {
+      const after = folder.toObject();
+      const historyBase = {
+        user_id: String(req.profile?.user?.id),
+        org_id: String(org_id),
+        // The embed is its own subject here — it has no version of its own.
+        config_id: String(folder_id),
+        version_id: "",
+        time: new Date()
+      };
+
+      const user_history = [];
+      const log = (type, prev, cur) => {
+        if (isEqual(prev, cur)) return;
+        user_history.push({
+          ...historyBase,
+          type,
+          previous_value: prev ?? null,
+          current_value: reverted_from_id != null ? { value: cur ?? null, reverted_from_id } : (cur ?? null)
+        });
+      };
+
+      // Union of both sides, so a key that was removed is logged too — iterating
+      // only the new config would silently drop every deletion.
+      const configKeys = new Set([...Object.keys(before.config || {}), ...Object.keys(after.config || {})]);
+      for (const key of configKeys) {
+        if (EMBED_HISTORY_SKIP.has(key)) continue;
+        log(key, before.config?.[key], after.config?.[key]);
+      }
+      for (const key of EMBED_FOLDER_FIELDS) log(key, before[key], after[key]);
+
+      if (user_history.length > 0) {
+        await addBulkUserEntries(user_history);
+      }
+    } catch (historyError) {
+      // History should not block embed update responses.
+      console.error("Failed to add embed history:", historyError);
+    }
+
     await cleanupCache(cost_types.folder, folder_id, org_id);
     if (folder_usage == 0) {
       await deleteInCache(`${redis_keys.folderusedcost_}${folder_id}`);
