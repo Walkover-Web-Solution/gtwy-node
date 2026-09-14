@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import configurationModel from "../mongoModel/Configuration.model.js";
 import versionModel from "../mongoModel/BridgeVersion.model.js";
 import apiCallModel from "../mongoModel/ApiCall.model.js";
@@ -1382,6 +1383,69 @@ const getUniqueAgentNameAndSlug = async (org_id, baseName) => {
   }
 };
 
+/** Build the `$in` variants for an org_id filter — string, raw value, and numeric form when applicable. */
+function buildOrgIdVariants(org_id) {
+  const variants = [...new Set([String(org_id), org_id].filter((v) => v != null && v !== ""))];
+  const orgAsNum = Number(org_id);
+  if (!Number.isNaN(orgAsNum) && String(orgAsNum) === String(org_id).trim()) {
+    variants.push(orgAsNum);
+  }
+  return variants;
+}
+
+/** Build the `$in` variants for a folder_id filter — string form plus ObjectId when valid. */
+function buildFolderIdVariants(folder_id) {
+  const folderIdStr = String(folder_id);
+  const variants = [folderIdStr];
+  if (mongoose.Types.ObjectId.isValid(folderIdStr)) {
+    variants.push(new mongoose.Types.ObjectId(folderIdStr));
+  }
+  return variants;
+}
+
+/**
+ * Non-deleted agents inside an embed folder, normalized for the embed analytics
+ * dashboard: bridge id, owner, model/service, and every version id (draft +
+ * published) the analytics aggregation should roll up under that bridge.
+ */
+const getEmbedFolderAgents = async (org_id, folder_id, user_id = null) => {
+  const query = {
+    org_id: { $in: buildOrgIdVariants(org_id) },
+    folder_id: { $in: buildFolderIdVariants(folder_id) }
+  };
+  if (user_id) {
+    query.user_id = String(user_id);
+  }
+  const agentDocs = await configurationModel
+    .find(query)
+    .select({
+      _id: 1,
+      name: 1,
+      user_id: 1,
+      service: 1,
+      versions: 1,
+      published_version_id: 1,
+      "configuration.model": 1
+    })
+    .lean();
+
+  return (agentDocs || []).map((agent) => {
+    const versionIds = new Set();
+    for (const v of agent.versions || []) {
+      if (v != null) versionIds.add(String(v));
+    }
+    if (agent.published_version_id) versionIds.add(String(agent.published_version_id));
+    return {
+      bridge_id: agent._id.toString(),
+      name: agent.name || "Untitled",
+      user_id: agent.user_id != null ? String(agent.user_id) : null,
+      service: agent.service || null,
+      model: agent.configuration?.model || null,
+      version_ids: [...versionIds]
+    };
+  });
+};
+
 export default {
   deleteAgent,
   permanentlyDeleteAgent,
@@ -1413,5 +1477,6 @@ export default {
   getAgentsWithoutTools,
   cloneAgentToOrg,
   getAgentUsers,
-  getUniqueAgentNameAndSlug
+  getUniqueAgentNameAndSlug,
+  getEmbedFolderAgents
 };

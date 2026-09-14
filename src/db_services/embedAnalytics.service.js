@@ -6,7 +6,7 @@
  *
  * Query plan (per request, all fired in parallel):
  *   1. PG  `conversation_logs` — one pass producing per-bridge range AND lifetime
- *      counters (requests / success / failures / latency / feedback / threads).
+ *      counters (requests / success / failures / latency / threads).
  *      The range + lifetime summaries are folded up from these rows in JS, so we
  *      no longer run separate summary / per-bridge / lifetime scans.
  *   2. PG  `conversation_logs` — one pass producing the bucketed time series;
@@ -19,6 +19,8 @@
 import Sequelize from "sequelize";
 import models from "../../models/index.js";
 import logger from "../logger.js";
+import { getProxyDetails } from "../services/proxy.service.js";
+import { findInCache, storeInCache } from "../cache_service/index.js";
 
 const QueryTypes = Sequelize.QueryTypes;
 
@@ -93,8 +95,6 @@ function emptyEmbedSummary() {
     failed_runs: 0,
     total_tokens: 0,
     est_cost: 0,
-    positive_feedback: 0,
-    negative_feedback: 0,
     unique_users: 0,
     active_agents: 0
   };
@@ -109,8 +109,6 @@ function emptyBridgeStats() {
     latency_count: 0,
     total_tokens: 0,
     est_cost: 0,
-    positive_feedback: 0,
-    negative_feedback: 0,
     thread_count: 0,
     last_active: null
   };
@@ -124,8 +122,6 @@ function addBridgeStats(target, row) {
   target.latency_count += Number(row.latency_count) || 0;
   target.total_tokens += Number(row.total_tokens) || 0;
   target.est_cost += Number(row.est_cost) || 0;
-  target.positive_feedback += Number(row.positive_feedback) || 0;
-  target.negative_feedback += Number(row.negative_feedback) || 0;
   target.thread_count += Number(row.thread_count) || 0;
   if (row.last_active && (!target.last_active || new Date(row.last_active) > new Date(target.last_active))) {
     target.last_active = row.last_active;
@@ -141,9 +137,7 @@ function statsToSummary(stats) {
     avg_response: stats.latency_count ? Math.round(stats.latency_sum / stats.latency_count) : 0,
     failed_runs: stats.failed_runs || 0,
     total_tokens: Math.round(stats.total_tokens || 0),
-    est_cost: Number(Number(stats.est_cost || 0).toFixed(6)),
-    positive_feedback: stats.positive_feedback || 0,
-    negative_feedback: stats.negative_feedback || 0
+    est_cost: Number(Number(stats.est_cost || 0).toFixed(6))
   };
 }
 
@@ -192,8 +186,6 @@ async function getBridgeCounters(bridge_ids, { org_id, start, end } = {}) {
       COUNT(lat) FILTER (WHERE in_range AND status IS TRUE)::int              AS latency_count,
       COALESCE(SUM(tokens_total) FILTER (WHERE in_range), 0)                  AS total_tokens,
       COALESCE(SUM(cost) FILTER (WHERE in_range), 0)                          AS est_cost,
-      COUNT(*) FILTER (WHERE in_range AND user_feedback = 1)::int             AS positive_feedback,
-      COUNT(*) FILTER (WHERE in_range AND user_feedback = 2)::int             AS negative_feedback,
       COUNT(DISTINCT thread_id) FILTER (WHERE in_range)::int                  AS thread_count,
       MAX(created_at) FILTER (WHERE in_range)                                 AS last_active,
       COUNT(*)::int                                                           AS lt_total_requests,
@@ -202,14 +194,11 @@ async function getBridgeCounters(bridge_ids, { org_id, start, end } = {}) {
       COALESCE(SUM(lat) FILTER (WHERE status IS TRUE), 0)                     AS lt_latency_sum,
       COUNT(lat) FILTER (WHERE status IS TRUE)::int                           AS lt_latency_count,
       COALESCE(SUM(tokens_total), 0)                                          AS lt_total_tokens,
-      COALESCE(SUM(cost), 0)                                                  AS lt_est_cost,
-      COUNT(*) FILTER (WHERE user_feedback = 1)::int                          AS lt_positive_feedback,
-      COUNT(*) FILTER (WHERE user_feedback = 2)::int                          AS lt_negative_feedback
+      COALESCE(SUM(cost), 0)                                                  AS lt_est_cost
     FROM (
       SELECT
         bridge_id::text AS bridge_id,
         status,
-        user_feedback,
         thread_id,
         created_at,
         (latency->>'over_all_time')::double precision AS lat,
@@ -331,8 +320,6 @@ function foldByParent(rows, idToParent, prefix = "") {
       latency_count: r[`${prefix}latency_count`],
       total_tokens: r[`${prefix}total_tokens`],
       est_cost: r[`${prefix}est_cost`],
-      positive_feedback: r[`${prefix}positive_feedback`],
-      negative_feedback: r[`${prefix}negative_feedback`],
       thread_count: r[`${prefix}thread_count`],
       last_active: prefix ? null : r.last_active
     });
@@ -368,6 +355,113 @@ function applyTimescaleCost(statsByParent, lifetimeByParent, costRows, idToParen
       }
     }
   }
+}
+
+/** Normalize one proxy user row into our map entry. */
+function toUserEntry(user) {
+  if (user?.id == null) return null;
+  return {
+    id: user.id,
+    name: user.name || null,
+    email: user.email || null,
+    meta: user.meta || null
+  };
+}
+
+/**
+ * Org-wide proxy user directory (id -> {name, email, meta}), cached for a day.
+ * Falls back to per-user lookups for any agent owner missing from the paged
+ * listing (guest users are often absent from it).
+ */
+async function loadOrgUserMap(org_id, neededUserIds = []) {
+  const needed = [...new Set((neededUserIds || []).map((id) => String(id)).filter(Boolean))];
+  const cacheKey = `embed_analytics_users_v2_${org_id}`;
+  let userMap = {};
+
+  const cached = await findInCache(cacheKey);
+  if (cached) {
+    try {
+      const parsed = JSON.parse(cached);
+      if (parsed && typeof parsed === "object") userMap = parsed;
+    } catch {
+      // fall through
+    }
+  }
+
+  const missingAfterCache = needed.filter((id) => !userMap[id]);
+  if (Object.keys(userMap).length > 0 && missingAfterCache.length === 0) {
+    return userMap;
+  }
+
+  // Full company listing without excluding the proxy/embed role
+  let pageNo = 1;
+  let hasMore = true;
+  while (hasMore) {
+    const response = await getProxyDetails({
+      company_id: org_id,
+      pageNo,
+      itemsPerPage: 100
+    });
+    const page = response?.data;
+    const batch = Array.isArray(page?.data) ? page.data : [];
+    for (const user of batch) {
+      const entry = toUserEntry(user);
+      if (entry) userMap[String(entry.id)] = entry;
+    }
+    const total = Number(page?.totalEntityCount) || 0;
+    hasMore = batch.length > 0 && Object.keys(userMap).length < total;
+    pageNo += 1;
+    if (pageNo > 100) break;
+  }
+
+  // Fetch any agent owners still missing (guest users often missing from default lists)
+  const stillMissing = needed.filter((id) => !userMap[id]);
+  if (stillMissing.length > 0) {
+    const chunks = [];
+    for (let i = 0; i < stillMissing.length; i += 10) {
+      chunks.push(stillMissing.slice(i, i + 10));
+    }
+    for (const chunk of chunks) {
+      await Promise.all(
+        chunk.map(async (userId) => {
+          try {
+            const response = await getProxyDetails({
+              company_id: org_id,
+              user_id: userId,
+              pageNo: 1,
+              itemsPerPage: 1
+            });
+            const batch = response?.data?.data;
+            const user = Array.isArray(batch) ? batch[0] : batch;
+            // Some responses return the matched user directly under data
+            const entry = toUserEntry(user) || toUserEntry(response?.data);
+            if (entry) {
+              userMap[String(entry.id)] = entry;
+              userMap[String(userId)] = entry;
+            }
+          } catch (err) {
+            logger.warn(`embed analytics: failed to resolve user_id=${userId}: ${err.message}`);
+          }
+        })
+      );
+    }
+  }
+
+  await storeInCache(cacheKey, userMap, 86400);
+  return userMap;
+}
+
+/**
+ * Kicks off the org-wide proxy user lookup for the given agent owners. Runs
+ * independently of the analytics aggregation — callers should await the
+ * returned promise only when they actually need the resolved map.
+ */
+function loadUserMapForAgents(org_id, agents) {
+  const neededUserIds = (agents || []).map((a) => a.user_id).filter(Boolean);
+  return loadOrgUserMap(org_id, neededUserIds).catch((err) => {
+    logger.warn(`embed analytics: user map lookup failed: ${err.message}`);
+    return {};
+  });
 }
 
 async function getEmbedAnalytics({ org_id, window, agents, userMap, userMapPromise, userSearch, userPage, userLimit }) {
@@ -411,8 +505,7 @@ async function getEmbedAnalytics({ org_id, window, agents, userMap, userMapPromi
       getBridgeCounters(uniqueQueryIds, scope),
       getTimeSeries(uniqueQueryIds, scope),
       costSource === "timescale"
-        ? getCostAndTokens(uniqueQueryIds, scope).catch((error) => {
-            logger.warn(`embed analytics: Timescale cost lookup failed (${error.message}); falling back to conversation_logs tokens`);
+        ? getCostAndTokens(uniqueQueryIds, scope).catch(() => {
             costSource = "conversation_logs";
             return null;
           })
@@ -420,14 +513,8 @@ async function getEmbedAnalytics({ org_id, window, agents, userMap, userMapPromi
     ]);
 
     const rangeCount = counterRows.reduce((n, r) => n + (Number(r.total_requests) || 0), 0);
-    const lifeCount = counterRows.reduce((n, r) => n + (Number(r.lt_total_requests) || 0), 0);
 
-    // conversation_logs.org_id is not always stored in the same shape as the
-    // profile org id. The bridge ids are already org-scoped (they came from a
-    // Configuration query filtered by org), so retrying without the org
-    // predicate is safe — it only loses the index assist.
     if (rangeCount === 0) {
-      logger.warn(`embed analytics: 0 ranged rows with org_id=${org_id} (lifetime=${lifeCount}); retrying without org filter`);
       const noOrg = { ...scope, org_id: null };
       // Timescale only gets a second round-trip if its org filter also came up empty.
       const retryCost = costSource === "timescale" && !costRows?.length;
@@ -478,8 +565,6 @@ async function getEmbedAnalytics({ org_id, window, agents, userMap, userMapPromi
       avg_response: row.latency_count ? Math.round(row.latency_sum / row.latency_count) : 0,
       total_tokens: Math.round(row.total_tokens || 0),
       est_cost: Number(Number(row.est_cost || 0).toFixed(6)),
-      positive_feedback: row.positive_feedback,
-      negative_feedback: row.negative_feedback,
       thread_count: row.thread_count,
       last_active: row.last_active || null
     };
@@ -497,8 +582,6 @@ async function getEmbedAnalytics({ org_id, window, agents, userMap, userMapPromi
         failed_runs: 0,
         total_tokens: 0,
         est_cost: 0,
-        positive_feedback: 0,
-        negative_feedback: 0,
         thread_count: 0,
         last_active: null,
         agents: []
@@ -511,8 +594,6 @@ async function getEmbedAnalytics({ org_id, window, agents, userMap, userMapPromi
     u.failed_runs += agent.failed_runs;
     u.total_tokens += agent.total_tokens;
     u.est_cost += agent.est_cost;
-    u.positive_feedback += agent.positive_feedback;
-    u.negative_feedback += agent.negative_feedback;
     u.thread_count += agent.thread_count;
     if (agent.last_active && (!u.last_active || new Date(agent.last_active) > new Date(u.last_active))) {
       u.last_active = agent.last_active;
@@ -543,8 +624,6 @@ async function getEmbedAnalytics({ org_id, window, agents, userMap, userMapPromi
         failed_runs: u.failed_runs,
         total_tokens: u.total_tokens,
         est_cost: Number(u.est_cost.toFixed(6)),
-        positive_feedback: u.positive_feedback,
-        negative_feedback: u.negative_feedback,
         thread_count: u.thread_count,
         last_active: u.last_active,
         agents: u.agents
@@ -607,5 +686,6 @@ async function getEmbedAnalytics({ org_id, window, agents, userMap, userMapPromi
 }
 
 export default {
-  getEmbedAnalytics
+  getEmbedAnalytics,
+  loadUserMapForAgents
 };
