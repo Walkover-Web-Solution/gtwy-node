@@ -266,6 +266,12 @@ const getAllInBuiltToolsController = async (req, res, next) => {
         description: "Allow models that support Browser to run and access any website.",
         isGtwyTool: true,
         value: "Gtwy_Browser"
+      },
+      {
+        id: "5",
+        name: "Code Interpreter",
+        description: "Allow models to write and run Python code in a sandboxed container to analyze data, perform calculations, and generate files.",
+        value: "code_interpreter"
       }
     ]
   };
