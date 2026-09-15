@@ -9,6 +9,10 @@ const template = new mongoose.Schema({
     type: String,
     required: true
   },
+  category: {
+    type: String,
+    default: null
+  },
   created_at: {
     type: Date,
     default: Date.now
