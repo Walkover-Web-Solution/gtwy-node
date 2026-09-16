@@ -45,6 +45,10 @@ import lagoRoutes from "./routes/lago.routes.js";
 import platformApiKeyRoutes from "./routes/platformApiKey.routes.js";
 import billingPlanRoutes from "./routes/billingPlan.routes.js";
 import { assertBillingPlansConfigured } from "./configs/billingPlans.js";
+import lagoWebhookRoutes from "./routes/lagoWebhook.routes.js";
+import billingRoutes from "./routes/billing.routes.js";
+import { assertLagoBillingConfigured } from "./configs/lagoBilling.js";
+import initializeReconcileBilling from "./cron/reconcileBilling.js";
 import batchHistoryRoutes from "./routes/batchHistory.routes.js";
 import observabilityRoutes from "./routes/observability.routes.js";
 import analyticsRoutes from "./routes/analytics.routes.js";
@@ -63,6 +67,11 @@ app.use(
     preflightContinue: true
   })
 );
+// Lago signs the raw request bytes of its webhooks, so /api/lago/webhook must
+// see them before the JSON parser below turns them into an object. Only that
+// one path lives on this router; it answers the request itself and every other
+// /api/lago path falls through to the JWT router mounted further down.
+app.use("/api/lago", lagoWebhookRoutes);
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ limit: "10mb", extended: true }));
 // app.use(multer().array());
@@ -127,6 +136,7 @@ app.use("/api/rich_ui_templates", richUiTemplateRoutes);
 app.use("/api/lago", lagoRoutes);
 app.use("/api/platform-keys", platformApiKeyRoutes);
 app.use("/api/billing-plans", billingPlanRoutes);
+app.use("/api/billing", billingRoutes);
 app.use("/api/observability", observabilityRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/block_org", blockedOrgRoutes);
@@ -142,10 +152,12 @@ app.use(errorHandlerMiddleware);
 import { initModelConfiguration, backgroundListenForChanges } from "./services/utils/loadModelConfigs.js";
 import { initServicesRegistry, backgroundListenForServiceChanges } from "./services/utils/loadServicesRegistry.js";
 
-const cronTasks = [initializeMonthlyLatencyReport(), initializeWeeklyLatencyReport(), initializeDailyUpdateCron()];
+const cronTasks = [initializeMonthlyLatencyReport(), initializeWeeklyLatencyReport(), initializeDailyUpdateCron(), initializeReconcileBilling()];
 
 // Fail at boot rather than on the first plan change if LAGO_PLAN_CODE_* is missing.
 assertBillingPlansConfigured();
+// Likewise for Stripe-through-Lago: the provider code and the webhook HMAC key go together.
+assertLagoBillingConfigured();
 
 initModelConfiguration();
 backgroundListenForChanges();

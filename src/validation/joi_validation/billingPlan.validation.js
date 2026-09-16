@@ -28,7 +28,10 @@ const setBillingPlan = {
     display_name: Joi.string().min(1).required().messages({ "any.required": "display_name required" }),
     services: servicesSchema,
     credit_grant: Joi.number().min(0).default(0),
-    status: Joi.number().valid(0, 1).default(1)
+    status: Joi.number().valid(0, 1).default(1),
+    // The balance a paid subscription invoice tops the wallet up TO. Optional so
+    // an edit that does not mention it leaves the stored value alone.
+    monthly_credits: Joi.number().integer().min(0).optional()
   })
 };
 
