@@ -15,6 +15,22 @@ const servicesSchema = Joi.alternatives()
     "any.required": "services required"
   });
 
+// Per-hit fees in USD, by kind of hit. Validated tightly because a wrong number
+// here charges real money on every request and gtwy-ai takes the value as given.
+// The cap is a typo guard, not a policy: raise it deliberately if a plan really
+// needs to charge more than $10 a hit.
+const hitFeesSchema = Joi.object()
+  .keys({
+    api: Joi.number().min(0).max(10).default(0),
+    chatbot: Joi.number().min(0).max(10).default(0),
+    embed: Joi.number().min(0).max(10).default(0)
+  })
+  .optional()
+  .messages({
+    "object.unknown": "hit_fees accepts only api, chatbot and embed",
+    "number.max": "a per-hit fee above $10 looks like a mistake"
+  });
+
 // The wire slug shared with gtwy-ai, which coerces anything else to "free".
 // Widening this list is a two-repo change, gtwy-ai first.
 const planCodeSchema = Joi.string().valid("free", "paid").required().messages({
@@ -31,7 +47,10 @@ const setBillingPlan = {
     status: Joi.number().valid(0, 1).default(1),
     // The balance a paid subscription invoice tops the wallet up TO. Optional so
     // an edit that does not mention it leaves the stored value alone.
-    monthly_credits: Joi.number().integer().min(0).optional()
+    monthly_credits: Joi.number().integer().min(0).optional(),
+    // Per-hit fees for this plan. Optional, and sending it REPLACES the stored
+    // map, so include every kind you want charged.
+    hit_fees: hitFeesSchema
   })
 };
 
