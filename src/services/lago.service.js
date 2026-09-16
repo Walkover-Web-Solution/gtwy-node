@@ -68,11 +68,145 @@ const lagoRequest = async (fn) => {
 };
 
 // Create (or upsert) the Lago customer for an org.
-export const createCustomer = async (org_id) =>
+export const createCustomer = async (org_id, { email = null } = {}) =>
   lagoRequest(() =>
     axios
-      .post(`${BILLING_API_URL}/customers`, { customer: { external_id: String(org_id), name: String(org_id) } }, billingRequestConfig())
+      .post(
+        `${BILLING_API_URL}/customers`,
+        { customer: { external_id: String(org_id), name: String(org_id), ...(email ? { email } : {}) } },
+        billingRequestConfig()
+      )
       .then((r) => r.data)
+  );
+
+// The Lago customer as Lago holds it, or null when it does not exist.
+export const getCustomer = async (org_id) =>
+  lagoRequest(() =>
+    axios
+      .get(`${BILLING_API_URL}/customers/${encodeURIComponent(String(org_id))}`, billingRequestConfig())
+      .then((r) => r.data?.customer ?? null)
+      .catch((err) => {
+        if (err?.response?.status === 404) return null;
+        throw err;
+      })
+  );
+
+// --- Stripe through Lago ------------------------------------------------------
+// Lago owns the Stripe customer, the card and every charge. Our side only tells
+// Lago WHICH payment-provider connection to use for an org (the one configured
+// in Lago's Integrations page), then asks Lago for the hosted pages.
+const STRIPE_PROVIDER_CODE = () => process.env.LAGO_STRIPE_PROVIDER_CODE || "";
+
+// Attach the org's Lago customer to the Stripe connection. `sync: true` makes
+// Lago create the Stripe customer before answering, so a checkout URL can be
+// requested right after. POST /customers is Lago's upsert (the deployed Lago
+// has no PUT /customers/:id route — it answers the generic 404
+// `resource_not_found`, verified live 2026-09-15), so this is safe to call on
+// every checkout: only the fields sent are touched.
+export const setCustomerPaymentProvider = async (org_id, { email = null } = {}) => {
+  const payment_provider_code = STRIPE_PROVIDER_CODE();
+  if (!payment_provider_code) throw new Error("LAGO_STRIPE_PROVIDER_CODE is not set — cannot attach a payment provider");
+  return lagoRequest(() =>
+    axios
+      .post(
+        `${BILLING_API_URL}/customers`,
+        {
+          customer: {
+            external_id: String(org_id),
+            name: String(org_id),
+            ...(email ? { email } : {}),
+            billing_configuration: {
+              payment_provider: "stripe",
+              payment_provider_code,
+              sync: true,
+              sync_with_provider: true,
+              provider_payment_methods: ["card"]
+            }
+          }
+        },
+        billingRequestConfig()
+      )
+      .then((r) => r.data?.customer ?? r.data)
+  );
+};
+
+// Stripe Checkout in SETUP mode: saves a card on the Lago-owned Stripe customer,
+// charges nothing. Lago's Stripe connection decides where Stripe redirects after.
+export const getCheckoutUrl = async (org_id) =>
+  lagoRequest(() =>
+    axios
+      .post(`${BILLING_API_URL}/customers/${encodeURIComponent(String(org_id))}/checkout_url`, {}, billingRequestConfig())
+      .then((r) => r.data?.customer?.checkout_url ?? null)
+  );
+
+// Lago's hosted customer portal (invoices, usage, credits). Token lives 12h.
+export const getPortalUrl = async (org_id) =>
+  lagoRequest(() =>
+    axios
+      .get(`${BILLING_API_URL}/customers/${encodeURIComponent(String(org_id))}/portal_url`, billingRequestConfig())
+      .then((r) => r.data?.customer?.portal_url ?? null)
+  );
+
+export const getInvoice = async (lago_id) =>
+  lagoRequest(() =>
+    axios.get(`${BILLING_API_URL}/invoices/${encodeURIComponent(String(lago_id))}`, billingRequestConfig()).then((r) => r.data?.invoice ?? null)
+  );
+
+// The org's invoices, newest first. Filters are passed straight to Lago.
+export const listInvoices = async (org_id, { payment_status, status, invoice_type, per_page = 50, page = 1 } = {}) =>
+  lagoRequest(() =>
+    axios
+      .get(`${BILLING_API_URL}/invoices`, {
+        ...billingRequestConfig(),
+        params: {
+          external_customer_id: String(org_id),
+          per_page,
+          page,
+          ...(payment_status ? { payment_status } : {}),
+          ...(status ? { status } : {}),
+          ...(invoice_type ? { invoice_type } : {})
+        }
+      })
+      .then((r) => r.data?.invoices ?? [])
+  );
+
+// Ask Lago to charge the invoice again through the payment provider. The
+// outcome arrives as a webhook (payment_status_updated / payment_failure).
+export const retryInvoicePayment = async (lago_id) =>
+  lagoRequest(() =>
+    axios
+      .post(`${BILLING_API_URL}/invoices/${encodeURIComponent(String(lago_id))}/retry_payment`, {}, billingRequestConfig())
+      .then((r) => r.data?.invoice ?? r.data)
+  );
+
+export const voidInvoice = async (lago_id) =>
+  lagoRequest(() =>
+    axios
+      .post(`${BILLING_API_URL}/invoices/${encodeURIComponent(String(lago_id))}/void`, {}, billingRequestConfig())
+      .then((r) => r.data?.invoice ?? r.data)
+  );
+
+// Terminate a subscription NOW. No credit note and no closing invoice: this is
+// only used to end unpaid Pro access, where charging or refunding would be wrong.
+export const terminateSubscription = async (external_id, { status = null } = {}) =>
+  lagoRequest(() =>
+    axios
+      .delete(`${BILLING_API_URL}/subscriptions/${encodeURIComponent(String(external_id))}`, {
+        ...billingRequestConfig(),
+        params: { on_termination_credit_note: "skip", on_termination_invoice: "skip", ...(status ? { status } : {}) }
+      })
+      .then((r) => r.data?.subscription ?? r.data)
+  );
+
+// Subscriptions on a plan, one page at a time (for the reconcile sweep).
+export const listSubscriptionsByPlan = async (plan_slug, { status = "active", per_page = 100, page = 1 } = {}) =>
+  lagoRequest(() =>
+    axios
+      .get(`${BILLING_API_URL}/subscriptions`, {
+        ...billingRequestConfig(),
+        params: { plan_code: planCodeFor(plan_slug), "status[]": status, per_page, page }
+      })
+      .then((r) => ({ subscriptions: r.data?.subscriptions ?? [], meta: r.data?.meta ?? {} }))
   );
 
 // POST /subscriptions is how Lago does BOTH "create" and "change plan": the
@@ -90,7 +224,13 @@ export const createCustomer = async (org_id) =>
 // not rotate anything — it mints a SECOND active subscription alongside the
 // first, and getSubscription's `subs.find(active)` then picks between them by
 // luck. Only a genuinely new subscription gets the canonical id.
-export const createSubscription = async (org_id, plan_slug = DEFAULT_PLAN_SLUG, { isChange = false, external_id } = {}) =>
+//
+// billing_time (creation only; Lago IGNORES it on a plan change and keeps the
+// current subscription's — verified live 2026-09-15): "calendar" bills on the
+// 1st with the first period prorated; "anniversary" bills the full amount on
+// the start date and renews on that day. Free subscriptions use calendar; the
+// paid one is created fresh with anniversary so the customer pays a flat $20.
+export const createSubscription = async (org_id, plan_slug = DEFAULT_PLAN_SLUG, { isChange = false, external_id, billing_time = "calendar" } = {}) =>
   lagoRequest(() => {
     const subscription = {
       external_customer_id: String(org_id),
@@ -98,7 +238,7 @@ export const createSubscription = async (org_id, plan_slug = DEFAULT_PLAN_SLUG, 
       external_id: external_id || subscriptionExternalId(org_id),
       name: `subscription-${org_id}`
     };
-    if (!isChange) subscription.billing_time = "calendar";
+    if (!isChange) subscription.billing_time = billing_time;
     return axios.post(`${BILLING_API_URL}/subscriptions`, { subscription }, billingRequestConfig()).then((r) => r.data);
   });
 
@@ -115,11 +255,25 @@ export const getSubscription = async (org_id) => {
   const pending = subs.find((sub) => sub.status === "pending") || null;
   if (!active) return pending ? { pending_only: true, pending } : null;
   return {
+    lago_id: active.lago_id ?? null,
     external_id: active.external_id,
     plan_code: active.plan_code,
     plan_slug: planSlugForCode(active.plan_code),
     status: active.status,
-    pending: pending ? { plan_code: pending.plan_code, status: pending.status } : null
+    // Period bounds, when Lago exposes them (newer versions do). Used for
+    // "cancels on <date>" in the UI; null is handled everywhere.
+    current_period_start: active.current_billing_period_started_at ?? null,
+    current_period_end: active.current_billing_period_ending_at ?? null,
+    ending_at: active.ending_at ?? null,
+    pending: pending
+      ? {
+          external_id: pending.external_id,
+          plan_code: pending.plan_code,
+          plan_slug: planSlugForCode(pending.plan_code),
+          status: pending.status,
+          subscription_at: pending.subscription_at ?? null
+        }
+      : null
   };
 };
 
@@ -201,14 +355,54 @@ export const createWallet = async (org_id, plan_slug = DEFAULT_PLAN_SLUG) => {
     name: `wallet-${org_id}`,
     currency: WALLET_CURRENCY,
     rate_amount: WALLET_RATE_AMOUNT,
-    granted_credits
+    granted_credits,
+    applies_to: WALLET_APPLIES_TO
   };
   const response = await lagoRequest(() => axios.post(`${BILLING_API_URL}/wallets`, { wallet }, billingRequestConfig()));
   return response.data;
 };
 
-// Drop the cached plan so the next read comes from Lago.
-const invalidatePlanCache = async (org_id) => {
+// Wallet credits pay for USAGE ONLY. Left unrestricted (Lago's default), a
+// wallet is applied to every invoice of the customer — including the $20 Pro
+// subscription fee — so the fee would be paid from the org's credits, the card
+// never charged, and the paid-invoice webhook would then refill the credits.
+// Verified live on 2026-09-15: a $10.67 fee consumed 4,268 credits. Lago's
+// `applies_to.fee_types` is the switch; "charge" = usage charges only.
+const WALLET_APPLIES_TO = { fee_types: ["charge"] };
+
+const walletPaysChargesOnly = (wallet) => {
+  const types = wallet?.applies_to?.fee_types;
+  return Array.isArray(types) && types.length === 1 && types[0] === "charge";
+};
+
+// Make sure EVERY active wallet of the org is restricted to usage charges.
+// Wallets created before this rule are fixed the first time the org touches
+// billing. All of them, not just the one getWallet reports from: an org with a
+// duplicate wallet (see getWallet) would otherwise leave the second one free to
+// settle the subscription fee, which is exactly the leak this prevents.
+// Returns { updated, wallet_ids } or null when the org has no wallet.
+export const ensureWalletPaysChargesOnly = async (org_id) => {
+  const active = await fetchActiveWallets(org_id);
+  if (!active.length) return null;
+  const unrestricted = active.filter((w) => !walletPaysChargesOnly(w));
+  if (!unrestricted.length) return { updated: false, wallet_ids: active.map((w) => w.lago_id) };
+  for (const wallet of unrestricted) {
+    await lagoRequest(() =>
+      axios.put(
+        `${BILLING_API_URL}/wallets/${encodeURIComponent(wallet.lago_id)}`,
+        { wallet: { applies_to: WALLET_APPLIES_TO } },
+        billingRequestConfig()
+      )
+    );
+    logger.info(`[lago] org ${org_id}: wallet ${wallet.lago_id} restricted to usage charges (was paying subscription fees)`);
+  }
+  await invalidateWalletCache(org_id);
+  return { updated: true, wallet_ids: unrestricted.map((w) => w.lago_id) };
+};
+
+// Drop the cached plan so the next read comes from Lago. Exported: the Lago
+// webhook handlers call it after every subscription change Lago reports.
+export const invalidatePlanCache = async (org_id) => {
   if (!client.isReady) return;
   await client.del(`${REDIS_PREFIX}${redis_keys.org_billing_plan_}${org_id}`).catch(() => {});
 };
@@ -255,6 +449,8 @@ export const ensureOrgSubscribed = async (org_id, { plan_slug = DEFAULT_PLAN_SLU
   const existingWallet = await getWallet(org_id);
   if (existingWallet) {
     wallet = { skipped: true, reason: "active wallet already exists" };
+    // Older wallets predate the charges-only rule; fix them as we pass.
+    await ensureWalletPaysChargesOnly(org_id).catch((err) => logger.error(`[lago] org ${org_id}: could not restrict wallet: ${err.message}`));
   } else {
     try {
       wallet = await createWallet(org_id, plan_slug);
@@ -271,7 +467,24 @@ export const ensureOrgSubscribed = async (org_id, { plan_slug = DEFAULT_PLAN_SLU
 };
 
 // The only function allowed to move an org between plans: Lago first, then the cache.
-export const changeOrgPlan = async (org_id, plan_slug, { actor = "", reason = "" } = {}) => {
+//
+// Lago applies an UPGRADE at once and DEFERS a downgrade to the end of the
+// current period (a pending subscription appears). Three ways to call this:
+//   default            — the change must be live when we return, else throw
+//                        (unchanged behaviour; what the admin route relies on).
+//   allowDeferred      — a downgrade Lago parks for period end is a success:
+//                        returns { deferred: true, ends_at }. Used by "cancel".
+//   immediate          — terminate the current subscription (no credit note, no
+//                        closing invoice) and create a fresh one on the target
+//                        plan, optionally with its own billingTime. Used to end
+//                        unpaid Pro, and to START Pro on anniversary billing
+//                        (a rotate-in-place would inherit the free plan's
+//                        calendar timing and prorate the first invoice).
+export const changeOrgPlan = async (
+  org_id,
+  plan_slug,
+  { actor = "", reason = "", allowDeferred = false, immediate = false, billingTime = "calendar" } = {}
+) => {
   const target_code = planCodeFor(plan_slug);
 
   if (!(await claimPlanChange(org_id))) {
@@ -284,10 +497,57 @@ export const changeOrgPlan = async (org_id, plan_slug, { actor = "", reason = ""
     }
 
     const previous_plan = current.plan_slug;
+    const who = `${actor || "unknown"}${reason ? ` (${reason})` : ""}`;
+
+    // Moving onto a plan with a fee: the wallet must not be allowed to pay it.
+    // Done before the POST so the very first invoice already sees the rule.
+    if (plan_slug !== DEFAULT_PLAN_SLUG) {
+      await ensureWalletPaysChargesOnly(org_id).catch((err) => {
+        throw new Error(`org ${org_id}: refusing to move to '${plan_slug}' — wallet could not be restricted to usage charges (${err.message})`);
+      });
+    }
+
     if (current.plan_code === target_code) {
-      // Lago already holds the plan; recording it only means clearing the cache.
+      // Lago already holds the plan. If a downgrade is parked, re-assigning the
+      // current plan is how Lago drops it ("resume"); a POST is needed for that.
+      if (current.pending && current.pending.plan_code !== target_code) {
+        await createSubscription(org_id, plan_slug, { isChange: true, external_id: current.external_id });
+        const after = await getSubscription(org_id);
+        const stillPending = after?.pending && after.pending.plan_code !== target_code;
+        if (stillPending) {
+          // Lago kept the pending row; remove it explicitly.
+          await terminateSubscription(after.pending.external_id, { status: "pending" });
+        }
+        await invalidatePlanCache(org_id);
+        logger.info(`[lago] org ${org_id} pending change to '${current.pending.plan_slug}' cancelled by ${who}`);
+        return { changed: false, deferred: false, resumed: true, plan: plan_slug, previous_plan, plan_code: target_code };
+      }
       await invalidatePlanCache(org_id);
       return { changed: false, deferred: false, plan: plan_slug, previous_plan, plan_code: target_code };
+    }
+
+    if (immediate) {
+      // Terminate, then create. Same external_id when Lago lets us reuse it,
+      // otherwise a suffixed one — walletDebit reads the real id, never guesses.
+      await terminateSubscription(current.external_id);
+      try {
+        await createSubscription(org_id, plan_slug, { external_id: current.external_id, billing_time: billingTime });
+      } catch (err) {
+        const status = err?.response?.status ?? err?.lagoStatus;
+        if (status !== 422 && status !== 409) throw err;
+        await createSubscription(org_id, plan_slug, {
+          external_id: `${current.external_id}-r${Math.floor(Date.now() / 1000)}`,
+          billing_time: billingTime
+        });
+      }
+      const after = await getSubscription(org_id);
+      if (!after || after.pending_only || after.plan_code !== target_code) {
+        throw new Error(`Lago did not activate plan '${plan_slug}' for org ${org_id} after terminating '${current.external_id}'`);
+      }
+      await invalidatePlanCache(org_id);
+      await invalidateSubscriptionExternalId(org_id);
+      logger.info(`[lago] org ${org_id} moved ${previous_plan} -> ${plan_slug} IMMEDIATELY (${billingTime} billing) by ${who}`);
+      return { changed: true, deferred: false, immediate: true, billing_time: billingTime, plan: plan_slug, previous_plan, plan_code: target_code };
     }
 
     // Rotate the subscription the org ACTUALLY has, whatever it is spelled.
@@ -296,6 +556,20 @@ export const changeOrgPlan = async (org_id, plan_slug, { actor = "", reason = ""
     // Read back rather than trusting the POST: a deferred change stays pending in Lago.
     const after = await getSubscription(org_id);
     if (!after || after.plan_code !== target_code) {
+      const pendingMatches = after?.pending?.plan_code === target_code;
+      if (allowDeferred && pendingMatches) {
+        await invalidatePlanCache(org_id);
+        logger.info(`[lago] org ${org_id} change ${previous_plan} -> ${plan_slug} deferred to period end by ${who}`);
+        return {
+          changed: false,
+          deferred: true,
+          plan: previous_plan,
+          previous_plan,
+          plan_code: current.plan_code,
+          target_plan: plan_slug,
+          ends_at: after?.current_period_end ?? after?.pending?.subscription_at ?? null
+        };
+      }
       const pendingCode = after?.pending?.plan_code || after?.pending_only;
       throw new Error(
         `Lago did not activate plan '${plan_slug}' for org ${org_id} — ` +
@@ -308,7 +582,7 @@ export const changeOrgPlan = async (org_id, plan_slug, { actor = "", reason = ""
     // Lago GET and it is the difference between "charges follow the org" and
     // "charges go to a subscription that was just replaced".
     await invalidateSubscriptionExternalId(org_id);
-    logger.info(`[lago] org ${org_id} moved ${previous_plan} -> ${plan_slug} by ${actor || "unknown"}${reason ? ` (${reason})` : ""}`);
+    logger.info(`[lago] org ${org_id} moved ${previous_plan} -> ${plan_slug} by ${who}`);
     return { changed: true, deferred: false, plan: plan_slug, previous_plan, plan_code: target_code };
   } finally {
     await releasePlanChange(org_id);
@@ -388,6 +662,11 @@ export const getWallet = async (org_id) => {
     ongoing_balance_cents: sumCredits(active, "ongoing_balance_cents"),
     expiration_at: primary.expiration_at,
     credits_ongoing_balance: String(sumCredits(active, "credits_ongoing_balance")),
+    // Usage consumed but not yet invoiced. credits_balance minus this is the
+    // spendable amount the monthly top-up computes against, and unlike
+    // credits_ongoing_balance it does not depend on Lago's asynchronous refresh
+    // job (a brand-new wallet reports ongoing 0.0 while credits_balance already
+    // holds the signup grant).
     credits_ongoing_usage_balance: String(sumCredits(active, "credits_ongoing_usage_balance")),
     active_wallet_count: active.length,
     wallet_ids: active.map((w) => w.lago_id)
@@ -486,7 +765,35 @@ export const syncWalletBalanceToRedis = async (org_id) => {
   return balance;
 };
 
-// Credit a paid top-up to the wallet once per reference_id and move the org onto the paid plan.
+// Add `delta` credits to the gate's shadow balance WITHOUT overwriting it.
+//
+// gtwy-ai seeds this key NX from Lago and then mutates it with INCRBYFLOAT as
+// requests reserve and settle credits. A plain SET here (syncWalletBalanceToRedis)
+// would erase the decrements of every in-flight hold — phantom credits. So a
+// webhook credit is applied as an increment, and only when the key exists; an
+// absent key means nothing is cached and gtwy-ai will seed the post-credit figure
+// from Lago on its next request. Returns the new balance, or null when skipped.
+export const incrementRedisBalance = async (org_id, delta) => {
+  const amount = Number(delta);
+  if (!Number.isFinite(amount) || amount === 0) return null;
+  if (!client.isReady) return null;
+  const key = `${REDIS_PREFIX}${redis_keys.billing_credit_balance_}{${org_id}}`;
+  // EXISTS + INCRBYFLOAT are two commands; a seed landing in between would be
+  // an NX seed of the post-credit Lago figure, which INCRBYFLOAT then bumps
+  // again. Do it atomically in Lua.
+  const script = `if redis.call('EXISTS', KEYS[1]) == 1 then return redis.call('INCRBYFLOAT', KEYS[1], ARGV[1]) else return false end`;
+  const result = await client.eval(script, { keys: [key], arguments: [String(amount)] }).catch((err) => {
+    logger.error(`[lago] incrementRedisBalance failed for org ${org_id}: ${err.message}`);
+    return null;
+  });
+  await invalidateWalletCache(org_id);
+  return result === null || result === false ? null : String(result);
+};
+
+// Credit a top-up to the wallet once per reference_id. Credits only: since the
+// paid plan is sold through Stripe (via Lago), a top-up no longer moves the org
+// onto `paid` — that plan carries a monthly fee and is entered only by
+// POST /api/billing/subscribe. Use POST /api/lago/plan for a deliberate admin move.
 export const topupWallet = async (org_id, credits, { reference_id, metadata = {} } = {}) => {
   if (!(await claimTopupReference(reference_id))) {
     return { duplicate: true, credits_balance: await syncWalletBalanceToRedis(org_id) };
@@ -502,12 +809,6 @@ export const topupWallet = async (org_id, credits, { reference_id, metadata = {}
     // The credit never reached Lago, so hand the claim back and let the same reference_id retry.
     await releaseTopupClaim(reference_id);
     throw err;
-  }
-
-  try {
-    await changeOrgPlan(org_id, "paid", { actor: "topup", reason: reference_id || "wallet top-up" });
-  } catch (err) {
-    logger.error(`[lago] top-up succeeded but plan flip failed for org ${org_id}: ${err.message}`);
   }
 
   return { duplicate: false, transaction, credits_balance: await syncWalletBalanceToRedis(org_id) };
