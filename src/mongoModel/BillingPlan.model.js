@@ -23,6 +23,14 @@ const BillingPlanSchema = new mongoose.Schema(
       type: Number,
       default: 0
     },
+    // The balance every PAID subscription invoice tops the wallet up TO (the
+    // "8,000 credits a month" of the Pro plan). 0 = the plan grants nothing per
+    // cycle. Lives here rather than in env so it is editable through the admin
+    // API with no deploy. gtwy-ai's loader ignores it.
+    monthly_credits: {
+      type: Number,
+      default: 0
+    },
     status: {
       type: Number,
       default: 1
