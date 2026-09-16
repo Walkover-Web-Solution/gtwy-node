@@ -5,15 +5,16 @@ import billingPlanService from "../db_services/billingPlan.service.js";
 
 // Create or update a plan definition.
 const setBillingPlan = async (req, res, next) => {
-  const { plan_code, display_name, services, credit_grant, status, monthly_credits } = req.body;
+  const { plan_code, display_name, services, credit_grant, status, monthly_credits, hit_fees } = req.body;
 
   const doc = await billingPlanService.upsertPlan(plan_code, {
     display_name,
     services,
     credit_grant,
     status,
-    // Mongoose strips undefined from $set, so omitting this leaves the stored value alone.
+    // Mongoose strips undefined from $set, so omitting these leaves the stored values alone.
     monthly_credits,
+    hit_fees,
     updated_by: req.profile?.user?.email || ""
   });
 

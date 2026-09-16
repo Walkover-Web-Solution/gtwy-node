@@ -31,6 +31,16 @@ const BillingPlanSchema = new mongoose.Schema(
       type: Number,
       default: 0
     },
+    // Flat USD charged once per HIT on this plan, on top of the model cost and
+    // the commission, keyed by the kind of hit: { api, chatbot, embed }. Lives
+    // here rather than in env so a new plan (Enterprise on a lower rate) is one
+    // API call with no deploy. A kind that is absent or 0 is not charged, and a
+    // plan with no hit_fees at all charges nothing. gtwy-ai reads this
+    // collection live and does the charging.
+    hit_fees: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {}
+    },
     status: {
       type: Number,
       default: 1
