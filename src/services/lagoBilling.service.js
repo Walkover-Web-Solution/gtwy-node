@@ -8,7 +8,7 @@ import { graceDays, webhookHmacKeys } from "../configs/lagoBilling.js";
 import {
   changeOrgPlan,
   ensureOrgSubscribed,
-  ensureWalletPaysChargesOnly,
+  ensureWalletInvariants,
   getCheckoutUrl,
   getInvoice,
   getOrgPlanSlug,
@@ -195,7 +195,7 @@ export const startCheckout = async (org_id, { email = null, initiated_by = "" } 
     await ensureOrgSubscribed(org_id);
     // The wallet must never pay the subscription fee; fix older wallets here,
     // before any invoice can exist.
-    await ensureWalletPaysChargesOnly(org_id);
+    await ensureWalletInvariants(org_id);
     const customer = await setCustomerPaymentProvider(org_id, { email });
     const url = await getCheckoutUrl(org_id);
     if (!url) throw new BillingError("Lago returned no checkout URL", { statusCode: 502 });
@@ -572,7 +572,7 @@ const handleInvoicePaymentStatusUpdated = async ({ object, org_id, unique_key, s
     case "succeeded": {
       // The fee must have been paid by the card, never by the org's own
       // credits. A wallet that paid any part of it is misconfigured (see
-      // ensureWalletPaysChargesOnly); crediting here would refill credits that
+      // ensureWalletInvariants); crediting here would refill credits that
       // just paid for themselves. Permanent: a human fixes the wallet and replays.
       if (Number(invoice.prepaid_credit_amount_cents) > 0) {
         alert(

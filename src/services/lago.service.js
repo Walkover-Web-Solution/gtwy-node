@@ -356,48 +356,59 @@ export const createWallet = async (org_id, plan_slug = DEFAULT_PLAN_SLUG) => {
     currency: WALLET_CURRENCY,
     rate_amount: WALLET_RATE_AMOUNT,
     granted_credits,
-    applies_to: WALLET_APPLIES_TO
+    ...WALLET_INVARIANTS
   };
   const response = await lagoRequest(() => axios.post(`${BILLING_API_URL}/wallets`, { wallet }, billingRequestConfig()));
   return response.data;
 };
 
-// Wallet credits pay for USAGE ONLY. Left unrestricted (Lago's default), a
-// wallet is applied to every invoice of the customer — including the $20 Pro
-// subscription fee — so the fee would be paid from the org's credits, the card
-// never charged, and the paid-invoice webhook would then refill the credits.
-// Verified live on 2026-09-15: a $10.67 fee consumed 4,268 credits. Lago's
-// `applies_to.fee_types` is the switch; "charge" = usage charges only.
+// --- wallet invariants --------------------------------------------------------
+// Two Lago defaults are wrong for us, and each one hands out credits nobody
+// paid for. Both are wallet settings, so they are applied at creation and
+// repaired on any wallet that predates them.
+//
+// 1. applies_to.fee_types — an unrestricted wallet settles EVERY invoice of the
+//    customer, including the $20 Pro subscription fee, so the fee is paid from
+//    the org's own credits, the card is never charged, and the paid-invoice
+//    webhook would then refill the credits. Verified live 2026-09-15: a $10.67
+//    fee consumed 4,268 credits. "charge" = usage charges only.
+//
+// 2. invoice_requires_successful_payment — false by default, which means a
+//    prepaid top-up (the wallet section of Lago's customer portal) grants the
+//    credits IMMEDIATELY and merely issues an invoice. If that invoice is never
+//    paid the customer keeps the credits. Verified live 2026-09-16 on org
+//    74145: invoices of $0.25 and $12.50 sat at payment_status "pending" for
+//    days while 100 and 5,000 credits had already been granted. True makes Lago
+//    hold the credits until the payment actually succeeds. It does NOT affect
+//    granted_credits — our monthly reset still settles instantly (verified).
 const WALLET_APPLIES_TO = { fee_types: ["charge"] };
 
-const walletPaysChargesOnly = (wallet) => {
+const WALLET_INVARIANTS = { applies_to: WALLET_APPLIES_TO, invoice_requires_successful_payment: true };
+
+const walletIsSound = (wallet) => {
   const types = wallet?.applies_to?.fee_types;
-  return Array.isArray(types) && types.length === 1 && types[0] === "charge";
+  const chargesOnly = Array.isArray(types) && types.length === 1 && types[0] === "charge";
+  return chargesOnly && wallet?.invoice_requires_successful_payment === true;
 };
 
-// Make sure EVERY active wallet of the org is restricted to usage charges.
-// Wallets created before this rule are fixed the first time the org touches
-// billing. All of them, not just the one getWallet reports from: an org with a
-// duplicate wallet (see getWallet) would otherwise leave the second one free to
-// settle the subscription fee, which is exactly the leak this prevents.
+// Enforce both invariants on EVERY active wallet of the org. All of them, not
+// just the one getWallet reports from: an org with a duplicate wallet (see
+// getWallet) would otherwise leave the second one free to settle the
+// subscription fee or to hand out unpaid credits.
 // Returns { updated, wallet_ids } or null when the org has no wallet.
-export const ensureWalletPaysChargesOnly = async (org_id) => {
+export const ensureWalletInvariants = async (org_id) => {
   const active = await fetchActiveWallets(org_id);
   if (!active.length) return null;
-  const unrestricted = active.filter((w) => !walletPaysChargesOnly(w));
-  if (!unrestricted.length) return { updated: false, wallet_ids: active.map((w) => w.lago_id) };
-  for (const wallet of unrestricted) {
+  const unsound = active.filter((w) => !walletIsSound(w));
+  if (!unsound.length) return { updated: false, wallet_ids: active.map((w) => w.lago_id) };
+  for (const wallet of unsound) {
     await lagoRequest(() =>
-      axios.put(
-        `${BILLING_API_URL}/wallets/${encodeURIComponent(wallet.lago_id)}`,
-        { wallet: { applies_to: WALLET_APPLIES_TO } },
-        billingRequestConfig()
-      )
+      axios.put(`${BILLING_API_URL}/wallets/${encodeURIComponent(wallet.lago_id)}`, { wallet: WALLET_INVARIANTS }, billingRequestConfig())
     );
-    logger.info(`[lago] org ${org_id}: wallet ${wallet.lago_id} restricted to usage charges (was paying subscription fees)`);
+    logger.info(`[lago] org ${org_id}: wallet ${wallet.lago_id} set to usage-charges-only and payment-before-credits`);
   }
   await invalidateWalletCache(org_id);
-  return { updated: true, wallet_ids: unrestricted.map((w) => w.lago_id) };
+  return { updated: true, wallet_ids: unsound.map((w) => w.lago_id) };
 };
 
 // Drop the cached plan so the next read comes from Lago. Exported: the Lago
@@ -450,7 +461,7 @@ export const ensureOrgSubscribed = async (org_id, { plan_slug = DEFAULT_PLAN_SLU
   if (existingWallet) {
     wallet = { skipped: true, reason: "active wallet already exists" };
     // Older wallets predate the charges-only rule; fix them as we pass.
-    await ensureWalletPaysChargesOnly(org_id).catch((err) => logger.error(`[lago] org ${org_id}: could not restrict wallet: ${err.message}`));
+    await ensureWalletInvariants(org_id).catch((err) => logger.error(`[lago] org ${org_id}: could not restrict wallet: ${err.message}`));
   } else {
     try {
       wallet = await createWallet(org_id, plan_slug);
@@ -502,7 +513,7 @@ export const changeOrgPlan = async (
     // Moving onto a plan with a fee: the wallet must not be allowed to pay it.
     // Done before the POST so the very first invoice already sees the rule.
     if (plan_slug !== DEFAULT_PLAN_SLUG) {
-      await ensureWalletPaysChargesOnly(org_id).catch((err) => {
+      await ensureWalletInvariants(org_id).catch((err) => {
         throw new Error(`org ${org_id}: refusing to move to '${plan_slug}' — wallet could not be restricted to usage charges (${err.message})`);
       });
     }
