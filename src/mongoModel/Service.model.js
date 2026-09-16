@@ -25,6 +25,7 @@ const ServiceSchema = new mongoose.Schema(
     web_search_tool: { type: mongoose.Schema.Types.Mixed, default: null },
     image_generation_tool: { type: mongoose.Schema.Types.Mixed, default: null },
     code_interpreter_tool: { type: mongoose.Schema.Types.Mixed, default: null },
+    in_built_tools: { type: [mongoose.Schema.Types.Mixed], default: [] }, // [{ name, description, value }] provider-native prebuilt tools exposed in the Tools dropdown
     status: { type: Number, default: 1 }
   },
   { strict: true }
