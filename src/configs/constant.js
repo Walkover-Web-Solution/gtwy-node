@@ -75,6 +75,7 @@ const redis_keys = {
   // Stripe-through-Lago. Per-org: one checkout at a time (15s). Global: the
   // nightly billing reconcile runs on one replica only (1h) — no leader election.
   billing_checkout_lock_: "nd_billing_checkout_lock_",
+  billing_lago_plan_: "nd_billing_lago_plan_",
   billing_reconcile_lock: "nd_billing_reconcile_lock"
 };
 

@@ -11,6 +11,7 @@ import {
   ensureWalletInvariants,
   getCheckoutUrl,
   getInvoice,
+  getLagoPlan,
   getOrgPlanSlug,
   getPortalUrl,
   getSubscription,
@@ -318,16 +319,25 @@ export const getPortal = async (org_id) => {
 
 // What the frontend banner needs: the plan Lago enforces + our state row.
 export const getSubscriptionView = async (org_id) => {
-  const [plan, row, paid] = await Promise.all([
+  const [plan, row, paid, lagoPaid] = await Promise.all([
     getOrgPlanSlug(org_id),
     orgBillingService.getByOrg(org_id),
-    billingPlanService.getPlan(PAID_SLUG).catch(() => null)
+    billingPlanService.getPlan(PAID_SLUG).catch(() => null),
+    getLagoPlan(PAID_SLUG).catch(() => {
+      return null;
+    })
   ]);
   const status = row?.status ?? "none";
   const onPaid = plan === PAID_SLUG;
   const cancelling = Boolean(row?.cancel_at_period_end);
   return {
     plan,
+    paid_plan: {
+      code: PAID_SLUG,
+      display_name: paid?.display_name ?? lagoPaid?.name ?? null,
+      monthly_credits: Number(paid?.monthly_credits) || null,
+      price: lagoPaid ? { amount_cents: lagoPaid.amount_cents, currency: lagoPaid.amount_currency, interval: lagoPaid.interval } : null
+    },
     billing: {
       status,
       current_period_end: row?.current_period_end ?? null,
