@@ -1,4 +1,6 @@
 import billingPlanService from "../db_services/billingPlan.service.js";
+import { PLAN_SLUGS } from "../configs/billingPlans.js";
+import { getLagoPlan } from "../services/lago.service.js";
 
 // Admin management of what each billing plan includes. gtwy-ai reads the
 // collection live, so an edit takes effect with no deploy.
@@ -31,8 +33,22 @@ const listBillingPlans = async (req, res, next) => {
 };
 
 // Active plans, safe fields only — for any signed-in user to browse (e.g. the plans page).
+// The fee lives on the Lago plan, so it is attached here; a Lago miss leaves price null.
 const listPublicBillingPlans = async (req, res, next) => {
-  res.locals = { success: true, data: await billingPlanService.listActivePlans() };
+  const plans = await billingPlanService.listActivePlans();
+  const data = await Promise.all(
+    plans.map(async (plan) => {
+      if (!PLAN_SLUGS.includes(plan.plan_code)) return { ...plan, price: null };
+      const lagoPlan = await getLagoPlan(plan.plan_code).catch(() => {
+        return null;
+      });
+      return {
+        ...plan,
+        price: lagoPlan ? { amount_cents: lagoPlan.amount_cents, currency: lagoPlan.amount_currency, interval: lagoPlan.interval } : null
+      };
+    })
+  );
+  res.locals = { success: true, data };
   req.statusCode = 200;
   return next();
 };

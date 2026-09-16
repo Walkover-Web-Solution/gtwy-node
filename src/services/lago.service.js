@@ -139,6 +139,36 @@ export const getCheckoutUrl = async (org_id) =>
       .then((r) => r.data?.customer?.checkout_url ?? null)
   );
 
+// The Lago plan itself — the only place the subscription fee (amount, currency,
+// interval) lives. Cached briefly so the plans page does not hit Lago per view.
+const LAGO_PLAN_CACHE_TTL = 10 * 60;
+export const getLagoPlan = async (plan_slug) => {
+  const plan_code = planCodeFor(plan_slug);
+  const key = `${REDIS_PREFIX}${redis_keys.billing_lago_plan_}${plan_code}`;
+  const cached = await client.get(key).catch(() => null);
+  if (cached) {
+    try {
+      return JSON.parse(cached);
+    } catch {
+      /* fall through to Lago */
+    }
+  }
+  const plan = await lagoRequest(() =>
+    axios.get(`${BILLING_API_URL}/plans/${encodeURIComponent(plan_code)}`, billingRequestConfig()).then((r) => r.data?.plan ?? null)
+  );
+  if (!plan) return null;
+  const slim = {
+    code: plan.code,
+    name: plan.name ?? null,
+    amount_cents: Number(plan.amount_cents) || 0,
+    amount_currency: plan.amount_currency ?? WALLET_CURRENCY,
+    interval: plan.interval ?? null,
+    pay_in_advance: Boolean(plan.pay_in_advance)
+  };
+  await client.set(key, JSON.stringify(slim), { EX: LAGO_PLAN_CACHE_TTL }).catch(() => {});
+  return slim;
+};
+
 // Lago's hosted customer portal (invoices, usage, credits). Token lives 12h.
 export const getPortalUrl = async (org_id) =>
   lagoRequest(() =>
