@@ -7,6 +7,7 @@ import { deleteInCache } from "../cache_service/index.js";
 import { syncToolToViasocketEmbed } from "../services/utils/viasocketSync.utils.js";
 import conversationDbService from "../db_services/conversation.service.js";
 import apiCallService from "../db_services/apiCall.service.js";
+import { servicesRegistry } from "../services/utils/loadServicesRegistry.js";
 
 const { addBulkUserEntries } = conversationDbService;
 
@@ -236,38 +237,41 @@ const getAgentsAndVersionsByFunctionIds = async (req, res, next) => {
   return next();
 };
 
+// GTWY-owned prebuilt tools are provider-agnostic, so they stay static here.
+// Provider-native tools (web_search, image_generation, code_interpreter, ...)
+// come from the `in_built_tools` field on each `services` document.
+const GTWY_IN_BUILT_TOOLS = [
+  {
+    name: "GTWY Web Search",
+    isGtwyTool: true,
+    description: "Allow models that support tool calling to search the web for the latest information before generating a response.",
+    value: "Gtwy_Web_Search"
+  },
+  {
+    name: "GTWY Browser",
+    isGtwyTool: true,
+    description: "Allow models that support Browser to run and access any website.",
+    value: "Gtwy_Browser"
+  }
+];
+
 const getAllInBuiltToolsController = async (req, res, next) => {
+  const seen = new Set();
+  const providerTools = [];
+  for (const svc of Object.values(servicesRegistry)) {
+    for (const tool of svc?.in_built_tools || []) {
+      if (!tool?.value || seen.has(tool.value)) continue;
+      seen.add(tool.value);
+      providerTools.push({ name: tool.name, description: tool.description, value: tool.value });
+    }
+  }
+
+  const in_built_tools = [...providerTools, ...GTWY_IN_BUILT_TOOLS].map((tool, idx) => ({ id: String(idx + 1), ...tool }));
+
   res.locals = {
     success: true,
     message: "Get all inbuilt tools successfully",
-    in_built_tools: [
-      {
-        id: "1",
-        name: "Web Search",
-        description: "Allow models to search the web for the latest information before generating a response.",
-        value: "web_search"
-      },
-      {
-        id: "2",
-        name: "Image Generation",
-        description: "Allow models to generate images based on the user's input.",
-        value: "image_generation"
-      },
-      {
-        id: "3",
-        name: "GTWY Web Search",
-        isGtwyTool: true,
-        description: "Allow models that support tool calling to search the web for the latest information before generating a response.",
-        value: "Gtwy_Web_Search"
-      },
-      {
-        id: "4",
-        name: "GTWY Browser",
-        description: "Allow models that support Browser to run and access any website.",
-        isGtwyTool: true,
-        value: "Gtwy_Browser"
-      }
-    ]
+    in_built_tools
   };
   req.statusCode = 200;
   return next();
