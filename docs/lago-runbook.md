@@ -93,21 +93,34 @@ out Lago's hosted pages, moves the org onto the `paid` Lago plan when the user
 asks, and reacts to Lago's webhooks. Lago stays the plan-of-record gtwy-ai
 reads; gtwy-ai needs nothing.
 
-**Two Lago behaviours that would silently break this, and how they are handled**
-(both found on the live dev Lago on 2026-09-15):
+**Three Lago defaults that would silently break this, and how they are handled**
+(all three found against the live dev Lago, September 2026):
 
 1. **Wallets pay subscription fees by default.** An unrestricted Lago wallet is
    applied to _every_ invoice of the customer, so the $20 fee was paid from the
    org's usage credits (a $10.67 fee consumed 4,268 credits), the card was never
    charged, and the "paid" webhook would then have refilled the credits. Every
    wallet is therefore created with `applies_to.fee_types = ["charge"]` (usage
-   only), older wallets are fixed the first time the org touches billing
-   (`ensureWalletPaysChargesOnly`, called from provisioning, checkout and every
-   move onto a fee-bearing plan), and a paid invoice with any
-   `prepaid_credit_amount_cents` is a **permanent failure + alert**, never a
-   credit. Existing wallets in an environment can be backfilled up front with
-   `PUT /api/v1/wallets/{id} {"wallet":{"applies_to":{"fee_types":["charge"]}}}`.
-2. **A plan change inherits billing timing.** Rotating the free subscription
+   only), and a paid invoice with any `prepaid_credit_amount_cents` is a
+   **permanent failure + alert**, never a credit.
+1. **Prepaid top-ups grant credits before payment.** Lago's customer portal has
+   a wallet top-up, and with `invoice_requires_successful_payment` false (the
+   default) Lago hands over the credits immediately and merely issues an
+   invoice. If that invoice is never paid, the customer keeps the credits. Found
+   on org 74145: invoices of $0.25 and $12.50 sat at `payment_status: pending`
+   for days while 100 and 5,000 credits had already been granted. Wallets are
+   now created with the flag **true**, so Lago holds the credits until the
+   payment succeeds. It does not affect `granted_credits`, so the monthly Pro
+   reset still settles instantly.
+
+   Both settings are enforced together by `ensureWalletInvariants`, on **every**
+   active wallet of the org (an org with a duplicate wallet would otherwise
+   leave the second one free to do either), called from provisioning, checkout
+   and every move onto a fee-bearing plan. Existing wallets in an environment
+   can be backfilled up front with
+   `PUT /api/v1/wallets/{id} {"wallet":{"applies_to":{"fee_types":["charge"]},"invoice_requires_successful_payment":true}}`.
+
+1. **A plan change inherits billing timing.** Rotating the free subscription
    onto `paid` keeps its `calendar` billing, so Lago prorates the first invoice
    to month end ($10.67 on the 15th) and renews on the 1st. `/subscribe`
    therefore terminates the free subscription and creates the paid one fresh
