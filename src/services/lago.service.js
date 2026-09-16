@@ -6,6 +6,7 @@ import logger from "../logger.js";
 import { DEFAULT_PLAN_SLUG, planCodeFor, planSlugForCode } from "../configs/billingPlans.js";
 import billingPlanService from "../db_services/billingPlan.service.js";
 import { redis_keys } from "../configs/constant.js";
+import { unknown_error_handler_alert } from "./utils/utility.service.js";
 
 const BILLING_API_URL = process.env.BILLING_API_URL;
 const BILLING_API_KEY = process.env.BILLING_API_KEY;
@@ -341,29 +342,55 @@ export const reconcileOrgPlan = async (org_id) => {
 
 // The org's active wallet exactly as Lago returns it, or null. Internal: the
 // public shape is getWallet's.
-const fetchActiveWallet = async (org_id) => {
+const fetchActiveWallets = async (org_id) => {
   const response = await lagoRequest(() =>
     axios.get(`${BILLING_API_URL}/wallets`, {
       ...billingRequestConfig(),
       params: { external_customer_id: org_id }
     })
   );
-  const wallets = response?.data?.wallets || [];
-  return wallets.find((w) => w.status === "active") ?? null;
+  const wallets = (response?.data?.wallets || []).filter((w) => w.status === "active");
+  // Oldest first, so the choice below is reproducible instead of "whatever Lago
+  // listed first". Lago returns newest first, which is how org 20678 went a
+  // month reading a pristine wallet while its usage piled onto another one.
+  return wallets.sort((a, b) => String(a.created_at ?? "").localeCompare(String(b.created_at ?? "")));
 };
 
+const fetchActiveWallet = async (org_id) => (await fetchActiveWallets(org_id))[0] ?? null;
+
+const sumCredits = (wallets, field) => wallets.reduce((total, w) => total + (Number(w?.[field]) || 0), 0);
+
 // The org's active wallet from Lago, or null.
+//
+// An org should have exactly one. When it has more, Lago charges usage to one of
+// them and returns the other first, so reading a single wallet reports a balance
+// that never moves while the real one drains — org 20678 sat at a frozen 2440
+// while its usage ran to -284 on a second wallet, and the admission gate, which
+// seeds from this figure, never refused a request. So the credit figures below
+// are the SUM across every active wallet, i.e. the org's true net position,
+// whichever wallet Lago happens to draw from. Identity fields still come from
+// the oldest wallet, and the duplicate is reported and alerted rather than
+// silently averaged away.
 export const getWallet = async (org_id) => {
-  const active = await fetchActiveWallet(org_id);
-  if (!active) return null;
+  const active = await fetchActiveWallets(org_id);
+  if (!active.length) return null;
+  const primary = active[0];
+  if (active.length > 1) {
+    const ids = active.map((w) => w.lago_id).join(", ");
+    logger.error(`[lago] org ${org_id} has ${active.length} active wallets (${ids}) — balances summed; terminate the extras`);
+    unknown_error_handler_alert("lagoDuplicateWallet", null, `org ${org_id} has ${active.length} active wallets: ${ids}`);
+  }
   return {
-    credits_balance: active.credits_balance,
-    balance_cents: active.balance_cents,
-    currency: active.currency,
-    rate_amount: active.rate_amount,
-    ongoing_balance_cents: active.ongoing_balance_cents,
-    expiration_at: active.expiration_at,
-    credits_ongoing_balance: active.credits_ongoing_balance
+    credits_balance: String(sumCredits(active, "credits_balance")),
+    balance_cents: sumCredits(active, "balance_cents"),
+    currency: primary.currency,
+    rate_amount: primary.rate_amount,
+    ongoing_balance_cents: sumCredits(active, "ongoing_balance_cents"),
+    expiration_at: primary.expiration_at,
+    credits_ongoing_balance: String(sumCredits(active, "credits_ongoing_balance")),
+    credits_ongoing_usage_balance: String(sumCredits(active, "credits_ongoing_usage_balance")),
+    active_wallet_count: active.length,
+    wallet_ids: active.map((w) => w.lago_id)
   };
 };
 
