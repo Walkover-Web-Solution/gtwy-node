@@ -273,11 +273,21 @@ export const createSubscription = async (org_id, plan_slug = DEFAULT_PLAN_SLUG, 
   });
 
 // The org's active subscription as Lago sees it, or null.
+//
+// The status filter is NOT optional. Lago's GET /subscriptions returns only
+// ACTIVE subscriptions when no status is given, so a downgrade Lago has parked
+// for the end of the period — which is exactly what "cancel" creates — is
+// invisible without asking for it. Verified live 2026-09-17: the same query
+// returned 1 subscription bare and 2 with `status[]=active&status[]=pending`.
+// Every caller that reasons about `pending` (cancel, resume, the deferred
+// branch of changeOrgPlan, the "already cancelling" guard on subscribe) reads
+// from here, so leaving it off silently breaks all of them.
 export const getSubscription = async (org_id) => {
   const response = await lagoRequest(() =>
     axios.get(`${BILLING_API_URL}/subscriptions`, {
       ...billingRequestConfig(),
-      params: { external_customer_id: String(org_id) }
+      // axios turns an array value into status[]=active&status[]=pending.
+      params: { external_customer_id: String(org_id), status: ["active", "pending"] }
     })
   );
   const subs = response?.data?.subscriptions || [];
