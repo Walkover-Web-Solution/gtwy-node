@@ -130,11 +130,29 @@ reads; gtwy-ai needs nothing.
 
 **What a payment does.** Lago bills the `paid` plan in advance; the moment the
 org is moved onto it and at every renewal it issues a subscription invoice and
-charges the card. `invoice.payment_status_updated` with `succeeded` tops the
-wallet up TO `billing_plans.paid.monthly_credits` (Lago wallets only add, so
-"reset to 8,000" is `max(0, 8000 − spendable)`; nothing is ever clawed back),
-bumps the Redis shadow balance by that delta (an `INCRBYFLOAT`, never a `SET`,
-so in-flight holds survive) and marks the org `active`.
+charges the card. `invoice.payment_status_updated` with `succeeded` credits the
+wallet, bumps the Redis shadow balance by that delta (an `INCRBYFLOAT`, never a
+`SET`, so in-flight holds survive) and marks the org `active`.
+
+How much it credits depends on whether the org is **upgrading** or **renewing**,
+and `isFirstPaidCycle` decides from the billing row:
+
+|         |                              |                                                    |
+| ------- | ---------------------------- | -------------------------------------------------- |
+| upgrade | ADD `monthly_credits` on top | 100 left on the free plan becomes 8,100, not 8,000 |
+| renewal | top up TO `monthly_credits`  | 3,000 left becomes 8,000; 9,500 left is untouched  |
+
+Upgrading must not confiscate credits the org already holds, which is why the
+first paid invoice of a subscription grants the whole allowance on top. Renewals
+reset instead, so unused credits do not accumulate month after month. Either way
+nothing is ever clawed back, and an org that was overdrawn on the free plan keeps
+its debt through an upgrade (−100 lands on 7,900).
+
+A customer who cancels and later subscribes again is upgrading, so they get the
+grant again — `subscribe()` stamps `pending_first_payment` every time. The
+credit is still claimed once per invoice by the partial unique index on
+`billing_events`, which matters more now than it did under the old rule: a
+repeated grant would add a second allowance rather than quietly resolve to zero.
 
 **What a failed card does.** Lago does **not** retry payments (dunning is a Lago
 premium feature), so we do:
