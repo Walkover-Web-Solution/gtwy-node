@@ -6,7 +6,10 @@ import { redis_keys } from "../configs/constant.js";
 import { planCodeFor } from "../configs/billingPlans.js";
 import { graceDays, webhookHmacKeys } from "../configs/lagoBilling.js";
 import {
+  CREDIT_PACK_ADD_ON_CODE,
   changeOrgPlan,
+  createCreditPackInvoice,
+  ensureCreditPackAddOn,
   ensureOrgSubscribed,
   ensureWalletInvariants,
   getCheckoutUrl,
@@ -18,6 +21,7 @@ import {
   getWallet,
   incrementRedisBalance,
   invalidatePlanCache,
+  invoicePaymentUrl,
   listInvoices,
   listSubscriptionsByPlan,
   reconcileOrgPlan,
@@ -108,14 +112,30 @@ export const CREDIT_RESET = "reset";
 // no earlier allowance to be renewing.
 export const isFirstPaidCycle = (row) => row?.status === "pending_first_payment" || !row?.last_paid_invoice_id;
 
-export const computeCreditDelta = (spendable, monthly, mode = CREDIT_RESET) => {
+// How much of the wallet is credits the org BOUGHT rather than was granted.
+// Lago holds one balance, so the split is a convention: usage comes out of the
+// monthly allowance first, and the purchased pile only starts draining once the
+// allowance is gone. Never more than the wallet actually holds.
+export const remainingPurchasedCredits = (spendable, purchasedBalance) => {
+  const purchased = Math.max(0, Number(purchasedBalance) || 0);
+  const current = Number(spendable);
+  if (!Number.isFinite(current)) return purchased;
+  return Math.min(Math.max(current, 0), purchased);
+};
+
+export const computeCreditDelta = (spendable, monthly, mode = CREDIT_RESET, purchasedBalance = 0) => {
   const allowance = Number(monthly);
   if (!Number.isFinite(allowance) || allowance <= 0) throw new BillingError(`invalid monthly_credits target: ${monthly}`);
   if (mode === CREDIT_GRANT) return String(Number(allowance.toFixed(4)));
 
   const current = Number(spendable);
   if (!Number.isFinite(current)) throw new BillingError(`wallet balance is not numeric: ${spendable}`);
-  const delta = allowance - current;
+  // Only the ALLOWANCE part of the balance is reset. Credits the org bought sit
+  // on top and are carried over untouched, otherwise buying extra credits would
+  // cannibalise the next month: an org holding more than the allowance would be
+  // topped up by nothing and would have paid for a month it never received.
+  const allowanceRemaining = current - remainingPurchasedCredits(current, purchasedBalance);
+  const delta = allowance - allowanceRemaining;
   if (delta <= 0) return "0";
   return String(Number(delta.toFixed(4)));
 };
@@ -334,6 +354,182 @@ export const retryOpenInvoice = async (org_id) => {
   return { invoice_id: row.open_invoice_id, status: "retry_requested" };
 };
 
+// ----------------------------------------------------------- credit packs
+
+// The product's standing offer, used when a plan document does not name its
+// own packs. A plan CAN name them — billing_plans.<slug>.credit_packs, editable
+// through PUT /api/billing-plans with no deploy — which is also how a plan is
+// stopped from offering any: store an empty list.
+const DEFAULT_CREDIT_PACKS_USD = [10, 20, 50, 100];
+
+export const creditPacksForPlan = (plan) => {
+  const stored = plan?.credit_packs;
+  if (!Array.isArray(stored)) return DEFAULT_CREDIT_PACKS_USD;
+  const packs = stored.map(Number).filter((n) => Number.isFinite(n) && n > 0);
+  return [...new Set(packs)].sort((a, b) => a - b);
+};
+
+// What the org can buy, and what each pack is worth. The credits are NOT a
+// stored number: they are the USD amount divided by the org's own credit rate,
+// which is the same rate its usage is charged at. So a pack is priced by the
+// one pricing rule the product already has, and it stays right in an
+// environment whose rate differs. The offer comes from the org's CURRENT plan,
+// so Pro and free can be given different packs, or free none at all.
+export const listCreditPacks = async (org_id) => {
+  const [wallet, slug, row] = await Promise.all([getWallet(org_id), getOrgPlanSlug(org_id), orgBillingService.getByOrg(org_id)]);
+  const rate = Number(wallet?.rate_amount) || Number(process.env.LAGO_CREDIT_RATE_USD);
+  if (!Number.isFinite(rate) || rate <= 0) throw new BillingError("credit rate is not configured, cannot price a pack", { statusCode: 500 });
+  const planDoc = await billingPlanService.getPlan(slug).catch(() => null);
+  const packs = creditPacksForPlan(planDoc).map((usd) => ({ usd, credits: Math.round(usd / rate) }));
+  return {
+    plan: slug,
+    packs,
+    currency: wallet?.currency ?? "USD",
+    rate_per_credit: String(rate),
+    balance: wallet ? String(spendableCredits(wallet)) : null,
+    purchased_balance: Number(row?.credits_purchased_balance) || 0,
+    // No card needed up front: paying on Lago's hosted Stripe page saves one.
+    can_buy: packs.length > 0,
+    has_payment_method: Boolean(row?.has_payment_method),
+    pending_purchases: row?.pending_credit_purchases ?? {},
+    // Everything a "buying credits…" screen needs to stop waiting: the last
+    // pack that landed, a 3DS page the customer must visit, or the decline.
+    last_purchase: row?.last_credit_purchase_at
+      ? { credits: row.last_credit_purchase_credits, at: row.last_credit_purchase_at, invoice_id: row.last_credit_purchase_invoice_id }
+      : null,
+    requires_action_url: row?.requires_action_url ?? null,
+    last_payment_error: row?.last_payment_error ?? null
+  };
+};
+
+// A credit-pack invoice that has been paid. Routed through the ordinary event
+// path — the one the webhook takes — so the credits are granted once, the
+// bookkeeping is checkpointed, and the webhook that follows is a harmless repeat.
+const recordPaidCreditPack = async (org_id, invoice) => {
+  try {
+    return await processLagoEvent(syntheticPaidEvent(invoice));
+  } catch (err) {
+    // Never fail the request over the bookkeeping: the money is taken. The
+    // reconcile picks this up within the day.
+    logger.error(`[billing] org ${org_id}: credit pack ${invoice?.lago_id} paid but not yet recorded (${err.message})`);
+    alert("lagoCreditPurchaseUnrecorded", `org ${org_id}: invoice ${invoice?.lago_id} paid but bookkeeping failed: ${err.message}`);
+    return null;
+  }
+};
+
+// Buy one pack. Every purchase is paid on a hosted Stripe page — the customer
+// confirms there, Stripe charges, Lago records the payment, and our webhook
+// grants the credits. Never a charge behind the customer's back.
+//
+// Why a ONE-OFF invoice and not a wallet top-up: Lago charges a saved card off
+// session the instant it raises a wallet top-up, and on the Lago this runs
+// against (v1.42.0) the flag that would stop it is stored but ignored. A
+// one-off invoice raised with skip_psp is left unpaid, so Lago can hand out a
+// payment page for it. Verified live 2026-09-17. Revenue still lands in Lago as
+// a paid invoice; the wallet cannot pay for its own pack because it is
+// restricted to usage charges.
+//
+// Nothing is granted until the money is in. The amount is matched against the
+// packs the org's plan actually offers rather than taken as given, which would
+// otherwise let a caller mint whatever charge it liked.
+export const purchaseCredits = async (org_id, usd, { email = null, actor = "" } = {}) => {
+  const amount = Number(usd);
+  const lock = `${redis_keys.billing_checkout_lock_}purchase:${org_id}`;
+  if (!(await acquireLock(lock, 20))) {
+    throw new BillingError("a credit purchase for this org is already being created", { permanent: true, statusCode: 409 });
+  }
+  try {
+    const row = await orgBillingService.getByOrg(org_id);
+
+    // The same pack still has an open page? Hand back that page rather than
+    // raising another invoice against the customer. Paid meanwhile? That IS the
+    // purchase — report it, do not charge for it twice.
+    const pending = row?.pending_credit_purchases?.[String(amount)];
+    if (pending?.invoice_id && hoursAgo(pending.at, 24)) {
+      const existing = await getInvoice(pending.invoice_id).catch(() => null);
+      if (existing?.payment_status === "succeeded") {
+        await recordPaidCreditPack(org_id, existing);
+        return {
+          status: "paid",
+          usd: amount,
+          credits: pending.credits,
+          invoice_id: pending.invoice_id,
+          reused: true,
+          note: "this purchase has already been paid"
+        };
+      }
+      if (existing && existing.status !== "voided") {
+        const url = await invoicePaymentUrl(pending.invoice_id).catch(() => null);
+        if (url) {
+          return {
+            status: "payment_required",
+            url,
+            usd: amount,
+            credits: pending.credits,
+            invoice_id: pending.invoice_id,
+            reused: true,
+            note: "finish the payment on this page"
+          };
+        }
+      }
+    }
+
+    // Provision so an org that never had a wallet can buy, keep the wallet from
+    // paying invoices with itself, and attach the Stripe connection — the page
+    // is built against Lago's Stripe customer for the org. No card is needed:
+    // the page collects one and Stripe saves it.
+    await ensureOrgSubscribed(org_id);
+    await ensureWalletInvariants(org_id);
+    const customer = await setCustomerPaymentProvider(org_id, { email });
+
+    const { packs, rate_per_credit, plan } = await listCreditPacks(org_id);
+    const pack = packs.find((p) => p.usd === amount);
+    if (!pack) {
+      const offered = packs.map((p) => `$${p.usd}`).join(", ") || "none";
+      throw new BillingError(`${usd} is not a credit pack offered on the '${plan}' plan (${offered})`, { permanent: true, statusCode: 400 });
+    }
+
+    await ensureCreditPackAddOn();
+    const invoice = await createCreditPackInvoice(org_id, { usd: amount, credits: pack.credits, actor });
+    const url = await invoicePaymentUrl(invoice.lago_id).catch((err) => {
+      logger.error(`[billing] org ${org_id}: no payment page for credit-pack invoice ${invoice.lago_id}: ${err.message}`);
+      return null;
+    });
+    if (!url) {
+      // Do not leave an unpayable invoice on the customer's account.
+      await voidInvoice(invoice.lago_id).catch(() => {});
+      throw new BillingError("Lago returned no payment page for the credit purchase", { statusCode: 502 });
+    }
+
+    await orgBillingService.upsert(org_id, {
+      [`pending_credit_purchases.${amount}`]: {
+        invoice_id: invoice.lago_id,
+        invoice_number: invoice.number ?? null,
+        usd: amount,
+        credits: pack.credits,
+        at: new Date()
+      },
+      payment_provider_code: customer?.billing_configuration?.payment_provider_code ?? process.env.LAGO_STRIPE_PROVIDER_CODE ?? null,
+      stripe_customer_id: customer?.billing_configuration?.provider_customer_id ?? row?.stripe_customer_id ?? null,
+      lago_customer_id: customer?.lago_id ?? row?.lago_customer_id ?? null,
+      initiated_by: actor || row?.initiated_by || ""
+    });
+    logger.info(`[billing] org ${org_id}: credit pack of ${pack.credits} for $${amount} awaiting payment on Stripe (${actor || "unknown"})`);
+    return {
+      status: "payment_required",
+      url,
+      usd: amount,
+      credits: pack.credits,
+      rate_per_credit,
+      invoice_id: invoice.lago_id,
+      reused: false,
+      note: "pay on this page and the credits arrive"
+    };
+  } finally {
+    await releaseLock(lock);
+  }
+};
+
 export const getPortal = async (org_id) => {
   const row = await orgBillingService.getByOrg(org_id);
   if (!row?.payment_provider_code) throw new BillingError("org has no billing account yet", { permanent: true, statusCode: 404 });
@@ -456,6 +652,10 @@ const waitForWalletSettlement = async (org_id, wallet) => {
 // invoice creditable by exactly one event, whatever delivered the news.
 export const applyPaidCycle = async ({ org_id, invoice, unique_key, steps = {} }) => {
   let delta = steps.credit_delta ?? null;
+  // Read back on a retry: the split of the wallet into allowance and purchased
+  // credits was decided when the credit was computed, and must be what is
+  // written at the end even if the run crashed in between.
+  let carriedPurchased = steps.carried_purchased ?? null;
 
   if (!steps.credited) {
     const owns = await billingEventService.claimCredit(unique_key, invoice.lago_id);
@@ -470,9 +670,14 @@ export const applyPaidCycle = async ({ org_id, invoice, unique_key, steps = {} }
 
     // Read the row BEFORE the mirror at the bottom of this function stamps it
     // active: that is what tells an upgrade apart from a renewal.
-    const isUpgrade = isFirstPaidCycle(await orgBillingService.getByOrg(org_id));
+    const row = await orgBillingService.getByOrg(org_id);
+    const isUpgrade = isFirstPaidCycle(row);
+    const spendable = spendableCredits(wallet);
+    // Credits the org bought are carried over rather than reset, so the renewal
+    // tops up the allowance only. What is left of them becomes the new figure.
+    carriedPurchased = remainingPurchasedCredits(spendable, row?.credits_purchased_balance);
 
-    delta = computeCreditDelta(spendableCredits(wallet), paidPlan.monthly_credits, isUpgrade ? CREDIT_GRANT : CREDIT_RESET);
+    delta = computeCreditDelta(spendable, paidPlan.monthly_credits, isUpgrade ? CREDIT_GRANT : CREDIT_RESET, row?.credits_purchased_balance);
     if (delta !== "0") {
       // Five metadata keys: traceable to the Lago invoice; the period is on the subscription.
       await walletCredit(org_id, delta, {
@@ -484,6 +689,7 @@ export const applyPaidCycle = async ({ org_id, invoice, unique_key, steps = {} }
       });
     }
     await billingEventService.setStep(unique_key, "credit_delta", delta);
+    await billingEventService.setStep(unique_key, "carried_purchased", carriedPurchased);
     await billingEventService.setStep(unique_key, "credited", true);
   }
 
@@ -502,6 +708,7 @@ export const applyPaidCycle = async ({ org_id, invoice, unique_key, steps = {} }
     last_paid_invoice_id: invoice.lago_id,
     last_paid_at: new Date(),
     last_credit_delta: delta,
+    ...(carriedPurchased === null ? {} : { credits_purchased_balance: carriedPurchased }),
     last_payment_error: null,
     requires_action_url: null,
     open_invoice_id: null,
@@ -595,12 +802,134 @@ export const handlePaymentFailed = async ({ org_id, invoice, error = null }) => 
 
 // --------------------------------------------------------------- handlers
 
+// Is this one-off invoice one of ours for a credit pack? Told by the add-on it
+// bills, which nothing else in the product uses — or, when the payload carries
+// no fee lines, by the `source` we stamped into its metadata. Lago's invoice
+// LIST omits `fees` (only GET /invoices/:id includes them; verified live
+// 2026-09-17), so a reconcile reading the list would otherwise never recognise
+// a pack. Metadata IS in the list.
+export const isCreditPackInvoice = (invoice) => {
+  if (invoice?.invoice_type !== "one_off") return false;
+  if ((Array.isArray(invoice?.fees) ? invoice.fees : []).some((fee) => fee?.item?.code === CREDIT_PACK_ADD_ON_CODE)) return true;
+  return (Array.isArray(invoice?.metadata) ? invoice.metadata : []).some((m) => m?.key === "source" && m?.value === "credit-pack");
+};
+
+// The org's one-off credit-pack invoices in a payment state, from Lago's list.
+// A one-off invoice the list cannot identify (no metadata — the stamp after
+// creation failed) is fetched in full so its fee lines can tell.
+const listCreditPackInvoices = async (org_id, payment_status) => {
+  const oneOffs = await listInvoices(org_id, { payment_status, invoice_type: "one_off", per_page: 24 });
+  const packs = [];
+  for (const invoice of oneOffs) {
+    if (isCreditPackInvoice(invoice)) packs.push(invoice);
+    else if (!Array.isArray(invoice.fees)) {
+      const full = await getInvoice(invoice.lago_id).catch(() => null);
+      if (isCreditPackInvoice(full)) packs.push(full);
+    }
+  }
+  return packs;
+};
+
+// How many credits a paid credit invoice is worth. Our one-off packs say so in
+// their metadata, written when the invoice was raised, so this does not divide
+// dollars by a rate that may since have moved. A wallet top-up made through
+// Lago's own portal (`credit` type) carries them on the fee line as units. The
+// amount over the current rate is the last resort.
+export const purchasedCreditsOf = (invoice) => {
+  const meta = Array.isArray(invoice?.metadata) ? invoice.metadata.find((m) => m?.key === "credits") : null;
+  const fromMeta = Number(meta?.value);
+  if (Number.isFinite(fromMeta) && fromMeta > 0) return fromMeta;
+  if (invoice?.invoice_type === "credit") {
+    const fees = Array.isArray(invoice?.fees) ? invoice.fees : [];
+    const units = fees.reduce((total, fee) => total + (Number(fee?.units) || 0), 0);
+    if (units > 0) return units;
+  }
+  const rate = Number(process.env.LAGO_CREDIT_RATE_USD);
+  const cents = Number(invoice?.total_amount_cents);
+  if (Number.isFinite(rate) && rate > 0 && Number.isFinite(cents) && cents > 0) return Math.round(cents / 100 / rate);
+  return 0;
+};
+
+// A credit purchase reached a payment outcome. Two kinds arrive here: our own
+// one-off credit-pack invoices, where WE grant the credits once paid; and wallet
+// top-ups made through Lago's portal (`credit` type), where Lago has already put
+// the credits in the wallet and only the bookkeeping is ours — the Redis shadow
+// balance the request gate reads, and the purchased balance the next renewal
+// must leave alone. Each step is checkpointed so a retry after a crash can
+// neither grant nor count anything twice.
+const handleCreditPurchaseInvoice = async ({ invoice, org_id, unique_key, steps }) => {
+  requireOrg(org_id, "credit purchase");
+  const weGrant = isCreditPackInvoice(invoice);
+  if (invoice.payment_status === "pending") return { outcome: "processed", note: "credit purchase pending payment" };
+  if (invoice.payment_status !== "succeeded") {
+    await orgBillingService.upsert(org_id, {
+      last_payment_error: { invoice_id: invoice.lago_id, message: "credit purchase was not paid", at: new Date() }
+    });
+    alert("lagoCreditPurchaseFailed", `org ${org_id}: credit purchase ${invoice.lago_id} was not paid; no credits granted`);
+    return { outcome: "processed", note: "credit purchase failed" };
+  }
+  if (String(invoice.currency).toLowerCase() !== "usd") {
+    throw new BillingError(`invoice ${invoice.lago_id} is in ${invoice.currency}, wallet is USD`, { permanent: true });
+  }
+  if (Number(invoice.prepaid_credit_amount_cents) > 0) {
+    // The wallet paid for its own top-up: impossible while ensureWalletInvariants
+    // holds, so a human should look before anything is granted.
+    throw new BillingError(`credit purchase ${invoice.lago_id} was paid from wallet credits, not the card`, { permanent: true });
+  }
+
+  const credits = purchasedCreditsOf(invoice);
+  if (!credits) throw new BillingError(`credit invoice ${invoice.lago_id} carries no credit amount`, { permanent: true });
+
+  if (!steps.credited) {
+    // One claim per invoice, so a redelivery or a reconcile replay cannot grant
+    // or bump twice.
+    const owns = await billingEventService.claimCredit(unique_key, invoice.lago_id);
+    if (!owns) return { outcome: "processed", note: `credit purchase ${invoice.lago_id} already applied`, delta: "0" };
+    if (weGrant) {
+      await walletCredit(org_id, credits, {
+        source: "credit-pack",
+        invoice_id: invoice.lago_id,
+        invoice_number: invoice.number ?? "",
+        event_key: unique_key,
+        reason: "credit_pack"
+      });
+    }
+    await billingEventService.setStep(unique_key, "credit_delta", String(credits));
+    await billingEventService.setStep(unique_key, "credited", true);
+  }
+
+  if (!steps.synced) {
+    if (client.isReady) await incrementRedisBalance(org_id, credits);
+    await billingEventService.setStep(unique_key, "synced", true);
+  }
+
+  // Checkpointed like the steps above: this is an $inc, so a retry after a crash
+  // between here and markProcessed would otherwise count the pack twice.
+  if (!steps.recorded) {
+    await orgBillingService.clearPendingPurchases(org_id, [invoice.lago_id]);
+    await orgBillingService.addPurchasedCredits(org_id, credits, {
+      has_payment_method: true,
+      last_credit_purchase_at: new Date(),
+      last_credit_purchase_credits: String(credits),
+      last_credit_purchase_invoice_id: invoice.lago_id,
+      last_payment_error: null
+    });
+    await billingEventService.setStep(unique_key, "recorded", true);
+  }
+
+  logger.info(`[billing] org ${org_id}: credit pack paid, +${credits} credits (invoice ${invoice.lago_id}${weGrant ? "" : ", credited by Lago"})`);
+  return { outcome: "processed", note: `credit pack +${credits}` };
+};
+
 const handleInvoicePaymentStatusUpdated = async ({ object, org_id, unique_key, steps }) => {
   requireOrg(org_id, "invoice.payment_status_updated");
   const invoice = await fullInvoice(object, object?.lago_id);
   if (!invoice) throw new BillingError(`invoice ${object?.lago_id} not found in Lago`, { permanent: true });
-  if (invoice.invoice_type !== "subscription") return { outcome: "ignored", note: `${invoice.invoice_type} invoice` };
   if (invoice.status === "voided" || invoice.status === "draft") return { outcome: "ignored", note: `invoice status ${invoice.status}` };
+  // Our credit-pack invoices (one-off, billing the credit_pack add-on) and Lago
+  // portal top-ups (`credit`) are credit purchases, not the subscription fee.
+  if (invoice.invoice_type === "credit" || isCreditPackInvoice(invoice)) return handleCreditPurchaseInvoice({ invoice, org_id, unique_key, steps });
+  if (invoice.invoice_type !== "subscription") return { outcome: "ignored", note: `${invoice.invoice_type} invoice` };
 
   const paidPlan = await getPaidPlanConfig();
   if (!invoiceIsForPaidPlan(invoice, paidPlan.plan_code)) return { outcome: "ignored", note: "not a paid-plan subscription invoice" };
@@ -644,10 +973,15 @@ const handleInvoicePaymentStatusUpdated = async ({ object, org_id, unique_key, s
   }
 };
 
-const handleInvoicePaymentFailure = async ({ object, org_id }) => {
+const handleInvoicePaymentFailure = async ({ object, org_id, unique_key, steps }) => {
   requireOrg(org_id, "invoice.payment_failure");
   const invoice = await getInvoice(object?.lago_invoice_id);
   if (!invoice) throw new BillingError(`invoice ${object?.lago_invoice_id} not found in Lago`, { permanent: true });
+  // A declined credit pack: record it so the UI can say so. Lago reports the
+  // decline here before payment_status catches up, hence the override.
+  if (invoice.invoice_type === "credit" || isCreditPackInvoice(invoice)) {
+    return handleCreditPurchaseInvoice({ invoice: { ...invoice, payment_status: "failed" }, org_id, unique_key, steps });
+  }
   if (invoice.invoice_type !== "subscription") return { outcome: "ignored", note: `${invoice.invoice_type} invoice` };
   const paidPlan = await getPaidPlanConfig();
   if (!invoiceIsForPaidPlan(invoice, paidPlan.plan_code)) return { outcome: "ignored", note: "not a paid-plan subscription invoice" };
@@ -785,7 +1119,11 @@ export const processLagoEvent = async ({ unique_key, webhook_type, object_type, 
 
 // Rebuild a stored event (re-fetching the live invoice from Lago where it
 // matters) and run it again. Admin-driven, so a permanent failure is made
-// retryable first — a human has presumably fixed the cause.
+// retryable first — a human has presumably fixed the cause. An IGNORED event is
+// replayable too: a build that did not yet handle its kind may have ignored it
+// (a paid credit-pack invoice reaching a server without the pack handler is
+// marked "one_off invoice"), and after the deploy the replay is how those
+// customers get what they paid for without waiting for the nightly reconcile.
 export const replayEvent = async (unique_key) => {
   const row = await billingEventService.getByKey(unique_key);
   if (!row) throw new BillingError(`no stored event ${unique_key}`, { permanent: true, statusCode: 404 });
@@ -793,12 +1131,17 @@ export const replayEvent = async (unique_key) => {
   if (row.object_type === "invoice" && (row.invoice_id || object.lago_id)) {
     object = (await getInvoice(row.invoice_id ?? object.lago_id)) ?? object;
   }
-  if (row.status === "failed" && row.permanent)
+  if ((row.status === "failed" && row.permanent) || row.status === "ignored")
     await billingEventService.markFailed(unique_key, row.error || "replay requested", { permanent: false });
   return processLagoEvent({ unique_key, webhook_type: row.webhook_type, object_type: row.object_type, object, synthetic: Boolean(row.synthetic) });
 };
 
 // -------------------------------------------------------------- reconcile
+
+// A pack invoice still unpaid this long after its Stripe page (24h) has expired
+// is abandoned. A little beyond the page lifetime, so a payment made in the
+// page's last minute is never voided under the customer.
+const ABANDONED_PACK_MS = 25 * 3600_000;
 
 const syntheticPaidEvent = (invoice) => ({
   unique_key: `reconcile:${invoice.lago_id}`,
@@ -830,7 +1173,7 @@ const collectPayingOrgs = async (summary) => {
 // drift; (6) replay retryable failed events. Idempotent, and safe against a
 // live webhook landing concurrently thanks to the credit claim.
 export const reconcileBilling = async ({ dryRun = true, lookbackDays = 45 } = {}) => {
-  const summary = { dry_run: dryRun, checked: 0, credited: [], retried: [], downgraded: [], cache_fixed: [], replayed: 0, errors: [] };
+  const summary = { dry_run: dryRun, checked: 0, credited: [], retried: [], downgraded: [], voided: [], cache_fixed: [], replayed: 0, errors: [] };
   const since = Date.now() - lookbackDays * 86400_000;
   let paidPlan = null;
   try {
@@ -855,6 +1198,49 @@ export const reconcileBilling = async ({ dryRun = true, lookbackDays = 45 } = {}
       }
     } catch (err) {
       summary.errors.push({ org_id, step: "missed_payments", error: err.message });
+    }
+  }
+
+  // (1b) credit purchases whose webhook never arrived — our one-off packs and
+  // Lago-portal top-ups alike. For a pack the credits are not even granted until
+  // this runs, so this IS "money taken, credits never granted" for packs; for a
+  // portal top-up Lago granted them but the request gate's shadow balance and
+  // the purchased-credit bookkeeping still need doing. Every org with a Stripe
+  // customer, not only paying orgs: a free org can buy a pack. Also voids pack
+  // invoices left unpaid past the life of their payment page, so abandoned
+  // pages do not pile up as open invoices on the customer's account.
+  for (const row of await orgBillingService.listWithPaymentMethod()) {
+    try {
+      const paid = [
+        ...(await listCreditPackInvoices(row.org_id, "succeeded")),
+        ...(await listInvoices(row.org_id, { payment_status: "succeeded", invoice_type: "credit", per_page: 24 }))
+      ];
+      for (const invoice of paid) {
+        if (new Date(invoice.created_at ?? invoice.issuing_date).getTime() < since) continue;
+        if (invoice.status === "voided") continue;
+        if (await billingEventService.hasCreditedInvoice(invoice.lago_id)) continue;
+        summary.credited.push({ org_id: row.org_id, invoice: invoice.lago_id, number: invoice.number, kind: "credit_pack" });
+        if (!dryRun) await processLagoEvent(syntheticPaidEvent(invoice));
+      }
+
+      const abandoned = (await listCreditPackInvoices(row.org_id, "pending")).filter(
+        (inv) => inv.status !== "voided" && Date.now() - new Date(inv.created_at ?? inv.issuing_date).getTime() > ABANDONED_PACK_MS
+      );
+      for (const invoice of abandoned) {
+        summary.voided.push({ org_id: row.org_id, invoice: invoice.lago_id, number: invoice.number });
+        if (!dryRun)
+          await voidInvoice(invoice.lago_id).catch((err) =>
+            summary.errors.push({ org_id: row.org_id, step: "void_abandoned_pack", error: err.message })
+          );
+      }
+      if (!dryRun && abandoned.length) {
+        await orgBillingService.clearPendingPurchases(
+          row.org_id,
+          abandoned.map((inv) => inv.lago_id)
+        );
+      }
+    } catch (err) {
+      summary.errors.push({ org_id: row.org_id, step: "missed_credit_packs", error: err.message });
     }
   }
 

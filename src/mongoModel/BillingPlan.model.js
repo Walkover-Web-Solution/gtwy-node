@@ -41,6 +41,17 @@ const BillingPlanSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.Mixed,
       default: {}
     },
+    // USD amounts an org on this plan can buy as extra credits when its
+    // allowance runs out, e.g. [10, 20, 50, 100]. The number of CREDITS each
+    // one carries is deliberately not stored: it is the amount divided by the
+    // org's credit rate, so a pack stays correctly priced wherever that rate
+    // differs. Empty falls back to the product default in lagoBilling.service.
+    // Here rather than in env so the offer can change without a deploy, and so
+    // a plan can have its own.
+    credit_packs: {
+      type: [Number],
+      default: undefined
+    },
     status: {
       type: Number,
       default: 1

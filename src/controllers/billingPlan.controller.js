@@ -7,7 +7,7 @@ import { getLagoPlan } from "../services/lago.service.js";
 
 // Create or update a plan definition.
 const setBillingPlan = async (req, res, next) => {
-  const { plan_code, display_name, services, credit_grant, status, monthly_credits, hit_fees } = req.body;
+  const { plan_code, display_name, services, credit_grant, status, monthly_credits, hit_fees, credit_packs } = req.body;
 
   const doc = await billingPlanService.upsertPlan(plan_code, {
     display_name,
@@ -17,6 +17,7 @@ const setBillingPlan = async (req, res, next) => {
     // Mongoose strips undefined from $set, so omitting these leaves the stored values alone.
     monthly_credits,
     hit_fees,
+    credit_packs,
     updated_by: req.profile?.user?.email || ""
   });
 

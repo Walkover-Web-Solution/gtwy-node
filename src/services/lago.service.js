@@ -788,6 +788,105 @@ const releaseTopupClaim = async (reference_id) => {
   await client.del(topupClaimKey(reference_id)).catch(() => {});
 };
 
+// --- credit packs as ONE-OFF invoices -----------------------------------------
+// A wallet top-up (paid_credits) cannot be sold on a Stripe page for a customer
+// who has a card on file: Lago charges that card off session the moment it
+// raises the invoice, and the flag that would stop it (payment_method_type
+// "manual") is stored but ignored until Lago v1.50 — the dev instance is
+// v1.42.0. A ONE-OFF invoice with `skip_psp` is different: Lago raises it and
+// does NOT charge, so it stays unpaid and a hosted Stripe page can be issued for
+// it. Verified live 2026-09-17 on an org with a saved card: no payment attempted
+// after 12s, and payment_url returned a Checkout session. Revenue still lands in
+// Lago as a paid invoice; the credits are then granted to the wallet by us once
+// the page is paid. The wallet is restricted to usage charges (see
+// ensureWalletInvariants), so it cannot pay for its own top-up.
+export const CREDIT_PACK_ADD_ON_CODE = "credit_pack";
+
+// The add-on every credit-pack invoice bills against. Idempotent: Lago answers
+// 422 for a code that exists. The amount here is only a default; each invoice
+// sets its own unit price.
+export const ensureCreditPackAddOn = async () =>
+  lagoRequest(() =>
+    axios
+      .post(
+        `${BILLING_API_URL}/add_ons`,
+        {
+          add_on: {
+            name: "Credit pack",
+            code: CREDIT_PACK_ADD_ON_CODE,
+            amount_cents: 1000,
+            amount_currency: WALLET_CURRENCY,
+            description: "Extra credits, priced per pack at invoice time"
+          }
+        },
+        billingRequestConfig()
+      )
+      .then((r) => r.data?.add_on ?? true)
+      .catch((err) => {
+        if (err?.response?.status === 422) return true;
+        throw err;
+      })
+  );
+
+// Raise the invoice for one pack. skip_psp is what keeps the card unmoved; the
+// metadata is how the paid-invoice handler later knows how many credits to
+// grant, so it does not have to divide dollars by a rate that might have moved.
+export const createCreditPackInvoice = async (org_id, { usd, credits, actor = "" }) => {
+  const cents = Math.round(Number(usd) * 100);
+  const invoice = await lagoRequest(() =>
+    axios
+      .post(
+        `${BILLING_API_URL}/invoices`,
+        {
+          invoice: {
+            external_customer_id: String(org_id),
+            currency: WALLET_CURRENCY,
+            skip_psp: true,
+            fees: [
+              {
+                add_on_code: CREDIT_PACK_ADD_ON_CODE,
+                units: 1,
+                unit_amount_cents: cents,
+                description: `${credits} credits`,
+                invoice_display_name: `Credit pack: ${credits} credits`
+              }
+            ]
+          }
+        },
+        billingRequestConfig()
+      )
+      .then((r) => r.data?.invoice ?? null)
+  );
+  if (!invoice?.lago_id) throw new Error(`Lago did not return the credit-pack invoice for org ${org_id}`);
+  await lagoRequest(() =>
+    axios.put(
+      `${BILLING_API_URL}/invoices/${encodeURIComponent(invoice.lago_id)}`,
+      {
+        invoice: {
+          metadata: [
+            { key: "source", value: "credit-pack" },
+            { key: "credits", value: String(credits) },
+            { key: "usd", value: String(usd) },
+            { key: "org_id", value: String(org_id) },
+            { key: "actor", value: String(actor || "") }
+          ]
+        }
+      },
+      billingRequestConfig()
+    )
+  ).catch((err) => logger.error(`[lago] org ${org_id}: credit-pack invoice ${invoice.lago_id} raised but metadata not set: ${err.message}`));
+  return invoice;
+};
+
+// The hosted Stripe Checkout (payment mode) for an unpaid invoice. Lago reuses
+// a non-expired session, so asking again returns the same page for 24h.
+export const invoicePaymentUrl = async (lago_id) =>
+  lagoRequest(() =>
+    axios
+      .post(`${BILLING_API_URL}/invoices/${encodeURIComponent(String(lago_id))}/payment_url`, {}, billingRequestConfig())
+      .then((r) => r.data?.invoice_payment_details?.payment_url ?? null)
+  );
+
 // Add credits to the org's wallet. granted_credits, not paid_credits: payment is collected outside Lago.
 export const walletCredit = async (org_id, credits, metadata = {}) =>
   lagoRequest(async () => {

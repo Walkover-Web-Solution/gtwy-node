@@ -16,6 +16,8 @@ router.post("/resume", middleware, billingController.resumeSubscription);
 router.post("/retry", middleware, billingController.retryPayment);
 router.post("/portal", middleware, billingController.createPortal);
 router.get("/subscription", middleware, billingController.getSubscription);
+router.get("/credit-packs", middleware, billingController.getCreditPacks);
+router.post("/credits", middleware, validate(billingValidation.buyCredits), billingController.buyCredits);
 
 // Admin.
 router.get("/admin/reconcile", middleware, InternalAuth, (req, res, next) => {
