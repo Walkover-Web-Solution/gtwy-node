@@ -81,16 +81,41 @@ const toDate = (value) => (value ? new Date(value) : null);
 
 // ------------------------------------------------------------ pure helpers
 
-// How many credits to add so the wallet lands on `target`. Never negative:
-// an org already above the target gets nothing added and nothing taken. A
-// negative balance (the -100 overdraft floor) yields target + |balance|, which
-// is exactly "reset to target". Returns a decimal string (Lago takes strings).
-export const computeTopupDelta = (spendable, target) => {
+// How many credits a paid invoice adds to the wallet. Two modes, because
+// upgrading and renewing are not the same event.
+//
+// GRANT — the org has just upgraded, so ADD the whole monthly allowance on top
+//   of what it already holds. Upgrading must not confiscate credits the org
+//   had already been given: 100 left over on the free plan becomes 8,100, not
+//   8,000. An org below zero (the -100 overdraft floor) has the allowance added
+//   to its debt, which is the honest arithmetic — it already spent those
+//   credits — so it lands on 7,900.
+//
+// RESET — a renewal, so top the wallet up TO the allowance. Unused credits do
+//   not pile up month after month, and an org already above the allowance gets
+//   nothing added and nothing taken. Never negative: credits are never clawed
+//   back.
+//
+// Returns a decimal string; Lago takes strings.
+export const CREDIT_GRANT = "grant";
+export const CREDIT_RESET = "reset";
+
+// Is this paid invoice the FIRST of a subscription (an upgrade), or a renewal?
+// subscribe() stamps pending_first_payment on every upgrade, including a
+// customer who cancelled earlier and is coming back, so that flag is the
+// signal. An org that has never paid us at all — moved onto the plan by an
+// admin, or with no billing row yet — counts as an upgrade too, because it has
+// no earlier allowance to be renewing.
+export const isFirstPaidCycle = (row) => row?.status === "pending_first_payment" || !row?.last_paid_invoice_id;
+
+export const computeCreditDelta = (spendable, monthly, mode = CREDIT_RESET) => {
+  const allowance = Number(monthly);
+  if (!Number.isFinite(allowance) || allowance <= 0) throw new BillingError(`invalid monthly_credits target: ${monthly}`);
+  if (mode === CREDIT_GRANT) return String(Number(allowance.toFixed(4)));
+
   const current = Number(spendable);
-  const goal = Number(target);
   if (!Number.isFinite(current)) throw new BillingError(`wallet balance is not numeric: ${spendable}`);
-  if (!Number.isFinite(goal) || goal <= 0) throw new BillingError(`invalid monthly_credits target: ${target}`);
-  const delta = goal - current;
+  const delta = allowance - current;
   if (delta <= 0) return "0";
   return String(Number(delta.toFixed(4)));
 };
@@ -443,7 +468,11 @@ export const applyPaidCycle = async ({ org_id, invoice, unique_key, steps = {} }
     if (!wallet) throw new BillingError(`org ${org_id}: wallet missing after ensureOrgSubscribed`);
     if (walletJustCreated) wallet = await waitForWalletSettlement(org_id, wallet);
 
-    delta = computeTopupDelta(spendableCredits(wallet), paidPlan.monthly_credits);
+    // Read the row BEFORE the mirror at the bottom of this function stamps it
+    // active: that is what tells an upgrade apart from a renewal.
+    const isUpgrade = isFirstPaidCycle(await orgBillingService.getByOrg(org_id));
+
+    delta = computeCreditDelta(spendableCredits(wallet), paidPlan.monthly_credits, isUpgrade ? CREDIT_GRANT : CREDIT_RESET);
     if (delta !== "0") {
       // Five metadata keys: traceable to the Lago invoice; the period is on the subscription.
       await walletCredit(org_id, delta, {
@@ -451,7 +480,7 @@ export const applyPaidCycle = async ({ org_id, invoice, unique_key, steps = {} }
         invoice_id: invoice.lago_id,
         invoice_number: invoice.number ?? "",
         event_key: unique_key,
-        reason: "monthly_reset"
+        reason: isUpgrade ? "upgrade_grant" : "monthly_reset"
       });
     }
     await billingEventService.setStep(unique_key, "credit_delta", delta);
