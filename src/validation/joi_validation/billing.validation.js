@@ -20,6 +20,18 @@ const orgParam = {
   })
 };
 
+// Buying a credit pack. Only the USD amount is accepted, and the service
+// checks it against the packs actually on offer — the number of credits is
+// derived from the org's rate, never taken from the client.
+const buyCredits = {
+  body: Joi.object().keys({
+    usd: Joi.number().positive().required().messages({
+      "any.required": "usd required — the amount of the credit pack to buy",
+      "number.positive": "usd must be a positive amount"
+    })
+  })
+};
+
 const reconcile = {
   body: Joi.object().keys({
     // Default is a dry run: report what would change, change nothing.
@@ -28,4 +40,4 @@ const reconcile = {
   })
 };
 
-export default { replayEvent, orgParam, reconcile };
+export default { replayEvent, orgParam, reconcile, buyCredits };

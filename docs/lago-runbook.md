@@ -154,6 +154,107 @@ credit is still claimed once per invoice by the partial unique index on
 `billing_events`, which matters more now than it did under the old rule: a
 repeated grant would add a second allowance rather than quietly resolve to zero.
 
+**Buying extra credits.** When the allowance runs out a customer can buy more
+without waiting for the renewal. `GET /api/billing/credit-packs` lists what is
+on offer and `POST /api/billing/credits {"usd": 20}` buys one.
+
+The offer lives on the plan document, `billing_plans.<slug>.credit_packs`, as
+USD amounts — so it is editable through `PUT /api/billing-plans` with no deploy,
+Pro and free can be offered different packs, and storing an empty list stops a
+plan offering any. A plan that names none falls back to the product default of
+10/20/50/100. The credits each pack carries are deliberately not stored: they
+are the amount divided by the org's own credit rate, the same rate its usage is
+charged at, so at $0.0025 a credit $10 is 4,000 credits and $100 is 40,000 and
+a pack stays correctly priced wherever that rate differs. The amount is matched
+against what the org's plan actually offers rather than trusted from the client.
+
+**How it is paid: a Stripe page, every time.** `POST /api/billing/credits
+{"usd": 20}` raises a **one-off invoice** in Lago for the pack (add-on
+`credit_pack`, one unit priced at the pack amount, `skip_psp: true`) and returns
+Lago's hosted **Stripe Checkout** for it:
+
+```json
+{ "status": "payment_required", "url": "https://checkout.stripe.com/…", "usd": 20, "credits": 8000, "invoice_id": "…" }
+```
+
+The customer confirms on that page — card on file or not. Stripe charges, Lago
+marks the invoice paid and sends `invoice.payment_status_updated`, and **we**
+then grant the credits (`granted_credits` on the wallet, tagged
+`source: credit-pack`), bump the Redis shadow balance the request gate reads (an
+`INCRBYFLOAT`, never a `SET`) and record the purchase. Nothing is charged and
+nothing is granted until the customer has confirmed on the page. The wallet
+cannot pay for its own pack because it is restricted to usage charges (default 1
+above); a paid pack invoice with any `prepaid_credit_amount_cents` is a
+permanent failure, not a credit.
+
+Why a one-off invoice and not a wallet top-up (`paid_credits`): Lago charges a
+saved card off session the instant it raises a wallet top-up —
+`invoice_requires_successful_payment` holds the credits back, not the charge —
+and on the Lago this runs against (**v1.42.0**, `GET
+https://api.billing.gtwy.ai/health`, unauthenticated) the
+`payment_method_type: "manual"` flag that would stop it is stored but ignored
+(verified 2026-09-17 on org 12701: a `manual` top-up was still charged,
+`pi_3UGd03…`; honoured behind a feature flag from v1.43, default from v1.50). A
+one-off invoice raised with `skip_psp: true` **is** left unpaid on v1.42 —
+verified live the same day on the same card-on-file org: twelve seconds later
+still `payment_status: pending`, wallet untouched, and
+`POST /invoices/{id}/payment_url` returned a Checkout page. No Lago upgrade
+needed. Revenue still lands in Lago as a paid invoice and shows in the customer
+portal like any other.
+
+How many credits the invoice is worth is written into its metadata (`credits`)
+when it is raised, so the webhook never divides dollars by a rate that may since
+have moved. `isCreditPackInvoice` tells our invoices apart by the add-on code. A
+`credit` invoice — a top-up made through Lago's own customer portal — is handled
+by the same path, except that Lago has already granted those credits, so only
+the bookkeeping runs.
+
+Once per environment the add-on is created on first use by
+`ensureCreditPackAddOn` (`POST /add_ons`; 422 means it is already there). The
+page is built against Lago's Stripe customer for the org, so the purchase
+attaches the Stripe connection first (`setCustomerPaymentProvider`) — no card is
+required; the page collects one and Stripe saves it for next time.
+
+A second click on a pack while its page is unpaid returns the **same** page
+(`reused: true`; Lago reuses the Checkout session for 24 hours) rather than
+raising another invoice against the customer. A click on a pack whose page has
+since been paid answers `status: "paid"` and grants the credits on the spot
+through the ordinary event path, so the webhook that follows is a harmless
+repeat. `pending_credit_purchases` on the billing row, keyed by pack amount, is
+what makes both possible — per pack, because a $20 page and a $50 page can be
+open at once. Each entry is `$unset` when its payment lands or its invoice is
+voided, never rewritten as a whole map: another pack's purchase may be adding its
+own entry at that very moment.
+
+Abandoned pages: the nightly reconcile voids credit-pack invoices still unpaid
+25 hours after they were raised (the page lives 24) and clears their pending
+entries, so a customer who closed the tab leaves nothing open on the account.
+The same sweep credits paid credit-pack and portal `credit` invoices whose
+webhook never arrived, over every org with a Stripe customer rather than only
+paying orgs — for a pack that is exactly "money taken, credits never granted",
+the case the reconcile exists for.
+
+A declined payment arrives as `invoice.payment_failure` / `payment_status:
+failed`: nothing is granted, `last_payment_error` on the row says so, and the
+customer can try again on the same page. Stripe Checkout refuses a total under
+**$0.50**, so any pack has to clear that.
+
+After paying, the UI polls `GET /api/billing/credit-packs`, which carries
+`balance`, `purchased_balance`, the `last_purchase` that landed, the open
+`pending_purchases` and `last_payment_error`; the webhook usually lands within
+seconds of the Stripe confirmation. A laptop no webhook can reach sees the
+credits on the next click of the same pack (the `paid` branch) or at the
+reconcile.
+
+**Bought credits are not reset away.** Lago holds one balance, so
+`credits_purchased_balance` on the billing row tracks how much of it was bought
+rather than granted, and usage is taken out of the allowance first by
+convention. At a renewal only the allowance part is topped back up. An org that
+bought 10,000 and still holds 12,000 gets 6,000, landing on 8,000 of allowance
+plus its 10,000; under a plain reset it would have received nothing at all and
+would have paid for a month it never got. With no purchases the arithmetic is
+exactly what it was.
+
 **What a failed card does.** Lago does **not** retry payments (dunning is a Lago
 premium feature), so we do:
 
@@ -200,6 +301,8 @@ $20. For a comped org apply a Lago coupon first.
 | `POST /api/billing/cancel` / `resume`               | signed-in user (not embed) | cancel at period end (Lago pending downgrade) / withdraw it                                                        |
 | `POST /api/billing/retry`                           | signed-in user (not embed) | ask Lago to charge the open invoice again now                                                                      |
 | `POST /api/billing/portal`                          | signed-in user (not embed) | Lago customer portal URL (invoices, usage, credits)                                                                |
+| `GET /api/billing/credit-packs`                     | signed-in user (not embed) | the credit packs on offer, priced at the org's credit rate, plus its balance                                       |
+| `POST /api/billing/credits`                         | signed-in user (not embed) | buy one pack: returns a Stripe page (`url`) for it; the credits land once the customer pays there                  |
 | `GET /api/billing/subscription`                     | signed-in user             | plan Lago enforces + `billing.status`, `grace_until`, `last_payment_error`, `requires_action_url` (3DS), `can_*`   |
 | `POST /api/lago/webhook`                            | **Lago HMAC signature**    | raw body, mounted before `express.json`                                                                            |
 | `GET /api/billing/admin/:org_id`                    | InternalAuth               | the org's `org_billings` row                                                                                       |

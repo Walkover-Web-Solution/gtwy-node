@@ -5,7 +5,9 @@ import {
   cancel,
   getPortal,
   getSubscriptionView,
+  listCreditPacks,
   parseLagoEvent,
+  purchaseCredits,
   processLagoEvent,
   reconcileBilling,
   replayEvent,
@@ -98,6 +100,22 @@ const resumeSubscription = customerAction("resume", async (org_id, req) => ({
 
 const retryPayment = customerAction("retry", async (org_id) => ({ message: "payment retry requested", data: await retryOpenInvoice(org_id) }));
 
+// What extra credits cost, for the "you have run out" screen.
+const getCreditPacks = customerAction("getCreditPacks", async (org_id) => ({ data: await listCreditPacks(org_id) }));
+
+// Buy one pack. `data.url` is the Stripe page to pay on — every purchase is
+// confirmed there, card on file or not; the credits arrive once Stripe has
+// taken the payment. The one exception is a pack that was already paid on a
+// page opened earlier: `status: "paid"`, nothing more to do.
+const buyCredits = customerAction("buyCredits", async (org_id, req) => {
+  const result = await purchaseCredits(org_id, req.body.usd, { email: req.profile?.user?.email || null, actor: actorOf(req) });
+  const message =
+    result.status === "paid"
+      ? `this $${result.usd} pack was already paid; ${result.credits} credits are being added`
+      : `open the payment page to pay $${result.usd}; ${result.credits} credits are added once the payment goes through`;
+  return { message, data: result };
+});
+
 // Lago's hosted portal: invoices, usage, credits.
 const createPortal = customerAction("createPortal", async (org_id) => ({ data: await getPortal(org_id) }));
 
@@ -175,6 +193,8 @@ const runReconcile = async (req, res, next) => {
 
 export default {
   createCheckout,
+  getCreditPacks,
+  buyCredits,
   subscribeToPro,
   cancelSubscription,
   resumeSubscription,

@@ -46,6 +46,28 @@ const OrgBillingSchema = new mongoose.Schema(
     last_paid_at: { type: Date, default: null },
     // Decimal string: how many credits the last paid invoice actually added.
     last_credit_delta: { type: String, default: null },
+
+    // Extra credits the org has BOUGHT and not yet spent, kept apart from the
+    // monthly allowance in the arithmetic even though Lago holds one balance.
+    // The convention is that usage comes out of the allowance first, so at each
+    // renewal whatever sits above this figure is unspent allowance and only
+    // that part is topped back up. Without it, buying credits would cannibalise
+    // the next month's allowance: an org holding more than the allowance gets
+    // nothing at renewal, so it would have paid for a month it never received.
+    credits_purchased_balance: { type: Number, default: 0 },
+
+    // Credit packs the customer has been sent to Stripe to pay for and has not
+    // paid yet, keyed by the USD amount ("20": { invoice_id, credits, at }) —
+    // each is a one-off Lago invoice awaiting its page. Per pack, because a
+    // customer can open a $20 page and then a $50 one, and each must still be
+    // recognised. A second click on a pack reuses its page instead of raising
+    // another invoice; a paid one is reported as paid instead of being charged
+    // again. An entry is $unset when its payment lands or the reconcile voids
+    // the abandoned invoice (Lago's page lives 24h).
+    pending_credit_purchases: { type: mongoose.Schema.Types.Mixed, default: {} },
+    last_credit_purchase_at: { type: Date, default: null },
+    last_credit_purchase_credits: { type: String, default: null },
+    last_credit_purchase_invoice_id: { type: String, default: null },
     last_payment_error: { type: mongoose.Schema.Types.Mixed, default: null },
     // 3DS: where the customer must go to complete the payment, while pending.
     requires_action_url: { type: String, default: null },

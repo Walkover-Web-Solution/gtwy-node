@@ -31,6 +31,15 @@ const hitFeesSchema = Joi.object()
     "number.max": "a per-hit fee above $10 looks like a mistake"
   });
 
+// USD amounts on offer as extra-credit packs. Capped as a typo guard: these
+// are charged to a real card, and a stray zero would be a $1,000 click.
+const creditPacksSchema = Joi.array().items(Joi.number().positive().max(1000)).max(10).unique().optional().messages({
+  "number.positive": "a credit pack must be a positive USD amount",
+  "number.max": "a credit pack above $1,000 looks like a mistake",
+  "array.unique": "credit_packs must not repeat an amount",
+  "array.max": "at most 10 credit packs"
+});
+
 // The wire slug shared with gtwy-ai, which coerces anything else to "free".
 // Widening this list is a two-repo change, gtwy-ai first.
 const planCodeSchema = Joi.string().valid("free", "paid").required().messages({
@@ -50,7 +59,10 @@ const setBillingPlan = {
     monthly_credits: Joi.number().integer().min(0).optional(),
     // Per-hit fees for this plan. Optional, and sending it REPLACES the stored
     // map, so include every kind you want charged.
-    hit_fees: hitFeesSchema
+    hit_fees: hitFeesSchema,
+    // Extra-credit packs on offer to orgs on this plan. Sending it REPLACES the
+    // stored list; an empty array means the plan offers no packs.
+    credit_packs: creditPacksSchema
   })
 };
 
