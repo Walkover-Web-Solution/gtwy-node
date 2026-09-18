@@ -25,7 +25,20 @@ const ConfigurationSchema = new mongoose.Schema(
     status: { type: Number, default: 1 },
     disabled_at: { type: Date, default: null },
     display_name: { type: String, required: false },
-    org_id: { type: String, required: false }
+    org_id: { type: String, required: false },
+    // Other models this one is a good substitute for (same/lower/approx-same cost).
+    alternate_of: {
+      type: [
+        {
+          service: { type: String, required: true },
+          model_name: { type: String, required: true },
+          cost_comparison: { type: String, enum: ["lower", "same", "approx_same"], required: true },
+          reason: { type: String, required: true },
+          _id: false
+        }
+      ],
+      default: []
+    }
   },
   {
     strict: true,

@@ -16,6 +16,19 @@ export const typeDefs = /* GraphQL */ `
     additional_parameters: JSON
   }
 
+  enum CostComparison {
+    lower
+    same
+    approx_same
+  }
+
+  type AlternateOf {
+    service: String!
+    model_name: String!
+    cost_comparison: CostComparison!
+    reason: String!
+  }
+
   type ServiceModel {
     name: String!
     type: ModelType!
@@ -23,6 +36,8 @@ export const typeDefs = /* GraphQL */ `
     validationConfig: JSON
     outputConfig: JSON
     org_id: String
+    # models this one is a good substitute for
+    alternate_of: [AlternateOf!]!
   }
 
   type Service {

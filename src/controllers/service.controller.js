@@ -36,6 +36,7 @@ const getAllServiceModelsController = async (req, res, next) => {
       validationConfig: config.validationConfig,
       outputConfig: config.outputConfig,
       org_id: config.org_id,
+      alternate_of: config.alternate_of || [],
       created_at
     };
 

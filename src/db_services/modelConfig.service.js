@@ -127,7 +127,11 @@ async function updateModelConfigs(model_name, service, updates) {
     const isBlockedModelField = key === "configuration.model" || key.startsWith("configuration.model.");
     // Allow configuration, outputConfig, validationConfig, and status
     const isAllowedRoot =
-      key.startsWith("configuration.") || key.startsWith("outputConfig.") || key.startsWith("validationConfig.") || key === "status";
+      key.startsWith("configuration.") ||
+      key.startsWith("outputConfig.") ||
+      key.startsWith("validationConfig.") ||
+      key === "status" ||
+      key === "alternate_of";
 
     if (isBlockedModelField || !isAllowedRoot) {
       errorKey = key;

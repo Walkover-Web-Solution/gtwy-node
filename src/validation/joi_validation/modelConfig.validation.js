@@ -1,6 +1,15 @@
 import Joi from "joi";
 import { getServiceNames } from "../../services/utils/loadServicesRegistry.js";
 
+const alternateOfSchema = Joi.array().items(
+  Joi.object({
+    service: Joi.string().required(),
+    model_name: Joi.string().required(),
+    cost_comparison: Joi.string().valid("lower", "same", "approx_same").required(),
+    reason: Joi.string().required()
+  })
+);
+
 const createModelConfigSchema = (validServices) =>
   Joi.object({
     service: Joi.string()
@@ -13,7 +22,8 @@ const createModelConfigSchema = (validServices) =>
     status: Joi.number().default(1),
     configuration: Joi.object().unknown(true).required(),
     outputConfig: Joi.object().unknown(true).required(),
-    validationConfig: Joi.object().unknown(true).required()
+    validationConfig: Joi.object().unknown(true).required(),
+    alternate_of: alternateOfSchema.optional()
   }).unknown(true);
 
 const saveUserModelConfigurationBodySchema = Joi.object({
@@ -35,7 +45,8 @@ const saveUserModelConfigurationBodySchema = Joi.object({
     .unknown(true)
     .required(),
   outputConfig: Joi.object().unknown(true).required(),
-  validationConfig: Joi.object().unknown(true).required()
+  validationConfig: Joi.object().unknown(true).required(),
+  alternate_of: alternateOfSchema.optional()
 })
   .unknown(true)
   .custom((value, helpers) => {
@@ -88,7 +99,8 @@ const updateUserModelConfigurationBodySchema = Joi.object({
     .unknown(true)
     .required(),
   outputConfig: Joi.object().unknown(true).required(),
-  validationConfig: Joi.object().unknown(true).required()
+  validationConfig: Joi.object().unknown(true).required(),
+  alternate_of: alternateOfSchema.optional()
 })
   .unknown(true)
   .custom((value, helpers) => {
@@ -137,7 +149,8 @@ const createUserModelConfigSchema = (validServices) =>
     status: Joi.number().default(1),
     configuration: Joi.object().unknown(true).required(),
     outputConfig: Joi.object().unknown(true).required(),
-    validationConfig: Joi.object().unknown(true).required()
+    validationConfig: Joi.object().unknown(true).required(),
+    alternate_of: alternateOfSchema.optional()
   }).unknown(true);
 
 const setModelStatusAdminBodySchema = Joi.object({

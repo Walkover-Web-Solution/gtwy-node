@@ -2,7 +2,7 @@ import { flatten } from "flat";
 
 const ALLOWED_MODEL_UPDATE_OPERATORS = new Set(["$set", "$unset", "$inc", "$push", "$pull", "$addToSet", "$rename"]);
 const BLOCKED_MODEL_CONFIG_PATHS = ["_id", "__v", "model_name", "service", "org_id"];
-const ALLOWED_MODEL_CONFIG_ROOTS = ["configuration", "validationConfig", "outputConfig", "status", "display_name"];
+const ALLOWED_MODEL_CONFIG_ROOTS = ["configuration", "validationConfig", "outputConfig", "status", "display_name", "alternate_of"];
 const BLOCKED_MODEL_FILTER_PATHS = ["_id", "__v", "org_id"];
 
 function isPlainObject(value) {
