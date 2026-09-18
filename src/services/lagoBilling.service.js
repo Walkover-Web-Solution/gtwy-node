@@ -530,6 +530,32 @@ export const purchaseCredits = async (org_id, usd, { email = null, actor = "" } 
   }
 };
 
+const invoiceDescription = (invoice) => {
+  if (invoice?.invoice_type === "subscription") {
+    const fee = (invoice?.fees ?? []).find((f) => f?.item?.type === "subscription");
+    return fee?.item?.name ? `${fee.item.name} · subscription` : "Subscription";
+  }
+  if (invoice?.invoice_type === "credit" || invoice?.invoice_type === "one_off") return "Extra credits";
+  return invoice?.invoice_type ? invoice.invoice_type.replace(/_/g, " ") : "Invoice";
+};
+
+const INVOICE_STATUS_LABEL = { succeeded: "Paid", pending: "Pending", failed: "Failed" };
+
+export const listRecentInvoices = async (org_id, { limit = 10 } = {}) => {
+  const invoices = await listInvoices(org_id, { per_page: Math.max(limit * 4, 40) });
+  return invoices
+    .filter((invoice) => Number(invoice.total_amount_cents) > 0 && invoice.status !== "voided" && invoice.status !== "draft")
+    .slice(0, limit)
+    .map((invoice) => ({
+      id: invoice.lago_id ?? invoice.id ?? null,
+      date: invoice.issuing_date ?? invoice.created_at ?? null,
+      description: invoiceDescription(invoice),
+      status: INVOICE_STATUS_LABEL[invoice.payment_status] ?? invoice.payment_status ?? "unknown",
+      amount_cents: Number(invoice.total_amount_cents) || 0,
+      currency: invoice.currency ?? "USD"
+    }));
+};
+
 export const getPortal = async (org_id) => {
   const row = await orgBillingService.getByOrg(org_id);
   if (!row?.payment_provider_code) throw new BillingError("org has no billing account yet", { permanent: true, statusCode: 404 });

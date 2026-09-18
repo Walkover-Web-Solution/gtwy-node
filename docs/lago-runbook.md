@@ -457,11 +457,39 @@ Auth on the billing routes, since it is not uniform:
 
 | route                           | auth                                                                                        |
 | ------------------------------- | ------------------------------------------------------------------------------------------- |
+| `POST /api/organization`        | signed-in user; also needs the caller's `proxy_auth_token` header                           |
 | `POST /api/lago/provision`      | **none** — MSG91 webhook; only the optional `LAGO_PROVISION_WEBHOOK_TOKEN` header guards it |
 | `GET /api/lago/wallet`          | any signed-in user (own org, from the token)                                                |
 | `GET /api/lago/plan/me`         | any signed-in user                                                                          |
 | `GET /api/billing-plans/public` | any signed-in user; safe fields only, no `services`                                         |
 | everything else                 | `InternalAuth`                                                                              |
+
+## How a new org gets its wallet
+
+Two ways in, and the first is the one to rely on.
+
+**`POST /api/organization`** creates the org in MSG91 _and_ provisions its Lago
+customer, subscription and wallet in the same request, so the wallet exists
+before the org can make its first call. The frontend calls this instead of
+posting straight to `routes.msg91.com/api/c/createCompany`. The body is the
+same `{ "company": { ... } }` MSG91 takes and is passed through untouched; the
+caller's own `proxy_auth_token` header is forwarded, since the org belongs to
+them and not to an admin key.
+
+If MSG91 fails, nothing was created and the request fails. If MSG91 succeeds
+but Lago does not, the org EXISTS, so the request still returns 201 with
+`billing.provisioned: false` and the reason — failing there would tell the user
+they have no org when they do. That case alerts as `orgProvisioningFailed` and
+is replayed with `POST /api/lago/provision/admin`.
+
+**`POST /api/lago/provision`** is the MSG91 signup webhook, unchanged. It stays
+as the safety net for orgs created outside the app. It is what orgs used to
+depend on entirely, and an org created while it was not firing had no wallet at
+all — every debit it produced was dropped with `billingDebitMalformedEvent`.
+
+Both paths end in `ensureOrgSubscribed`, which is read-before-write on all
+three objects, so either can run twice, or both can run, with no duplicate
+customer, subscription, wallet or signup grant.
 
 `InternalAuth` is an **email allowlist** (see `middlewares/middleware.js`) — a
 token for an address outside that list gets 403 regardless of role.
