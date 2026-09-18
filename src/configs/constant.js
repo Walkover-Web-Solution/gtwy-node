@@ -42,6 +42,9 @@ const redis_keys = {
   timezone_and_org_: "cd_timezone_and_org_",
   conversation_: "cd_conversation_",
   last_transffered_agent_: "cd_last_transffered_agent_",
+  // Written by gtwy-ai; cleared here because only we know when a skill changes.
+  org_skills_: "cd_org_skills_",
+  skill_content_: "cd_skill_content_",
   // The org's Lago wallet, re-fetched from Lago on a miss
   billing_wallet_: "cd_billing_wallet_",
   // Protected — source of truth or cost accumulators
