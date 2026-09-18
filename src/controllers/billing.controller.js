@@ -6,6 +6,7 @@ import {
   getPortal,
   getSubscriptionView,
   listCreditPacks,
+  listRecentInvoices,
   parseLagoEvent,
   purchaseCredits,
   processLagoEvent,
@@ -122,6 +123,9 @@ const createPortal = customerAction("createPortal", async (org_id) => ({ data: a
 // The caller's own plan (as Lago enforces it) and billing state — for the UI banner.
 const getSubscription = customerAction("getSubscription", async (org_id) => ({ data: await getSubscriptionView(org_id) }));
 
+// Recent invoices for the "Recent payments" list — a slim, UI-ready shape, not raw Lago.
+const getInvoices = customerAction("getInvoices", async (org_id) => ({ data: await listRecentInvoices(org_id) }));
+
 // Lago webhook. Responds DIRECTLY: it is mounted before express.json (raw body
 // for the signature) and must never fall through to responseMiddleware.
 // 400 = not from Lago. 200 = processed, ignored, duplicate, or a permanent
@@ -201,6 +205,7 @@ export default {
   retryPayment,
   createPortal,
   getSubscription,
+  getInvoices,
   lagoWebhook,
   getOrgBillingAdmin,
   listOrgEvents,

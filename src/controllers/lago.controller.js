@@ -8,6 +8,7 @@ import {
   topupWallet
 } from "../services/lago.service.js";
 import billingPlanService from "../db_services/billingPlan.service.js";
+import orgBillingService from "../db_services/orgBilling.service.js";
 import { replayFailedDebits } from "../services/logQueue/billingDebit.service.js";
 
 const SUPPORTED_EVENTS = ["create_company", "register_company_and_user"];
@@ -125,12 +126,33 @@ const replayDebits = async (req, res, next) => {
 };
 
 // Move an org between plans.
+//
+// This bypasses the self-serve Stripe flow entirely (comped orgs, support fixing
+// a stuck account, etc.), so it must also drive the OrgBilling status the plans
+// page reads — changeOrgPlan only touches Lago and the Redis plan cache. Left
+// alone, an org moved to paid here would show "Free" and a stale "complete your
+// subscription" banner forever, since nothing else ever sets OrgBilling.status
+// outside subscribe()/its webhooks. Unconditional (not just on `changed`) so a
+// repeat call also repairs a row already stuck from an earlier partial checkout.
 const setOrgPlan = async (req, res, next) => {
   const { org_id, plan, reason } = req.body;
   const result = await changeOrgPlan(String(org_id), plan, {
     actor: req.profile?.user?.email || "",
     reason: reason || ""
   });
+
+  if (result.plan === "paid") {
+    await orgBillingService.upsert(String(org_id), {
+      status: "active",
+      cancel_at_period_end: false,
+      grace_until: null,
+      last_payment_error: null,
+      requires_action_url: null,
+      open_invoice_id: null
+    });
+  } else if (result.plan === "free") {
+    await orgBillingService.upsert(String(org_id), { status: "none", cancel_at_period_end: false, grace_until: null });
+  }
 
   res.locals = {
     success: true,
