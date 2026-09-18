@@ -1105,6 +1105,22 @@ const createAgent = async (data) => {
   return { bridge: result };
 };
 
+// Agents still using a skill, so deletion can be refused with a useful message.
+// A skill can sit on the agent itself or on a draft version, and a version has no
+// name - so its parent is folded into the same agent query, which also dedupes.
+const findAgentsUsingSkill = async (org_id, skill_id) => {
+  const holdsSkill = { connected_tools: { $elemMatch: { type: "skills", id: skill_id } } };
+
+  const versions = await versionModel.find({ org_id, ...holdsSkill }, { parent_id: 1 }).lean();
+  const parentIds = [...new Set(versions.map((version) => version.parent_id).filter(Boolean))]
+    .filter((id) => ObjectId.isValid(id))
+    .map((id) => new ObjectId(id));
+
+  const agents = await configurationModel.find({ org_id, $or: [holdsSkill, { _id: { $in: parentIds } }] }, { _id: 1, name: 1 }).lean();
+
+  return agents.map((agent) => ({ id: agent._id.toString(), name: agent.name || "Untitled agent" }));
+};
+
 const updateAgent = async (agent_id, update_fields, version_id = null) => {
   const model = version_id ? versionModel : configurationModel;
   const id_to_use = version_id ? version_id : agent_id;
@@ -1394,6 +1410,7 @@ const getUniqueAgentNameAndSlug = async (org_id, baseName) => {
 };
 
 export default {
+  findAgentsUsingSkill,
   deleteAgent,
   permanentlyDeleteAgent,
   restoreAgent,
