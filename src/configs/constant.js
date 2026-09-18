@@ -63,6 +63,7 @@ const redis_keys = {
   rate_limit_: "nd_rate_limit_",
   openai_batch_: "nd_openai_batch_",
   blocked_orgs_: "nd_blocked_orgs_",
+  huggingface_model_price_: "cd_huggingface_model_price_",
   // Billing. The shadow balance and the applied-claim key are written by gtwy-ai
   // too, so these names must stay byte-identical on both sides.
   billing_credit_balance_: "nd_billing_credit_balance_",
