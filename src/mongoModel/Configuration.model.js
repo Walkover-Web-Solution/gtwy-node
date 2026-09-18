@@ -297,6 +297,10 @@ const configuration = new mongoose.Schema({
   cache_on: {
     type: Boolean,
     default: false
+  },
+  embed_override: {
+    type: Object,
+    default: {}
   }
 });
 
