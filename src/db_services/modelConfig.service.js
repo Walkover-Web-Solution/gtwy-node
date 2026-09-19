@@ -3,7 +3,7 @@ import { flatten } from "flat";
 import ConfigurationServices from "./configuration.service.js";
 import configurationModel from "../mongoModel/Configuration.model.js";
 import versionModel from "../mongoModel/BridgeVersion.model.js";
-import { normalizeBulkModelConfigChange, normalizeBulkModelConfigFilter } from "../utils/modelConfigUpdate.utils.js";
+import { normalizeBulkModelConfigChange, normalizeBulkModelConfigFilter, isBlockedPath, isAllowedPath } from "../utils/modelConfigUpdate.utils.js";
 import { getDefaultModel } from "../services/utils/loadServicesRegistry.js";
 
 async function checkModel(model_name, service) {
@@ -122,19 +122,20 @@ async function updateModelConfigs(model_name, service, updates) {
   // Flatten nested objects into dot notation
   const flattenedUpdates = flatten(updates, { safe: true });
 
-  for (const key in flattenedUpdates) {
-    // Block configuration.model and its subfields
-    const isBlockedModelField = key === "configuration.model" || key.startsWith("configuration.model.");
-    // Allow configuration, outputConfig, validationConfig, and status
-    const isAllowedRoot =
-      key.startsWith("configuration.") || key.startsWith("outputConfig.") || key.startsWith("validationConfig.") || key === "status";
-
-    if (isBlockedModelField || !isAllowedRoot) {
+  // Same path rules as the bulk-update endpoint: identity/internal fields and
+  // configuration.model are not writable here, everything else under the
+  // allowed roots is. See modelConfigUpdate.utils.js.
+  for (const [key, value] of Object.entries(flattenedUpdates)) {
+    if (isBlockedPath(key) || !isAllowedPath(key)) {
       errorKey = key;
       continue;
     }
-    // Allow everything else
-    allowedUpdates[key] = flattenedUpdates[key];
+    // An empty object means the client sent a subtree with no leaves (e.g. `validationConfig: {}`),
+    // which flatten keeps as a bare root key. Setting it would wipe that whole subdocument.
+    if (value && typeof value === "object" && !Array.isArray(value) && Object.keys(value).length === 0) {
+      continue;
+    }
+    allowedUpdates[key] = value;
   }
 
   // No valid updates to perform
