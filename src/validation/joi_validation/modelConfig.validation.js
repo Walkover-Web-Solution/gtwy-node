@@ -72,27 +72,29 @@ const updateUserModelConfigurationQuerySchema = Joi.object({
 const updateUserModelConfigurationBodySchema = Joi.object({
   service: Joi.string()
     .valid(...getServiceNames())
-    .required(),
+    .optional(),
   model_name: Joi.string()
     .pattern(/^[^\s]+$/)
     .message("model_name must not contain spaces")
-    .required(),
-  status: Joi.number().valid(0, 1).required(),
+    .optional(),
+  status: Joi.number().valid(0, 1).optional(),
   configuration: Joi.object({
     model: Joi.object({
-      default: Joi.string().required()
+      default: Joi.string().optional()
     })
       .unknown(true)
-      .required()
+      .optional()
   })
     .unknown(true)
-    .required(),
-  outputConfig: Joi.object().unknown(true).required(),
-  validationConfig: Joi.object().unknown(true).required()
+    .optional(),
+  outputConfig: Joi.object().unknown(true).optional(),
+  validationConfig: Joi.object().unknown(true).optional()
 })
   .unknown(true)
+  .min(1)
   .custom((value, helpers) => {
-    if (value.configuration?.model?.default !== value.model_name) {
+    const defaultModel = value.configuration?.model?.default;
+    if (defaultModel !== undefined && value.model_name !== undefined && defaultModel !== value.model_name) {
       return helpers.message("configuration.model.default must be the same as model_name");
     }
     return value;
