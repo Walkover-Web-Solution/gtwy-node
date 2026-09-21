@@ -71,21 +71,17 @@ const getDefaultValuesController = async (service, model, current_configuration,
             }
           } else if (mode === "custom") {
             if (key === "response_type") {
-              const current_type = typeof val === "object" && val !== null ? val.type : null;
-              if (current_type && value.options && value.options.some((opt) => opt.type === current_type)) {
-                default_values[key] = {
-                  mode: "custom",
-                  value: {
-                    ...val,
-                    ...(current_type === "json_schema" ? { json_schema: val.json_schema || null } : {})
-                  }
-                };
-              } else {
-                default_values[key] = {
-                  mode: "default",
-                  value: null
-                };
-              }
+              // Preserve the user's response_type across a model switch even when the
+              // new model doesn't natively support it (e.g. json_schema). The runtime
+              // (gtwy-ai) injects the schema into the prompt as a fallback for models
+              // that don't support it natively, so we must not silently discard it here.
+              default_values[key] = {
+                mode: "custom",
+                value: {
+                  ...val,
+                  ...(typeof val === "object" && val !== null && val.type === "json_schema" ? { json_schema: val.json_schema || null } : {})
+                }
+              };
             } else {
               const min_value = value.min;
               const max_value = value.max;
@@ -125,14 +121,18 @@ const getDefaultValuesController = async (service, model, current_configuration,
           } else {
             if (key in config_items) {
               if (key === "response_type") {
-                const current_type = typeof current_value === "object" && current_value !== null ? current_value.type : null;
-                if (current_type && value.options && value.options.some((opt) => opt.type === current_type)) {
-                  default_values[key] = current_value;
-                  if (current_type === "json_schema") {
-                    default_values.response_type.json_schema = current_value.json_schema || null;
-                  }
-                } else {
+                // Preserve the user's response_type across a model switch even when the
+                // new model doesn't natively support it (e.g. json_schema). The runtime
+                // (gtwy-ai) injects the schema into the prompt as a fallback for models
+                // that don't support it natively, so we must not silently discard it here.
+                if (current_value === undefined || current_value === null) {
                   default_values[key] = "default";
+                  continue;
+                }
+                const current_type = typeof current_value === "object" ? current_value.type : null;
+                default_values[key] = current_value;
+                if (current_type === "json_schema") {
+                  default_values.response_type.json_schema = current_value.json_schema || null;
                 }
                 continue;
               }
