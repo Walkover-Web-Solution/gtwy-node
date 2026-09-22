@@ -201,6 +201,20 @@ const getAllUserUpdates = {
     .unknown(true)
 };
 
+const getAllBridgeUserUpdates = {
+  params: Joi.object()
+    .keys({
+      bridge_id: Joi.objectId().required()
+    })
+    .unknown(true),
+  query: Joi.object()
+    .keys({
+      page: Joi.number().integer(),
+      limit: Joi.number().integer()
+    })
+    .unknown(true)
+};
+
 export default {
   getThreads,
   createEntry,
@@ -214,5 +228,6 @@ export default {
   updateMessageStatus,
   getThreadMessages,
   bridgeArchive,
-  getAllUserUpdates
+  getAllUserUpdates,
+  getAllBridgeUserUpdates
 };

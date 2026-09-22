@@ -5,7 +5,7 @@ import Sequelize from "sequelize";
 async function saveTestCase(testcaseData) {
   const newTestCase = new testcaseModel(testcaseData);
   const result = await newTestCase.save();
-  return { id: result._id.toString(), ...testcaseData };
+  return { ...result.toObject(), id: result._id.toString() };
 }
 
 async function deleteTestCaseById(id) {
