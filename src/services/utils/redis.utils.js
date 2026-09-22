@@ -28,15 +28,16 @@ const createRedisKeys = (data, org_id) => {
  * @param {string}       options.bridge_id    - Agent or version ID whose explicit cache keys should be deleted.
  * @param {number}       [options.bridge_usage=-1] - When 0, the usage-cost tracking key is also deleted.
  * @param {string}       options.org_id       - Organisation ID (used in cache key construction).
- * @param {string|null}  [options.version_id=null] - Version ID to match against environment_config entries.
+ * @param {string|null}  [options.version_id=null] - Version ID whose explicit cache keys should also be deleted, and matched against environment_config entries.
  * @param {Object|null}  [options.agent_config=null] - The agent/bridge document (needs _id, parent_id, settings.environment_config).
  */
 export async function purgeAgentCache({ bridge_id, bridge_usage = -1, org_id, version_id = null, agent_config = null }) {
   try {
-    // ── 1. Explicit key deletion (bridge data keys) ──
+    // ── 1. Explicit key deletion (bridge + version data keys) ──
+    const keys_to_delete = [];
+
     if (bridge_id) {
       const usage_cache_key = `${redis_keys.bridgeusedcost_}${bridge_id}`;
-      const keys_to_delete = [];
 
       const usage_cache_value = await findInCache(usage_cache_key);
       if (usage_cache_value) {
@@ -52,12 +53,21 @@ export async function purgeAgentCache({ bridge_id, bridge_usage = -1, org_id, ve
       keys_to_delete.push(`${redis_keys.bridge_data_with_tools_}${org_id}_bridge_${bridge_id}`);
       keys_to_delete.push(`${redis_keys.get_bridge_data_}${org_id}_${bridge_id}`);
 
-      if (keys_to_delete.length > 0) {
-        await deleteInCache(keys_to_delete);
-      }
       if (bridge_usage === 0) {
         await deleteInCache(usage_cache_key);
       }
+    }
+
+    // Bridge-scoped keys above don't cover a version-scoped cache entry
+    // (e.g. a draft version read directly by version_id before publish),
+    // so purge those explicitly whenever a version_id is given.
+    if (version_id) {
+      keys_to_delete.push(`${redis_keys.bridge_data_with_tools_}${org_id}_version_${version_id}`);
+      keys_to_delete.push(`${redis_keys.get_bridge_data_}${org_id}_${version_id}`);
+    }
+
+    if (keys_to_delete.length > 0) {
+      await deleteInCache(keys_to_delete);
     }
 
     // ── 2. Tag-based environment invalidation ──
