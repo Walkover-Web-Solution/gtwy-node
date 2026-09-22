@@ -44,6 +44,23 @@ class MetricsBatcher {
     }
   }
 
+  clearFlushTimer() {
+    if (this.flushTimer) {
+      clearTimeout(this.flushTimer);
+      this.flushTimer = null;
+    }
+  }
+
+  getPendingCount() {
+    return this.pendingMessages.length;
+  }
+
+  /** Cancel the deferred timer and flush any buffered/unacked messages (e.g. on shutdown). */
+  async flushNow(trigger = "shutdown") {
+    this.clearFlushTimer();
+    await this.flush(trigger);
+  }
+
   async process(message, channel) {
     try {
       const data = JSON.parse(message.content.toString());
@@ -52,10 +69,7 @@ class MetricsBatcher {
       this.pendingMessages.push({ message, channel });
 
       if (this.pendingMessages.length >= BATCH_SIZE) {
-        if (this.flushTimer) {
-          clearTimeout(this.flushTimer);
-          this.flushTimer = null;
-        }
+        this.clearFlushTimer();
         await this.flush("batch-full");
       } else {
         this.scheduleFlush();
@@ -73,4 +87,12 @@ async function metricsQueueProcessor(message, channel) {
   await batcher.process(message, channel);
 }
 
-export { metricsQueueProcessor };
+async function flushMetricsBatcher() {
+  await batcher.flushNow("shutdown");
+}
+
+function getPendingMetricsCount() {
+  return batcher.getPendingCount();
+}
+
+export { metricsQueueProcessor, flushMetricsBatcher, getPendingMetricsCount };

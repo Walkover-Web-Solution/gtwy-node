@@ -2,7 +2,7 @@ import dotenv from "dotenv";
 import logger from "../logger.js";
 import rabbitmqService from "../services/rabbitmq.service.js";
 import { logQueueProcessor, getPendingBackgroundJobs } from "./logQueueConsumer.js";
-import { metricsQueueProcessor } from "./metricsQueueConsumer.js";
+import { metricsQueueProcessor, flushMetricsBatcher, getPendingMetricsCount } from "./metricsQueueConsumer.js";
 
 dotenv.config();
 const CONSUMERS = [
@@ -92,26 +92,51 @@ function init() {
 }
 
 export async function stopConsumers() {
+  // 1) Stop new deliveries on every consumer
   await Promise.all(
     activeConsumers.map(async (c) => {
       try {
-        // Cancel delivery of new messages without closing the channel
         if (c.channel && c.consumerTag) {
           await c.channel.cancel(c.consumerTag);
         }
+      } catch (err) {
+        logger.error(`[CONSUMER] Error cancelling ${c.queueName}:`, err);
+      }
+    })
+  );
 
-        // Wait for in-flight messages to ack (up to 30s), and for the log queue's
-        // un-awaited background jobs too — those carry a wallet debit.
-        const deadline = Date.now() + 30_000;
-        const stillBusy = () => c.inFlight > 0 || (c.processor === logQueueProcessor && getPendingBackgroundJobs() > 0);
-        while (stillBusy() && Date.now() < deadline) {
-          await new Promise((r) => setTimeout(r, 100));
-        }
-        if (stillBusy()) {
-          const pending = c.processor === logQueueProcessor ? getPendingBackgroundJobs() : 0;
-          logger.warn(`[CONSUMER] ${c.queueName} - ${c.inFlight} messages in-flight and ${pending} background jobs still pending after timeout`);
-        }
+  // 2) Wait for in-flight handlers / log-queue background jobs (up to 30s)
+  const deadline = Date.now() + 30_000;
+  const stillBusy = () => activeConsumers.some((c) => c.inFlight > 0 || (c.processor === logQueueProcessor && getPendingBackgroundJobs() > 0));
+  while (stillBusy() && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  if (stillBusy()) {
+    for (const c of activeConsumers) {
+      const pending = c.processor === logQueueProcessor ? getPendingBackgroundJobs() : 0;
+      if (c.inFlight > 0 || pending > 0) {
+        logger.warn(`[CONSUMER] ${c.queueName} - ${c.inFlight} messages in-flight and ${pending} background jobs still pending after timeout`);
+      }
+    }
+  }
 
+  // 3) Flush buffered metrics while the consumer channel is still open so acks can succeed.
+  //    Metrics process() returns before ack; without this, shutdown would close the channel
+  //    with unacked messages still sitting in the batcher.
+  const pendingMetrics = getPendingMetricsCount();
+  if (pendingMetrics > 0) {
+    logger.info(`[CONSUMER] Flushing ${pendingMetrics} buffered metrics before shutdown`);
+  }
+  try {
+    await flushMetricsBatcher();
+  } catch (err) {
+    logger.error("[CONSUMER] Error flushing metrics batcher on shutdown:", err);
+  }
+
+  // 4) Close channels / connections
+  await Promise.all(
+    activeConsumers.map(async (c) => {
+      try {
         if (c.channel) await c.channel.close();
         if (c.connection) await c.connection.close();
       } catch (err) {
