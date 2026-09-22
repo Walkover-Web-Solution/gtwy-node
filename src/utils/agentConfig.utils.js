@@ -39,21 +39,25 @@ const normalizeFunctionIds = (function_ids) => {
 };
 
 const cloneFunctionsForAgent = async (function_ids, org_id, agent_id, folder_id = null, user_id = null, isEmbedUser = false) => {
-  const cloned_function_ids = [];
+  const cloned_function_map = {};
+  const failures = [];
   const ids = normalizeFunctionIds(function_ids);
 
   for (const function_id of ids) {
     if (!function_id) continue;
+    const idKey = function_id?.toString ? function_id.toString() : String(function_id);
     let functionObjectId = null;
     try {
       functionObjectId = function_id?.buffer ? new ObjectId(Buffer.from(function_id.buffer)) : new ObjectId(function_id);
     } catch {
       console.error("Invalid function id in template:", function_id);
+      failures.push({ function_id: idKey, reason: "Invalid function id in template" });
       continue;
     }
 
     const original_api_call = await apiCallModel.findOne({ _id: functionObjectId }).lean();
     if (!original_api_call || !original_api_call.script_id) {
+      failures.push({ function_id: idKey, reason: "Original function/tool no longer exists" });
       continue;
     }
 
@@ -71,7 +75,7 @@ const cloneFunctionsForAgent = async (function_ids, org_id, agent_id, folder_id 
           $addToSet: { bridge_ids: agent_id.toString() }
         }
       );
-      cloned_function_ids.push(existing_api_call._id.toString());
+      cloned_function_map[idKey] = existing_api_call._id.toString();
       continue;
     }
 
@@ -102,12 +106,17 @@ const cloneFunctionsForAgent = async (function_ids, org_id, agent_id, folder_id 
         new_api_call.version_ids = [];
 
         const new_api_call_result = await new apiCallModel(new_api_call).save();
-        cloned_function_ids.push(new_api_call_result._id.toString());
+        cloned_function_map[idKey] = new_api_call_result._id.toString();
       } else {
         console.error(`Failed to duplicate function ${original_api_call.script_id}:`, duplicate_data);
+        failures.push({
+          function_id: idKey,
+          function_name: original_api_call.title,
+          reason: "Failed to duplicate the underlying tool/flow — the tool was not added to the new agent"
+        });
       }
     } catch (e) {
-      console.error(`Error duplicating function ${original_api_call.script_id || function_id}:`, e);
+      console.error(`Error duplicating function ${original_api_call.script_id || function_id}:`, e.message);
       const new_api_call = { ...original_api_call };
       delete new_api_call._id;
       new_api_call.org_id = org_id;
@@ -117,11 +126,16 @@ const cloneFunctionsForAgent = async (function_ids, org_id, agent_id, folder_id 
       new_api_call.version_ids = [];
 
       const new_api_call_result = await new apiCallModel(new_api_call).save();
-      cloned_function_ids.push(new_api_call_result._id.toString());
+      cloned_function_map[idKey] = new_api_call_result._id.toString();
+      failures.push({
+        function_id: idKey,
+        function_name: original_api_call.title,
+        reason: `Tool was copied but its underlying flow could not be duplicated (likely embed folder/auth misconfiguration): ${e.message}`
+      });
     }
   }
 
-  return cloned_function_ids;
+  return { cloned_function_map, failures };
 };
 
 export { getUniqueNameAndSlug, normalizeFunctionIds, cloneFunctionsForAgent };
