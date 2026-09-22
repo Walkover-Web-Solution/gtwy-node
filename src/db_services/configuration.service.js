@@ -1195,6 +1195,16 @@ const getAgentsWithTools = async (agent_id, org_id, version_id = null) => {
   }
 };
 
+const getEmbedBridgeIds = async (org_id) => {
+  const embedFolderIds = await folderService.getFolderIdsByOrgAndType(org_id, "embed");
+  if (!embedFolderIds.length) return [];
+  const agents = await configurationModel
+    .find({ org_id, folder_id: { $in: embedFolderIds } })
+    .select({ _id: 1 })
+    .lean();
+  return agents.map((agent) => agent._id.toString());
+};
+
 const getAllAgentsInOrg = async (org_id, folder_id, user_id, isEmbedUser) => {
   // First, get all bridge_ids and their last publishers from PostgreSQL
   const lastPublishersMap = await getAllAgentsWithLastPublishers(org_id);
@@ -1403,6 +1413,7 @@ export default {
   getAgentsData,
   getAgentsWithTools,
   getAllAgentsInOrg,
+  getEmbedBridgeIds,
   createAgent,
   updateAgent,
   updateBuiltInTools,

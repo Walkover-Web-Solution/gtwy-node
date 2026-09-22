@@ -8,5 +8,5 @@ const router = express.Router();
 
 router.post("/", middleware, validate(metricsValidation.getMetricsData), metricsController.getMetricsData);
 router.post("/agent", middleware, metricsController.getBridgeMetrics);
-
+router.post("/requests-activity", middleware, validate(metricsValidation.getRequestsActivity), metricsController.getRequestsActivity);
 export default router;
