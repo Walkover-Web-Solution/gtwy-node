@@ -81,20 +81,32 @@ const storeFailedDebit = async (event, error, status) => {
 // Post one charge to Lago, then mirror it into the shadow balance.
 const postDebit = async (event) => {
   const { org_id, credits, transaction_id, message_id } = event;
-  await walletDebit(org_id, credits, transaction_id, {
-    message_id,
-    model: event.model,
-    service: event.service,
-    bridge_id: event.bridge_id,
-    user_id: event.user_id,
-    folder_id: event.folder_id,
-    thread_id: event.thread_id,
-    is_embed: event.is_embed,
-    job: event.job,
-    // What the charge is made of, so it can be explained after the fact.
-    base_credits: event.base_credits,
-    commission_pct: event.commission_pct
-  });
+  await walletDebit(
+    org_id,
+    credits,
+    transaction_id,
+    {
+      // llm_usage_debit | hit_fee | background_job_debit — also picks the Lago metric.
+      type: event.type,
+      message_id,
+      model: event.model,
+      service: event.service,
+      bridge_id: event.bridge_id,
+      user_id: event.user_id,
+      folder_id: event.folder_id,
+      thread_id: event.thread_id,
+      is_embed: event.is_embed,
+      job: event.job,
+      // What the charge is made of, so it can be explained after the fact.
+      base_credits: event.base_credits,
+      commission_pct: event.commission_pct,
+      // Hit-fee events only (undefined elsewhere, and dropped by walletDebit).
+      hit_type: event.hit_type,
+      plan: event.plan,
+      fee_usd: event.fee_usd
+    },
+    { eventType: event.type }
+  );
   // Lago first, shadow second and only on success — a rejected charge must not move the gate.
   await applyShadowDebit(org_id, credits, transaction_id);
 };

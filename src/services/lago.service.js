@@ -966,9 +966,20 @@ export const topupWallet = async (org_id, credits, { reference_id, metadata = {}
 
 const CREDIT_USAGE_EVENT_CODE = process.env.BILLING_CREDIT_USAGE_EVENT_CODE;
 const CREDIT_USAGE_PROPERTY = process.env.BILLING_CREDIT_USAGE_PROPERTY;
+// The per-hit fee gets its OWN Lago metric so an invoice shows AI spend and hit
+// fees as separate lines. Fixed rather than env: the metric has the same code in
+// every Lago account. Every account must have it, with a charge on EVERY plan,
+// before this code runs against it: Lago answers 200 for an event whose metric
+// the plan does not price, and then never rates it, so a missing charge silently
+// stops the fee (see docs/lago-runbook.md, "Two Lago metrics").
+const HIT_FEE_EVENT_CODE = "gtwy_hit_fee";
+
+// Which Lago metric an event is charged on. Only the hit fee is split out; model
+// usage and background jobs are both AI credits.
+const eventCodeFor = (eventType) => (eventType === "hit_fee" ? HIT_FEE_EVENT_CODE : CREDIT_USAGE_EVENT_CODE);
 
 // Post one usage event to Lago, which rates it against the org's wallet.
-export const walletDebit = async (org_id, credits, transaction_id, metadata = {}) =>
+export const walletDebit = async (org_id, credits, transaction_id, metadata = {}, { eventType } = {}) =>
   lagoRequest(async () => {
     if (!CREDIT_USAGE_EVENT_CODE) throw new Error("BILLING_CREDIT_USAGE_EVENT_CODE is not configured");
     const properties = { [CREDIT_USAGE_PROPERTY]: String(credits) };
@@ -990,7 +1001,7 @@ export const walletDebit = async (org_id, credits, transaction_id, metadata = {}
     const event = {
       transaction_id,
       external_subscription_id,
-      code: CREDIT_USAGE_EVENT_CODE,
+      code: eventCodeFor(eventType),
       properties
     };
     return axios.post(`${BILLING_API_URL}/events`, { event }, billingRequestConfig()).then((r) => r.data);

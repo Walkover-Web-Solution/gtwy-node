@@ -84,6 +84,41 @@ Flushing a test environment is fine.
 
 gtwy-ai (Python) has no migrations at all — nothing to run there.
 
+## Two Lago metrics: AI credits and hit fee
+
+Every billed hit reaches Lago as one or two events, each on its own metric, so
+an invoice shows AI spend and hit fees as separate lines:
+
+| event (`type`)                                   | Lago metric                       | when                                      |
+| ------------------------------------------------ | --------------------------------- | ----------------------------------------- |
+| `llm_usage_debit`, `background_job_debit`        | `BILLING_CREDIT_USAGE_EVENT_CODE` | the hit ran on GTWY's key (AI credits)    |
+| `hit_fee` (`hit_type` = `api`/`chatbot`/`embed`) | `gtwy_hit_fee` (fixed in code)    | every billed hit, own key included on Pro |
+
+So an own-key hit sends **one** event (the fee) and a GTWY-key hit sends **two**.
+Nothing changes in gtwy-ai: it already emits the two events separately; Node
+picks the metric per event in `walletDebit`. The wallet pays both — it is
+restricted to `fee_types: ["charge"]`, not to a metric.
+
+The fee metric code is **fixed in code as `gtwy_hit_fee`** (the same in every
+Lago account), unlike the AI-credits metric, whose code differs per account and
+comes from env. It already exists, with a charge on every plan, on the dev and
+prod accounts (set up 2026-09-24).
+
+**Every Lago account this code talks to must have it, BEFORE the code runs there:**
+
+1. `POST /billable_metrics` — code `gtwy_hit_fee`, `sum_agg`, `field_name` equal
+   to `BILLING_CREDIT_USAGE_PROPERTY` (`credit`).
+2. Add a `standard` charge on it at the credit rate (`0.0025`) to **every** plan.
+   `PUT /plans/{code}` replaces the whole `charges` list, so resend the existing
+   usage charge **with its `id`** or it is deleted. Send `cascade_updates: true`
+   so plans overridden per subscription (the comped $0 Pro orgs) get it too, then
+   read those subscriptions back to confirm.
+
+Order matters: Lago answers **200** for an event on a metric the plan has no
+charge for, and never rates it. A missing metric or charge does not error — the
+fees just stop being charged. The same applies to any plan added later: give it
+a `gtwy_hit_fee` charge when you create it.
+
 ## Stripe through Lago: the $20/month Pro subscription
 
 Lago owns the Stripe connection (Lago → Integrations → Stripe), the Stripe
