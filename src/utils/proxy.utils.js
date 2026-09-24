@@ -33,7 +33,7 @@ const createOrGetUser = async (checkToken, decodedToken, orgTokenFromDb) => {
   }
   const userDetails = {
     name: decodedToken?.name || generateIdentifier(14, "emb", false),
-    email: `${decodedToken.org_id}_${decodedToken.folder_id}_${checkToken.user_id}@gtwy.ai`,
+    email: `${decodedToken.org_id}${checkToken.user_id}@gtwy.ai`,
     meta: { type: "embed", ...decodedToken.meta }
   };
   const orgDetials = {
