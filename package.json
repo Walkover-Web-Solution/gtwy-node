@@ -47,6 +47,8 @@
     "express-async-errors": "^3.1.1",
     "flat": "^6.0.1",
     "gpt-tokenizer": "^3.4.0",
+    "graphql": "^17.0.2",
+    "graphql-yoga": "^5.22.0",
     "http-status-codes": "^2.3.0",
     "joi": "^17.12.3",
     "joi-objectid": "^4.0.2",

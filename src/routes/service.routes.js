@@ -8,6 +8,8 @@ import serviceValidation from "../validation/joi_validation/service.validation.j
 const router = express.Router();
 
 router.get("/", combinedAllAuth, serviceController.getAllServiceController);
+
+router.use("/graphql", combinedAllAuth, serviceController.graphqlController);
 router.get("/:service", combinedAllAuth, serviceController.getAllServiceModelsController);
 router.post("/", middleware, InternalAuth, validate(serviceValidation.createService), serviceController.addServiceController);
 

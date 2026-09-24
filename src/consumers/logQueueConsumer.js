@@ -6,7 +6,7 @@ import { chatbotSuggestions } from "../services/logQueue/chatbotSuggestions.serv
 import { handleGptMemory } from "../services/logQueue/handleGptMemory.service.js";
 import { saveToAgentMemory } from "../services/logQueue/saveToAgentMemory.service.js";
 import { saveFilesToRedis } from "../services/logQueue/saveFilesToRedis.service.js";
-import { sendApiHitEvent } from "../services/logQueue/sendApiHitEvent.service.js";
+import { processBillingEvents } from "../services/logQueue/billingDebit.service.js";
 import { broadcastResponseWebhook } from "../services/logQueue/broadcastResponseWebhook.service.js";
 import {
   saveConversationHistory,
@@ -15,6 +15,9 @@ import {
   updateBatchHistory,
   updateConversationHistory
 } from "../services/logQueue/saveHistory.service.js";
+
+// Who pays for the background AI jobs below; null when the customer ran on their own key.
+const billingOf = (messages) => messages["background_billing"] ?? null;
 
 async function saveHistoryBlock(messages) {
   // Insert first, then resolve + persist display_name via UPDATE (only when AI generates it)
@@ -28,7 +31,8 @@ async function saveHistoryBlock(messages) {
       bridge_id: conv.bridge_id,
       user: conv.user,
       thread_flag: conv.thread_flag,
-      response_format: conv.response_format
+      response_format: conv.response_format,
+      background_billing: billingOf(messages)
     });
   }
 }
@@ -37,7 +41,7 @@ async function saveOrchestratorHistoryBlock(messages) {
   await saveOrchestratorHistory(messages["save_orchestrator_history"]);
   const orchestratorSubThreadData = messages["save_orchestrator_history"]?.sub_thread_data;
   if (orchestratorSubThreadData) {
-    await saveSubThreadIdAndName(orchestratorSubThreadData);
+    await saveSubThreadIdAndName({ ...orchestratorSubThreadData, background_billing: billingOf(messages) });
   }
 }
 
@@ -52,20 +56,27 @@ async function saveBatchHistoryBlock(messages) {
       bridge_id: batchEntry.bridge_id,
       user: batchEntry.user,
       thread_flag: batchEntry.thread_flag,
-      response_format: batchEntry.response_format
+      response_format: batchEntry.response_format,
+      background_billing: billingOf(messages)
     });
   }
 }
 
 async function validateResponseBlock(messages) {
-  if (!messages["validateResponse"]?.alert_flag) {
-    await sendApiHitEvent({
-      message_id: messages["validateResponse"]?.message_id,
-      org_id: messages["validateResponse"]?.org_id
-    });
-  }
   await validateResponse(messages["validateResponse"]);
 }
+
+// Fire-and-forget jobs carry a wallet debit, so shutdown must drain them too.
+let pendingBackgroundJobs = 0;
+
+function trackBackgroundJob(promise) {
+  pendingBackgroundJobs += 1;
+  promise.finally(() => {
+    pendingBackgroundJobs -= 1;
+  });
+}
+
+const getPendingBackgroundJobs = () => pendingBackgroundJobs;
 
 async function processLogQueueMessage(messages) {
   // Run all independent history writes in parallel
@@ -78,6 +89,11 @@ async function processLogQueueMessage(messages) {
   if (messages["update_batch_history"]) parallelTasks.push(updateBatchHistory(messages["update_batch_history"]));
 
   await Promise.all(parallelTasks);
+
+  // Before the image early-return: image usage is wallet-billed too.
+  if (messages["billing"]) {
+    await processBillingEvents(messages["billing"]);
+  }
 
   if (messages.type === "image") {
     return;
@@ -96,7 +112,8 @@ async function processLogQueueMessage(messages) {
         bridge_name: agent_memory_data.bridge_name || "",
         system_prompt: agent_memory_data.system_prompt || "",
         is_cache_hit: agent_memory_data.is_cache_hit || false,
-        cached_resource_id: agent_memory_data.resource_id || null
+        cached_resource_id: agent_memory_data.resource_id || null,
+        background_billing: billingOf(messages)
       })
     );
   }
@@ -108,17 +125,21 @@ async function processLogQueueMessage(messages) {
 
   // Fire-and-forget: AI calls and outbound webhooks — don't block ack
   if (messages["check_handle_gpt_memory"]?.gpt_memory) {
-    handleGptMemory(messages["handle_gpt_memory"]).catch((err) => {
-      logger.error(`Error in handleGptMemory: ${err.message}`);
-      unknown_error_handler_alert("handleGptMemory", null, err.message);
-    });
+    trackBackgroundJob(
+      handleGptMemory({ ...messages["handle_gpt_memory"], background_billing: billingOf(messages) }).catch((err) => {
+        logger.error(`Error in handleGptMemory: ${err.message}`);
+        unknown_error_handler_alert("handleGptMemory", null, err.message);
+      })
+    );
   }
 
   if (messages["check_chatbot_suggestions"]?.bridgeType) {
-    chatbotSuggestions(messages["chatbot_suggestions"]).catch((err) => {
-      logger.error(`Error in chatbotSuggestions: ${err.message}`);
-      unknown_error_handler_alert("chatbotSuggestions", null, err.message);
-    });
+    trackBackgroundJob(
+      chatbotSuggestions({ ...messages["chatbot_suggestions"], background_billing: billingOf(messages) }).catch((err) => {
+        logger.error(`Error in chatbotSuggestions: ${err.message}`);
+        unknown_error_handler_alert("chatbotSuggestions", null, err.message);
+      })
+    );
   }
 
   if (messages.broadcast_response_webhook) {
@@ -142,4 +163,4 @@ async function logQueueProcessor(message, channel) {
   }
 }
 
-export { logQueueProcessor };
+export { logQueueProcessor, getPendingBackgroundJobs };

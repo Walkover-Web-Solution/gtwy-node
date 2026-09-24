@@ -8,6 +8,9 @@ import {
 } from "../db_services/history.service.js";
 import configurationService from "../db_services/configuration.service.js";
 
+// Embed users don't get token/cost usage, so their history queries skip the column.
+const isEmbedRequest = (req) => Boolean(req.IsEmbedUser);
+
 /**
  * GET /conversation-logs/:bridge_id/:thread_id/:sub_thread_id
  * Get conversation logs with pagination
@@ -70,7 +73,17 @@ const getConversationLogs = async (req, res, next) => {
   const testcase_id = req.query.testcase_id || null;
 
   // Get conversation logs
-  const result = await findConversationLogsByIds(org_id, agent_id, thread_id, sub_thread_id, pageNum, limitNum, version_id, testcase_id);
+  const result = await findConversationLogsByIds(
+    org_id,
+    agent_id,
+    thread_id,
+    sub_thread_id,
+    pageNum,
+    limitNum,
+    version_id,
+    testcase_id,
+    isEmbedRequest(req)
+  );
 
   if (result.success) {
     res.locals = {
@@ -151,10 +164,12 @@ const getRecursiveAgentHistory = async (req, res, next) => {
       return next();
     }
 
+    const excludeUsage = isEmbedRequest(req);
+
     const resolveMessage = async (msgId, currentAgentId) => {
       if (!msgId) return null;
 
-      const messageRecord = await findHistoryByMessageId(msgId, currentAgentId);
+      const messageRecord = await findHistoryByMessageId(msgId, currentAgentId, excludeUsage);
       if (!messageRecord) return null;
 
       const message = messageRecord?.toJSON ? messageRecord.toJSON() : messageRecord;
@@ -194,7 +209,7 @@ const getRecursiveAgentHistory = async (req, res, next) => {
       return message;
     };
 
-    const rootMessage = await findHistoryByMessageId(message_id, agent_id);
+    const rootMessage = await findHistoryByMessageId(message_id, agent_id, excludeUsage);
 
     if (!rootMessage) {
       res.locals = { success: false, message: "Message not found" };
@@ -239,7 +254,7 @@ const getRecursiveAgentHistory = async (req, res, next) => {
 
 const getHistoryByMessageId = async (req, res, next) => {
   try {
-    const record = await findHistoryByMessageId(req.params.message_id);
+    const record = await findHistoryByMessageId(req.params.message_id, undefined, isEmbedRequest(req));
 
     if (!record) {
       res.locals = { success: false, message: "Message not found" };

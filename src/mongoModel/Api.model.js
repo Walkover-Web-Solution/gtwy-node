@@ -43,6 +43,14 @@ const ApikeyCredentials = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  // The reset window apikey_usage belongs to: "2026-08-25" / "2026-W35" / "2026-08".
+  // Built by periodKey() — see src/services/utils/periodKey.utils.js. Usage only
+  // counts as current when this matches the period being asked about, so a value
+  // left over from a finished window reads as zero instead of blocking a request.
+  apikey_usage_period: {
+    type: String,
+    default: null
+  },
   apikey_limit_reset_period: {
     type: String,
     enum: ["monthly", "weekly", "daily"],

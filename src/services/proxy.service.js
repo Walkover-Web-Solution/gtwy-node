@@ -3,6 +3,9 @@ import { findInCache, storeInCache, deleteInCache } from "../cache_service/index
 import { objectToQueryParams, unknown_error_handler_alert } from "./utils/utility.service.js";
 import { embed_cache } from "../configs/constant.js";
 
+// MSG91 sits in front of a user-visible action; axios has no default timeout.
+const MSG91_TIMEOUT_MS = Number(process.env.MSG91_TIMEOUT_MS || 10000);
+
 export async function getUserOrgMapping(userId, orgId) {
   try {
     if (!userId || !orgId) throw new Error("Sorry, Either the fields are missing or you are not authorized!");
@@ -260,3 +263,42 @@ export async function generateProxyAuthToken(req) {
     throw error;
   }
 }
+
+// Create an organisation in MSG91 on behalf of the signed-in user.
+//
+// This is the same call the frontend used to make directly
+// (POST https://routes.msg91.com/api/c/createCompany). It moved here so the
+// org and its Lago customer/subscription/wallet are created in ONE request:
+// a org created straight from the browser had no wallet until the MSG91
+// signup webhook happened to fire, and until then every request from it was
+// billed against nothing.
+//
+// The company belongs to the caller, so it is created with the CALLER's
+// proxy token, never an admin key.
+export const createOrganization = async (company, proxyToken) => {
+  const response = await axios.post(
+    "https://routes.msg91.com/api/c/createCompany",
+    { company },
+    { headers: { "Content-Type": "application/json", Proxy_auth_token: proxyToken }, timeout: MSG91_TIMEOUT_MS }
+  );
+  return response?.data;
+};
+
+// MSG91 wraps its payloads differently per endpoint (`data[0]`, `data.data[0]`,
+// plain `data`), and createCompany is not used anywhere else in this codebase,
+// so the id is looked for in each shape rather than assumed. Returns null when
+// none of them carries one — the caller turns that into a loud failure instead
+// of provisioning a guess.
+export const organizationIdFrom = (payload) => {
+  const candidates = [
+    payload?.data?.company?.id,
+    payload?.data?.id,
+    Array.isArray(payload?.data) ? payload.data[0]?.id : undefined,
+    Array.isArray(payload?.data?.data) ? payload.data.data[0]?.id : undefined,
+    payload?.data?.data?.id,
+    payload?.company?.id,
+    payload?.id
+  ];
+  const id = candidates.find((value) => value !== undefined && value !== null && String(value).trim() !== "");
+  return id === undefined ? null : String(id);
+};

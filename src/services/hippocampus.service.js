@@ -75,6 +75,32 @@ export const deleteResource = async (resourceId) => {
 };
 
 /**
+ * Delete all resources for an owner within a collection
+ * @param {String} collectionId
+ * @param {String} ownerId
+ */
+export const deleteResourcesByOwner = async (collectionId, ownerId) => {
+  try {
+    let deleteUrl = `${HIPPOCAMPUS_BASE_URL}/collection/${collectionId}/resources`;
+    if (ownerId) {
+      deleteUrl += `?ownerId=${ownerId}`;
+    }
+    const response = await axios({
+      method: "DELETE",
+      url: deleteUrl,
+      headers: {
+        "x-api-key": HIPPOCAMPUS_API_KEY,
+        "Content-Type": "application/json"
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error deleting resources by owner from Hippocampus:", error.response?.data || error.message);
+    throw error;
+  }
+};
+
+/**
  * Update a resource in Hippocampus
  * @param {String} resourceId - Resource ID to update
  * @param {Object} updateData - Data to update (title, description, content, url)

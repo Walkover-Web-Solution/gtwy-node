@@ -42,11 +42,19 @@ const redis_keys = {
   timezone_and_org_: "cd_timezone_and_org_",
   conversation_: "cd_conversation_",
   last_transffered_agent_: "cd_last_transffered_agent_",
+  // The org's Lago wallet, re-fetched from Lago on a miss
+  billing_wallet_: "cd_billing_wallet_",
   // Protected — source of truth or cost accumulators
   sub_thread_pending_: "nd_sub_thread_pending_",
   bridgeusedcost_: "nd_bridgeusedcost_",
   folderusedcost_: "nd_folderusedcost_",
   apikeyusedcost_: "nd_apikeyusedcost_",
+  // Period-keyed apikey counters: the reset window is part of the key, so a new
+  // period reads as zero without anything expiring or being reset. The counter
+  // holds a bare number (atomic INCRBYFLOAT); the version/bridge ids that used to
+  // ride along in the same JSON blob live in the companion set.
+  apikeyperiodcost_: "nd_apikeyperiodcost_",
+  apikeyperiodrefs_: "nd_apikeyperiodrefs_",
   apikeylastused_: "nd_apikeylastused_",
   bridgelastused_: "nd_bridgelastused_",
   files_: "nd_files_",
@@ -54,14 +62,28 @@ const redis_keys = {
   metrix_bridges_: "nd_metrix_bridges_",
   rate_limit_: "nd_rate_limit_",
   openai_batch_: "nd_openai_batch_",
-  blocked_orgs_: "nd_blocked_orgs_"
+  blocked_orgs_: "nd_blocked_orgs_",
+  // Billing. The shadow balance and the applied-claim key are written by gtwy-ai
+  // too, so these names must stay byte-identical on both sides.
+  billing_credit_balance_: "nd_billing_credit_balance_",
+  billing_credit_applied_: "nd_billing_credit_applied_",
+  billing_topup_applied_: "nd_billing_topup_applied_",
+  billing_lago_dispatched_: "nd_billing_lago_dispatched_",
+  billing_plan_lock_: "nd_billing_plan_lock_",
+  billing_sub_external_id_: "nd_billing_sub_external_id_",
+  org_billing_plan_: "nd_org_billing_plan_",
+  // Stripe-through-Lago. Per-org: one checkout at a time (15s). Global: the
+  // nightly billing reconcile runs on one replica only (1h) — no leader election.
+  billing_checkout_lock_: "nd_billing_checkout_lock_",
+  billing_lago_plan_: "nd_billing_lago_plan_",
+  billing_reconcile_lock: "nd_billing_reconcile_lock"
 };
 
 const embed_cache = {
   keys: {
     folder: (folderId) => `embed:folder_${folderId}`,
     org: (orgId) => `embed:org_${orgId}`,
-    user: (userId, orgId) => `embed:user_${userId}:${orgId}`
+    user: (userId, orgId, folderId) => `embed:user_${userId}:${orgId}:${folderId}`
   }
 };
 
