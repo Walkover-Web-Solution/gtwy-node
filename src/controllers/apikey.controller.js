@@ -1,11 +1,11 @@
 import apikeyService from "../db_services/apikey.service.js";
 import Helper from "../services/utils/helper.utils.js";
-import { findInCache, deleteInCache } from "../cache_service/index.js";
+import { deleteInCache } from "../cache_service/index.js";
 import { validateApiKey } from "../services/utils/aiServices.js";
 import { getBaseUrl, getDefaultModel, getValidationConfig } from "../services/utils/loadServicesRegistry.js";
 import { redis_keys, cost_types, new_agent_service } from "../configs/constant.js";
 import { cleanupCache } from "../services/utils/redis.utils.js";
-import { periodKey, allPeriodKeys } from "../services/utils/periodKey.utils.js";
+import { allPeriodKeys } from "../services/utils/periodKey.utils.js";
 
 const saveApikey = async (req, res, next) => {
   const { service, name, apikey_limit = 0, apikey_limit_reset_period, apikey_limit_start_date } = req.body;
@@ -59,49 +59,6 @@ const getAllApikeys = async (req, res, next) => {
   const result = await apikeyService.findAllApikeys(org_id, folder_id, user_id, isEmbedUser);
 
   if (result.success) {
-    // Process all API keys in parallel for better performance
-    const processedResults = await Promise.all(
-      result.result.map(async (apiKeyObj) => {
-        // Convert Mongoose document to plain object
-        const plainObj = apiKeyObj.toObject ? apiKeyObj.toObject() : apiKeyObj;
-
-        // Decrypt and mask the API key
-        const decryptedApiKey = await Helper.decrypt(plainObj.apikey);
-        const maskedApiKey = await Helper.maskApiKey(decryptedApiKey);
-
-        // Get last used data from cache (runs in parallel)
-        const lastUsedData = await findInCache(`${redis_keys.apikeylastused_}${plainObj._id}`);
-
-        // Live spend for the current window. The period is part of the key, so a
-        // finished window is simply a different key and never read.
-        const currentPeriod = periodKey(plainObj.apikey_limit_reset_period);
-        const counter = await findInCache(`${redis_keys.apikeyperiodcost_}${plainObj._id}_${currentPeriod}`);
-
-        // Create the final object with all properties
-        const processedObj = {
-          ...plainObj,
-          apikey: maskedApiKey
-        };
-
-        // Only add last_used if cache data exists
-        if (lastUsedData) {
-          processedObj.last_used = JSON.parse(lastUsedData);
-        }
-
-        if (counter !== null && counter !== false && counter !== undefined) {
-          processedObj.apikey_usage = Number(counter) || 0;
-        } else {
-          // Redis had nothing. The document copy only counts when it belongs to
-          // the window we are showing; otherwise this window has no spend yet.
-          processedObj.apikey_usage = plainObj.apikey_usage_period === currentPeriod ? plainObj.apikey_usage || 0 : 0;
-        }
-
-        return processedObj;
-      })
-    );
-
-    // Update the result with processed data
-    result.result = processedResults;
     res.locals = result;
     req.statusCode = 200;
     return next();
