@@ -48,6 +48,7 @@ const createApi = {
       id: Joi.string().required().messages({
         "any.required": "id (script_id) is required"
       }),
+      url: Joi.string().uri().optional(),
       title: Joi.string().pattern(FUNCTION_NAME_PATTERN).optional().messages({
         "string.pattern.base": FUNCTION_NAME_MESSAGE
       }),
@@ -63,35 +64,6 @@ const createApi = {
     .unknown(true)
 };
 
-const addPreTool = {
-  params: Joi.object()
-    .keys({
-      agent_id: Joi.string().required().messages({
-        "any.required": "agent_id is required"
-      })
-    })
-    .unknown(true),
-  body: Joi.object()
-    .keys({
-      version_id: Joi.string().optional(),
-      pre_tools: Joi.object()
-        .keys({
-          type: Joi.string().valid("custom_function", "query_refiner", "rag_knowledgebase", "gtwy_web_search").required(),
-          config: Joi.object().optional(),
-          args: Joi.object().optional()
-        })
-        .required()
-        .messages({
-          "any.required": "pre_tools is required"
-        }),
-      status: Joi.string().valid("0", "1").required().messages({
-        "any.required": "status is required",
-        "any.only": 'status must be either "0" or "1"'
-      })
-    })
-    .unknown(true)
-};
-
 const getAllInBuiltTools = {
   // No validation needed
 };
@@ -101,6 +73,5 @@ export default {
   updateApiCalls,
   deleteFunction,
   createApi,
-  addPreTool,
   getAllInBuiltTools
 };
