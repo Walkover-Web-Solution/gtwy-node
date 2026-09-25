@@ -7,6 +7,7 @@ import embedController from "./embed.controller.js";
 import { getUsers } from "../services/proxy.service.js";
 import modelConfigDbService from "../db_services/modelConfig.service.js";
 import latencyService from "../services/latency.service.js";
+import Helper from "../services/utils/helper.utils.js";
 
 const clearRedisCache = async (req, res, next) => {
   const { id, ids } = req.body;
@@ -171,6 +172,35 @@ const getAffiliateEmbedToken = async (req, res, next) => {
   return next();
 };
 
+/**
+ * Mints a viasocket embed token scoped to one of the caller's own end
+ * users, so SDK integrators can embed viasocket's tool-builder widget in
+ * their own product. Same token shape/signing as `getViasocketEmbedToken`
+ * (src/services/utils/viasocketSync.utils.js), which is scoped to GTWY's
+ * own embed users (isEmbedUser + folder_id) — this route instead scopes by
+ * whatever user_id/unique_identifier the SDK caller provides.
+ */
+const getViasocketEmbedToken = async (req, res, next) => {
+  const { user_id, unique_identifier } = req.body;
+  const identifier = user_id || unique_identifier;
+
+  const embed_token = Helper.generate_token(
+    {
+      org_id: process.env.ORG_ID,
+      project_id: process.env.PROJECT_ID,
+      user_id: identifier
+    },
+    process.env.ACCESS_KEY
+  );
+
+  res.locals = {
+    success: true,
+    embed_token
+  };
+  req.statusCode = 200;
+  return next();
+};
+
 const setModelStatus = async (req, res, next) => {
   const { model_name, service, status: parsedStatus } = req.body;
 
@@ -305,6 +335,7 @@ export default {
   generateToken,
   getCurrentOrgUsers,
   getAffiliateEmbedToken,
+  getViasocketEmbedToken,
   setModelStatus,
   getModelsByStatus,
   checkLatency
