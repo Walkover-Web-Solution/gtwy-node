@@ -161,17 +161,42 @@ const addPreTool = async (req, res, next) => {
     const current_pre_tools = model_config.bridges?.pre_tools || [];
     const parent_id = model_config.bridges?.parent_id || bridgeId;
     const data_to_update = {};
+    // UI id for a pre-tool: custom_function → config.function_id; built-in → type.
+    const getPreToolId = (t) => (t?.type === "custom_function" ? t?.config?.function_id : t?.type);
+    const matchesPreToolId = (t, id) => id != null && String(getPreToolId(t)) === String(id);
 
     if (status === "1") {
-      // Prevent adding a new tool if one already exists (only one pre-tool allowed)
+      // Add: only one pre-tool allowed per agent (for now).
       if (current_pre_tools.length > 0) {
         res.locals = { success: false, message: "A pre-tool is already configured. Remove it before adding a new one." };
         req.statusCode = 400;
         return next();
       }
       data_to_update["pre_tools"] = [...current_pre_tools, pre_tool_entry];
+    } else if (status === "2") {
+      // Replace a specific pre-tool by id (supports multiple pre-tools later).
+      const { pre_tool_id } = req.body;
+      if (!pre_tool_id) {
+        res.locals = { success: false, message: "pre_tool_id is required when replacing a pre-tool" };
+        req.statusCode = 400;
+        return next();
+      }
+      const withoutTarget = current_pre_tools.filter((t) => !matchesPreToolId(t, pre_tool_id));
+      if (withoutTarget.length === current_pre_tools.length) {
+        res.locals = { success: false, message: "pre_tool_id did not match any configured pre-tool" };
+        req.statusCode = 400;
+        return next();
+      }
+      data_to_update["pre_tools"] = [...withoutTarget, pre_tool_entry];
     } else {
-      data_to_update["pre_tools"] = current_pre_tools.filter((t) => t.type !== pre_tool_entry?.type);
+      // status "0" — remove the matching pre-tool. Custom functions share type
+      // "custom_function", so match by function_id; built-ins match by type.
+      data_to_update["pre_tools"] = current_pre_tools.filter((t) => {
+        if (pre_tool_entry?.type === "custom_function") {
+          return !(t.type === "custom_function" && t.config?.function_id === pre_tool_entry?.config?.function_id);
+        }
+        return t.type !== pre_tool_entry?.type;
+      });
     }
 
     if (version_id) {
