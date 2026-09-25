@@ -54,24 +54,28 @@ async function debitBackgroundJob({ job, usage, billing, bridge_id }) {
     // Random, not derived: a redelivery re-runs the job and spends real money again.
     const transaction_id = `bgjob-${job}-${billing.message_id || "no-msg"}-${uuidv4()}`;
 
-    await processBillingEvents([
-      {
-        type: "background_job_debit",
-        job,
-        transaction_id,
-        org_id: billing.org_id,
-        credits,
-        // The real provider cost, never with the commission folded in.
-        cost_usd: String(cost_usd),
-        base_credits: base,
-        commission_pct: String(COMMISSION_PCT),
-        message_id: billing.message_id,
-        bridge_id,
-        user_id: billing.user_id,
-        folder_id: billing.folder_id,
-        is_embed: billing.is_embed
-      }
-    ]);
+    // No dispatch claim: the id is random, so it can never repeat.
+    await processBillingEvents(
+      [
+        {
+          type: "background_job_debit",
+          job,
+          transaction_id,
+          org_id: billing.org_id,
+          credits,
+          // The real provider cost, never with the commission folded in.
+          cost_usd: String(cost_usd),
+          base_credits: base,
+          commission_pct: String(COMMISSION_PCT),
+          message_id: billing.message_id,
+          bridge_id,
+          user_id: billing.user_id,
+          folder_id: billing.folder_id,
+          is_embed: billing.is_embed
+        }
+      ],
+      { dedupe: false }
+    );
 
     logger.info(
       `[billing] bg debit org=${billing.org_id} job=${job} base=${base} +${COMMISSION_PCT}% ` +
