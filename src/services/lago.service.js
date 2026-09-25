@@ -299,6 +299,8 @@ export const getSubscription = async (org_id) => {
     external_id: active.external_id,
     plan_code: active.plan_code,
     plan_slug: planSlugForCode(active.plan_code),
+    // The subscription's own fee: 0 for an org comped with a plan override.
+    plan_amount_cents: active.plan_amount_cents ?? null,
     status: active.status,
     // Period bounds, when Lago exposes them (newer versions do). Used for
     // "cancels on <date>" in the UI; null is handled everywhere.
@@ -914,6 +916,39 @@ export const syncWalletBalanceToRedis = async (org_id) => {
   await client.set(`${REDIS_PREFIX}${redis_keys.billing_credit_balance_}{${org_id}}`, balance);
   return balance;
 };
+
+// What the request gate currently believes the org holds — the shadow balance
+// syncWalletBalanceToRedis writes. null when there is no key yet (the next
+// request seeds it from Lago) or Redis is down. Read-only; for admin views.
+export const getShadowBalance = async (org_id) => {
+  if (!client.isReady) return null;
+  const value = await client.get(`${REDIS_PREFIX}${redis_keys.billing_credit_balance_}{${org_id}}`).catch(() => null);
+  return value === null || value === undefined ? null : String(value);
+};
+
+// The org's most recent wallet transactions (grants, top-ups, voids), newest
+// first, with the metadata each was tagged with (source / by / reason).
+export const listWalletTransactions = async (org_id, { per_page = 10 } = {}) =>
+  lagoRequest(async () => {
+    const wallet_id = (await fetchActiveWallet(org_id))?.lago_id ?? null;
+    if (!wallet_id) return [];
+    const response = await axios.get(`${BILLING_API_URL}/wallets/${encodeURIComponent(wallet_id)}/wallet_transactions`, {
+      ...billingRequestConfig(),
+      params: { page: 1, per_page }
+    });
+    return (response.data?.wallet_transactions ?? [])
+      .map((t) => ({
+        lago_id: t.lago_id,
+        direction: t.transaction_type, // inbound | outbound
+        status: t.status,
+        credits: t.credit_amount,
+        source: t.source ?? null,
+        created_at: t.created_at,
+        settled_at: t.settled_at ?? null,
+        metadata: Object.fromEntries((t.metadata ?? []).map(({ key, value }) => [key, value]))
+      }))
+      .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+  });
 
 // Add `delta` credits to the gate's shadow balance WITHOUT overwriting it.
 //
