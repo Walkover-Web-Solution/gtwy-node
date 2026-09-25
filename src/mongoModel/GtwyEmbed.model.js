@@ -59,7 +59,6 @@ FolderSchema.pre("save", function (next) {
       showHistory: false,
       showConfigType: false,
       showAdvancedParameters: true,
-      showCreateManuallyButton: true,
       showAdvancedConfigurations: true,
       showPreTool: true,
       slide: "right",
