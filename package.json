@@ -31,6 +31,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@opentelemetry/auto-instrumentations-node": "^0.80.0",
     "@pyroscope/nodejs": "^0.4.8",
     "amqplib": "^0.10.5",
     "axios": "1.14.0",
