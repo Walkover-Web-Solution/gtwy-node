@@ -42,13 +42,19 @@ export const subscriptionExternalId = (org_id) => String(org_id);
 // failed_billing_debits and replayed.
 const BILLING_TIMEOUT_MS = Number(process.env.BILLING_API_TIMEOUT_MS || 5000);
 
+// Wallet debits run in the queue consumer, after the reply is already delivered,
+// so nobody waits on them — and a timed-out debit is the one failure we cannot
+// replay automatically (Lago may or may not have ingested it, so it is stored
+// as "ambiguous"). Give them far more room than the user-facing calls.
+const BILLING_DEBIT_TIMEOUT_MS = 20000;
+
 const billingHeaders = () => ({
   Authorization: `Bearer ${BILLING_API_KEY}`,
   "Content-Type": "application/json"
 });
 
 // Axios config every Lago call uses, so none of them can hang without a timeout.
-const billingRequestConfig = () => ({ headers: billingHeaders(), timeout: BILLING_TIMEOUT_MS });
+const billingRequestConfig = (timeout = BILLING_TIMEOUT_MS) => ({ headers: billingHeaders(), timeout });
 
 // Turn a Lago HTTP error into an Error that carries the status and body.
 const lagoRequest = async (fn) => {
@@ -282,10 +288,10 @@ export const createSubscription = async (org_id, plan_slug = DEFAULT_PLAN_SLUG, 
 // Every caller that reasons about `pending` (cancel, resume, the deferred
 // branch of changeOrgPlan, the "already cancelling" guard on subscribe) reads
 // from here, so leaving it off silently breaks all of them.
-export const getSubscription = async (org_id) => {
+export const getSubscription = async (org_id, { timeout } = {}) => {
   const response = await lagoRequest(() =>
     axios.get(`${BILLING_API_URL}/subscriptions`, {
-      ...billingRequestConfig(),
+      ...billingRequestConfig(timeout),
       // axios turns an array value into status[]=active&status[]=pending.
       params: { external_customer_id: String(org_id), status: ["active", "pending"] }
     })
@@ -333,7 +339,7 @@ const SUB_EXTERNAL_ID_TTL = 86400;
 
 const subExternalIdKey = (org_id) => `${REDIS_PREFIX}${redis_keys.billing_sub_external_id_}${org_id}`;
 
-export const resolveSubscriptionExternalId = async (org_id) => {
+export const resolveSubscriptionExternalId = async (org_id, { timeout } = {}) => {
   if (client.isReady) {
     const cached = await client.get(subExternalIdKey(org_id)).catch(() => null);
     if (cached) return cached;
@@ -341,7 +347,7 @@ export const resolveSubscriptionExternalId = async (org_id) => {
 
   // Deliberately NOT caught: a Lago failure here must reach walletDebit's retry
   // and then failed_billing_debits, not be flattened into "no subscription".
-  const subscription = await getSubscription(org_id);
+  const subscription = await getSubscription(org_id, { timeout });
   const external_id = subscription?.pending_only ? null : subscription?.external_id || null;
   if (!external_id) return null;
 
@@ -1026,7 +1032,7 @@ export const walletDebit = async (org_id, credits, transaction_id, metadata = {}
     // a message isWalletNotFoundError() recognises, so debitOne retries it a
     // few times (provisioning may still be in flight) and then stores it as
     // "failed" — visible, alerted, and replayable once the org is provisioned.
-    const external_subscription_id = await resolveSubscriptionExternalId(org_id);
+    const external_subscription_id = await resolveSubscriptionExternalId(org_id, { timeout: BILLING_DEBIT_TIMEOUT_MS });
     if (!external_subscription_id) {
       // Wording matters: isWalletNotFoundError() matches on "subscription" plus
       // "not found", which is what makes this retryable rather than terminal.
@@ -1039,7 +1045,7 @@ export const walletDebit = async (org_id, credits, transaction_id, metadata = {}
       code: eventCodeFor(eventType),
       properties
     };
-    return axios.post(`${BILLING_API_URL}/events`, { event }, billingRequestConfig()).then((r) => r.data);
+    return axios.post(`${BILLING_API_URL}/events`, { event }, billingRequestConfig(BILLING_DEBIT_TIMEOUT_MS)).then((r) => r.data);
   });
 
 // True when Lago rejected a call because the subscription/wallet is not there yet.
