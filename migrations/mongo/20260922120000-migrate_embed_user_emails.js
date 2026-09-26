@@ -8,9 +8,35 @@ const MSG91_BASE = "https://routes.msg91.com/api";
 const msg91Headers = () => ({ "Content-Type": "application/json", Authkey: process.env.ADMIN_API_KEY });
 
 // The embed/proxy role id differs per environment: 18 in testing, 20 elsewhere.
-const embedRoleId = () => (String(process.env.ENVIRONMENT).toLowerCase() === "testing" ? "18" : "20");
+const embedRoleId = () => (String(process.env.ENVIRONMENT).toLowerCase() === "testing" ? "20" : "18");
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Groups items by a reason string, returning { reason: count } sorted by
+// count descending — used to summarize failure/skip reasons at the end of
+// the run instead of dumping every raw item again.
+function countByReason(items, reasonOf) {
+  const counts = new Map();
+  for (const item of items) {
+    const reason = reasonOf(item);
+    counts.set(reason, (counts.get(reason) || 0) + 1);
+  }
+  return [...counts.entries()].sort((a, b) => b[1] - a[1]);
+}
+
+const formatReasonError = (error) => (typeof error === "string" ? error : JSON.stringify(error));
+
+// Matches generateIdentifier(14, "emb", false) from
+// src/services/utils/utility.service.js, which createOrGetUser uses for the
+// real Cuser.name — letters only, no digits. MSG91 rejects a name containing
+// digits with "Cuser.name format is invalid", which is what the previous
+// Math.random().toString(36)-based name (letters + digits) was hitting.
+const NAME_ALPHABET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const generateEmbedUserName = () => {
+  let name = "emb";
+  for (let i = 0; i < 14; i++) name += NAME_ALPHABET[Math.floor(Math.random() * NAME_ALPHABET.length)];
+  return name;
+};
 
 // proxy user_id -> every distinct (orgId, folderId) pair it's used under,
 // straight from each agent's own folder_id/org_id, first-seen order.
@@ -128,6 +154,15 @@ function planEmailUpdate(email, orgId, folderId) {
 // resolveMultiFolderUsers.
 async function planForOrg(orgId, groups) {
   const users = await fetchEmbedUsers(orgId);
+  const orgFolderIds = [
+    ...new Set(
+      [...groups.values()]
+        .flat()
+        .filter((p) => p.orgId === orgId)
+        .map((p) => p.folderId)
+    )
+  ];
+  console.log(`[org] org=${orgId} folder_id(s)=${orgFolderIds.join(",") || "none"} fetched ${users.length} embed user(s) (role_id=${embedRoleId()})`);
   const planned = [];
   const unmapped = [];
   const multiFolderTasks = [];
@@ -139,16 +174,31 @@ async function planForOrg(orgId, groups) {
 
     if (pairs.length === 0) {
       unmapped.push({ id: user.id, email: user.email });
-      planned.push({ id: user.id, oldEmail: user.email, newEmail: null, meta });
+      planned.push({ id: user.id, oldEmail: user.email, newEmail: null, meta, skipReason: "unmapped (no local agent found for this proxy user_id)" });
+      console.log(`[plan] SKIPPED (unmapped, meta-only) user=${user.id} email=${user.email} folder_id=none`);
       continue;
     }
 
     const [primary, ...extras] = pairs;
     const result = planEmailUpdate(user.email, primary.orgId, primary.folderId);
-    planned.push({ id: user.id, oldEmail: user.email, newEmail: result.skip ? null : result.newEmail, meta });
+    planned.push({
+      id: user.id,
+      oldEmail: user.email,
+      newEmail: result.skip ? null : result.newEmail,
+      meta,
+      ...(result.skip ? { skipReason: result.skip } : {})
+    });
+    if (result.skip) {
+      console.log(`[plan] SKIPPED (${result.skip}) user=${user.id} email=${user.email} folder_id=${primary.folderId}`);
+    } else {
+      console.log(`[plan] QUEUED user=${user.id} email=${user.email} folder_id=${primary.folderId} -> ${result.newEmail}`);
+    }
 
     for (const extra of extras) {
       multiFolderTasks.push({ oldUserId: user.id, oldEmail: user.email, orgId: extra.orgId, folderId: extra.folderId });
+      console.log(
+        `[plan] SPLIT-QUEUED user=${user.id} email=${user.email} org=${extra.orgId} folder=${extra.folderId} (shared proxy user, needs new MSG91 user)`
+      );
     }
   }
   return { planned, unmapped, multiFolderTasks };
@@ -179,24 +229,36 @@ async function applyBatch(referenceId, batch, delayMs) {
         items.map((i) => ({ id: i.id, ...(i.newEmail ? { email: i.newEmail } : {}), meta: i.meta }))
       );
       succeeded.push(...items);
+      for (const item of items) {
+        console.log(`[bulk] MIGRATED user=${item.id} email=${item.oldEmail} -> ${item.newEmail ?? "(meta only)"}`);
+      }
     } catch (error) {
       const status = error.response?.status;
       if (status === 409 && attempt <= 3) {
+        console.log(`[bulk] RETRY (409 locked, attempt ${attempt}/3) ${items.length} user(s): ${items.map((i) => i.id).join(", ")}`);
         await sleep(500 * attempt);
         return tryBulk(items, attempt + 1);
       }
       if (items.length === 1) {
-        failed.push({ ...items[0], error: error.response?.data?.errors ?? error.message });
+        const reason = error.response?.data?.errors ?? error.message;
+        failed.push({ ...items[0], error: reason });
+        console.log(`[bulk] FAILED user=${items[0].id} email=${items[0].oldEmail} status=${status ?? "n/a"} error=${JSON.stringify(reason)}`);
         return;
       }
       // All-or-nothing: fall back to one-at-a-time so a single bad row
       // doesn't block the rest of the batch.
+      console.log(`[bulk] batch of ${items.length} failed (status=${status ?? "n/a"}) — falling back to per-user updates`);
       for (const item of items) {
         try {
           await updateSingleUser(item.id, item.newEmail, item.meta);
           succeeded.push(item);
+          console.log(`[single] MIGRATED user=${item.id} email=${item.oldEmail} -> ${item.newEmail ?? "(meta only)"}`);
         } catch (singleError) {
-          failed.push({ ...item, error: singleError.response?.data?.errors ?? singleError.message });
+          const reason = singleError.response?.data?.errors ?? singleError.message;
+          failed.push({ ...item, error: reason });
+          console.log(
+            `[single] FAILED user=${item.id} email=${item.oldEmail} status=${singleError.response?.status ?? "n/a"} error=${JSON.stringify(reason)}`
+          );
         }
         if (delayMs > 0) await sleep(delayMs);
       }
@@ -215,7 +277,7 @@ async function applyBatch(referenceId, batch, delayMs) {
 async function createEmbedUser(orgId, email, orgName, uniqueIdentifier) {
   const proxyObject = {
     feature_id: process.env.PUBLIC_REFERENCEID,
-    Cuser: { name: `emb${Math.random().toString(36).slice(2, 16)}`, email, meta: { type: "embed", unique_identifier: uniqueIdentifier } },
+    Cuser: { name: generateEmbedUserName(), email, meta: { type: "embed", unique_identifier: uniqueIdentifier } },
     company: { name: orgName, is_readable: true, meta: { status: "2" } },
     role_id: embedRoleId()
   };
@@ -257,8 +319,15 @@ async function resolveMultiFolderUsers(db, tasks, delayMs) {
         newUserId: String(newUserId)
       });
       succeeded.push({ ...task, newUserId: String(newUserId), newEmail, rewired });
+      console.log(
+        `[split] MIGRATED oldUser=${task.oldUserId} org=${task.orgId} folder=${task.folderId} -> newUser=${newUserId} email=${newEmail} rewired=${JSON.stringify(rewired)}`
+      );
     } catch (error) {
-      failed.push({ ...task, error: error.response?.data?.errors ?? error.message });
+      const reason = error.response?.data?.errors ?? error.message;
+      failed.push({ ...task, error: reason });
+      console.log(
+        `[split] FAILED oldUser=${task.oldUserId} org=${task.orgId} folder=${task.folderId} status=${error.response?.status ?? "n/a"} error=${JSON.stringify(reason)}`
+      );
     }
     if (delayMs > 0) await sleep(delayMs);
   }
@@ -328,17 +397,28 @@ export const up = async (db) => {
   const planned = [];
   const unmapped = [];
   const multiFolderTasks = [];
+  const failedOrgs = [];
   for (const orgId of orgIds) {
-    const result = await planForOrg(orgId, groups);
-    planned.push(...result.planned);
-    unmapped.push(...result.unmapped);
-    multiFolderTasks.push(...result.multiFolderTasks);
+    try {
+      const result = await planForOrg(orgId, groups);
+      planned.push(...result.planned);
+      unmapped.push(...result.unmapped);
+      multiFolderTasks.push(...result.multiFolderTasks);
+    } catch (error) {
+      const status = error.response?.status;
+      const reason = error.response?.data?.errors ?? error.message;
+      failedOrgs.push({ orgId, error: reason });
+      console.log(
+        `[org] FAILED org=${orgId} status=${status ?? "n/a"} error=${JSON.stringify(reason)} — skipping this org, continuing with the rest`
+      );
+    }
   }
   const emailChanges = planned.filter((item) => item.newEmail).length;
   console.log(
     `planned: ${planned.length} user(s) to update (meta on all, email on ${emailChanges}); ${unmapped.length} unmapped (meta-only); ` +
-      `${multiFolderTasks.length} shared-folder task(s) to split off into new users`
+      `${multiFolderTasks.length} shared-folder task(s) to split off into new users; ${failedOrgs.length} org(s) failed to fetch`
   );
+  if (failedOrgs.length) console.error(`orgs that failed to fetch (not migrated this run):`, failedOrgs);
 
   let succeeded = 0;
   const failed = [];
@@ -351,11 +431,32 @@ export const up = async (db) => {
   if (failed.length) console.error(`failed to update ${failed.length} user(s):`, failed);
   console.log(`embed user email/meta migration done: ${succeeded} updated, ${failed.length} failed.`);
 
+  let multi = { succeeded: [], failed: [] };
   if (multiFolderTasks.length) {
-    const multi = await resolveMultiFolderUsers(db, multiFolderTasks, 150);
+    multi = await resolveMultiFolderUsers(db, multiFolderTasks, 150);
     if (multi.failed.length) console.error(`failed to split off ${multi.failed.length} shared-folder user(s):`, multi.failed);
     console.log(`shared-folder split done: ${multi.succeeded.length} new user(s) created and rewired, ${multi.failed.length} failed.`);
   }
+
+  const skipped = planned.filter((item) => item.skipReason);
+  console.log("\n===== embed user email migration summary =====");
+  console.log(`orgs:           ${orgIds.length} total, ${orgIds.length - failedOrgs.length} fetched ok, ${failedOrgs.length} failed`);
+  if (failedOrgs.length) {
+    for (const [reason, count] of countByReason(failedOrgs, (o) => formatReasonError(o.error))) console.log(`  - ${count}x ${reason}`);
+  }
+  console.log(`users planned:  ${planned.length} total, ${emailChanges} email change(s) queued, ${skipped.length} skipped`);
+  if (skipped.length) {
+    for (const [reason, count] of countByReason(skipped, (s) => s.skipReason)) console.log(`  - ${count}x ${reason}`);
+  }
+  console.log(`email/meta:     ${succeeded} succeeded, ${failed.length} failed`);
+  if (failed.length) {
+    for (const [reason, count] of countByReason(failed, (f) => formatReasonError(f.error))) console.log(`  - ${count}x ${reason}`);
+  }
+  console.log(`shared-splits:  ${multi.succeeded.length} succeeded, ${multi.failed.length} failed`);
+  if (multi.failed.length) {
+    for (const [reason, count] of countByReason(multi.failed, (f) => formatReasonError(f.error))) console.log(`  - ${count}x ${reason}`);
+  }
+  console.log("================================================\n");
 };
 
 /**
