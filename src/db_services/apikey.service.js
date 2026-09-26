@@ -3,6 +3,10 @@ import versionModel from "../mongoModel/BridgeVersion.model.js";
 import configurationModel from "../mongoModel/Configuration.model.js";
 import FolderModel from "../mongoModel/GtwyEmbed.model.js";
 import { getServiceNames } from "../services/utils/loadServicesRegistry.js";
+import Helper from "../services/utils/helper.utils.js";
+import { findInCache } from "../cache_service/index.js";
+import { redis_keys } from "../configs/constant.js";
+import { periodKey } from "../services/utils/periodKey.utils.js";
 
 const saveApikeyRecord = async (data) => {
   const { org_id, apikey, service, name, folder_id, user_id, apikey_limit = 0, apikey_limit_reset_period, apikey_limit_start_date } = data;
@@ -57,9 +61,74 @@ const findAllApikeys = async (org_id, folder_id, user_id, isEmbedUser) => {
     if (user_id && isEmbedUser) query.user_id = String(user_id);
 
     const result = await ApikeyCredential.find(query);
+
+    // First pass: process keys and collect all version_ids
+    const allVersionIds = new Set();
+    const processedResults = await Promise.all(
+      result.map(async (apiKeyObj) => {
+        const plainObj = apiKeyObj.toObject ? apiKeyObj.toObject() : apiKeyObj;
+
+        // Collect version_ids
+        if (Array.isArray(plainObj.version_ids)) {
+          for (const vid of plainObj.version_ids) {
+            if (vid) allVersionIds.add(vid.toString());
+          }
+        }
+
+        // Decrypt and mask the API key
+        const decryptedApiKey = await Helper.decrypt(plainObj.apikey);
+        const maskedApiKey = await Helper.maskApiKey(decryptedApiKey);
+
+        // Get last used data from cache
+        const lastUsedData = await findInCache(`${redis_keys.apikeylastused_}${plainObj._id}`);
+
+        // Live spend for the current window. The period is part of the key, so a
+        // finished window is simply a different key and never read.
+        const currentPeriod = periodKey(plainObj.apikey_limit_reset_period);
+        const counter = await findInCache(`${redis_keys.apikeyperiodcost_}${plainObj._id}_${currentPeriod}`);
+
+        // Create the final object (without published_version_ids yet)
+        const processedObj = {
+          ...plainObj,
+          apikey: maskedApiKey
+        };
+
+        if (lastUsedData) {
+          processedObj.last_used = JSON.parse(lastUsedData);
+        }
+
+        if (counter !== null && counter !== false && counter !== undefined) {
+          processedObj.apikey_usage = Number(counter) || 0;
+        } else {
+          // Redis had nothing. The document copy only counts when it belongs to
+          // the window we are showing; otherwise this window has no spend yet.
+          processedObj.apikey_usage = plainObj.apikey_usage_period === currentPeriod ? plainObj.apikey_usage || 0 : 0;
+        }
+
+        return processedObj;
+      })
+    );
+
+    // Find configurations whose published_version_id matches any of the version_ids
+    let publishedSet = new Set();
+    if (allVersionIds.size > 0) {
+      const publishedConfigs = await configurationModel
+        .find({ org_id, published_version_id: { $in: [...allVersionIds] } }, { published_version_id: 1 })
+        .lean();
+      publishedSet = new Set(publishedConfigs.map((c) => c.published_version_id?.toString()).filter(Boolean));
+    }
+
+    // Second pass: add published_version_ids
+    for (const processedObj of processedResults) {
+      const publishedVersionIds = Array.isArray(processedObj.version_ids)
+        ? processedObj.version_ids.filter((vid) => vid && publishedSet.has(vid.toString()))
+        : [];
+      processedObj.published_version_ids = publishedVersionIds;
+    }
+
     return {
       success: true,
-      result: result
+      result: processedResults
     };
   } catch (error) {
     console.error("Error getting all API: ", error);
