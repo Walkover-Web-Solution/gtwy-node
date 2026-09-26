@@ -20,6 +20,7 @@ router.get(
 );
 router.post("/token", middleware, validate(utilsValidation.generateToken), utilsController.generateToken);
 router.post("/affiliate/embed-token", middleware, validate(utilsValidation.getAffiliateEmbedToken), utilsController.getAffiliateEmbedToken);
+router.post("/viasocket/embed-token", middleware, validate(utilsValidation.getViasocketEmbedToken), utilsController.getViasocketEmbedToken);
 router.get("/users-details", middleware, utilsController.getCurrentOrgUsers);
 router.delete(
   "/agent/:agent_id",

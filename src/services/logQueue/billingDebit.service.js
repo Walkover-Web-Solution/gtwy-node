@@ -9,8 +9,17 @@ const MAX_ATTEMPTS = 3;
 const RETRY_DELAY_MS = 500;
 const PLATFORM_ORG_ID = process.env.GTWY_PLATFORM_ORG_ID;
 
+// Covers a message that is never acked (pod crash, deploy) and comes back later.
 const DISPATCHED_TTL = 86400;
 
+// Once the queue message is acked RabbitMQ never redelivers it, so the claim is
+// cut down to this. Not deleted outright: gtwy-ai retries a publish for up to
+// ~7s, and a duplicate copy landing right after the ack must still be caught.
+const DISPATCH_GRACE_TTL = 300;
+
+// Must stay at least as long as the worst queue backlog: gtwy-ai claims this
+// same key when it debits the gate, and Node claims it again only when the
+// message is consumed. If it expired in between, the gate would be debited twice.
 const APPLIED_TTL = 86400;
 
 // Claim the transaction and decrement the shadow balance in one atomic step.
@@ -59,6 +68,17 @@ const claimTransaction = async (transaction_id) => {
   if (!client.isReady) return true; // fail open: no dedup without Redis, but billing continues
   const claimed = await client.set(dispatchKey(transaction_id), "1", { NX: true, EX: DISPATCHED_TTL });
   return claimed !== null;
+};
+
+// Shorten the claims of an acked message to DISPATCH_GRACE_TTL. Never throws:
+// a claim left behind simply expires on DISPATCHED_TTL as before.
+const releaseDispatchClaims = async (transaction_ids) => {
+  if (!Array.isArray(transaction_ids) || transaction_ids.length === 0 || !client.isReady) return;
+  try {
+    await Promise.all(transaction_ids.map((transaction_id) => client.expire(dispatchKey(transaction_id), DISPATCH_GRACE_TTL)));
+  } catch (err) {
+    logger.warn(`[billing] could not shorten dispatch claims (${transaction_ids.length}): ${err.message}`);
+  }
 };
 
 // Persist a charge Lago did not take, so it can be replayed instead of vanishing.
@@ -112,7 +132,9 @@ const postDebit = async (event) => {
 };
 
 // Charge one usage event, retrying while the subscription is still being provisioned.
-async function debitOne(event) {
+// Returns the transaction_id when this call took its dispatch claim, else null.
+// dedupe=false skips the claim, for callers whose ids can never repeat.
+async function debitOne(event, { dedupe = true } = {}) {
   const { org_id, credits, transaction_id } = event || {};
 
   // Internal traffic must never be billed to the platform org.
@@ -121,24 +143,25 @@ async function debitOne(event) {
       `[billing] REFUSING debit against the platform org (${org_id}) transaction_id=${transaction_id} — ` +
         `GTWY_PLATFORM_ORG_ID suppression in gtwy-ai's reserve_credits_and_api_key_setup is not working`
     );
-    return;
+    return null;
   }
 
   if (!org_id || !credits || !transaction_id) {
     logger.error(`[billing] dropping malformed llm_usage_debit event: ${JSON.stringify(event)}`);
     unknown_error_handler_alert("billingDebitMalformedEvent", null, JSON.stringify(event));
-    return;
+    return null;
   }
 
-  if (!(await claimTransaction(transaction_id))) {
+  if (dedupe && !(await claimTransaction(transaction_id))) {
     logger.warn(`[billing] skipping duplicate llm_usage_debit transaction_id=${transaction_id} (already dispatched to Lago)`);
-    return;
+    return null;
   }
+  const claimed = dedupe ? transaction_id : null;
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
       await postDebit(event);
-      return;
+      return claimed;
     } catch (err) {
       const retryable = isWalletNotFoundError(err);
       if (retryable && attempt < MAX_ATTEMPTS) {
@@ -152,14 +175,18 @@ async function debitOne(event) {
       await storeFailedDebit(event, err, lagoAnswered ? "failed" : "ambiguous");
       logger.error(`[billing] wallet debit failed for org_id=${org_id} transaction_id=${transaction_id}: ${err.message}`);
       unknown_error_handler_alert("billingDebitFailed", null, `org_id=${org_id} transaction_id=${transaction_id} error=${err.message}`);
-      return;
+      // Keep the full-length claim on a failed charge: rare, and the safest state to leave.
+      return null;
     }
   }
+  return null;
 }
-// Charge every usage event in one queue message.
-async function processBillingEvents(events) {
-  if (!Array.isArray(events) || events.length === 0) return;
-  await Promise.all(events.map(debitOne));
+// Charge every usage event in one queue message. Returns the transaction_ids
+// whose dispatch claim this call took and charged, for releaseDispatchClaims.
+async function processBillingEvents(events, { dedupe = true } = {}) {
+  if (!Array.isArray(events) || events.length === 0) return [];
+  const claimed = await Promise.all(events.map((event) => debitOne(event, { dedupe })));
+  return claimed.filter(Boolean);
 }
 
 // Re-post stored "failed" debits; "ambiguous" rows are left for manual review.
@@ -186,4 +213,4 @@ async function replayFailedDebits(limit = 100) {
   return result;
 }
 
-export { processBillingEvents, replayFailedDebits };
+export { processBillingEvents, releaseDispatchClaims, replayFailedDebits };
