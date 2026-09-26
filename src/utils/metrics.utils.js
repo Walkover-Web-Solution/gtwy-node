@@ -1,16 +1,21 @@
 export function selectTable(range) {
-  // const today = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate()));
-  // const startDate = new Date(Date.UTC(new Date(startTime).getUTCFullYear(), new Date(startTime).getUTCMonth(), new Date(startTime).getUTCDate(), new Date(startTime).getUTCHours(), new Date(startTime).getUTCMinutes(), new Date(startTime).getUTCSeconds()));
-  // const endDate = new Date(Date.UTC(new Date(endTime).getUTCFullYear(), new Date(endTime).getUTCMonth(), new Date(endTime).getUTCDate(), new Date(endTime).getUTCHours(), new Date(endTime).getUTCMinutes(), new Date(endTime).getUTCSeconds()));
-
   if (range === 1 || range === 2 || range === 3 || range === 4 || range === 5) {
     return "fifteen_minute_data";
-  } else {
-    return "daily_data";
   }
+  return "daily_data";
 }
 
-export function buildWhereClause(params, values, factor, range, flag = true, start_date = null, end_date = null) {
+/**
+ * @param {object} params - filter fields
+ * @param {array} values - Sequelize replacements collector (kept for API compat)
+ * @param {string} factor - GROUP BY dimension
+ * @param {number} range - preset range id (1–10)
+ * @param {boolean} flag - when true apply range window; when false force last N recent days
+ * @param {string|Date|null} start_date - custom range start (range === 10)
+ * @param {string|Date|null} end_date - custom range end (range === 10)
+ * @param {{ excludeRecentDays?: number }} [options]
+ */
+export function buildWhereClause(params, values, factor, range, flag = true, start_date = null, end_date = null, options = {}) {
   const conditions = [];
 
   if (params.org_id !== null && params.org_id !== undefined) {
@@ -42,7 +47,8 @@ export function buildWhereClause(params, values, factor, range, flag = true, sta
     conditions.push(`model = '${params.model}'`);
   }
 
-  let query = "WHERE " + conditions.join(" AND ");
+  let query = conditions.length > 0 ? "WHERE " + conditions.join(" AND ") : "WHERE 1=1";
+
   if (range && flag) {
     if (range == 1) {
       query += ` AND created_at >= NOW() - INTERVAL '1 hour'`;
@@ -66,11 +72,19 @@ export function buildWhereClause(params, values, factor, range, flag = true, sta
       query += ` AND created_at BETWEEN '${start_date}' AND '${end_date}'`;
     }
   }
+
   if (!flag) {
     query += ` AND created_at >= NOW() - INTERVAL '2 days'`;
   }
+
+  // When merging daily + 15-min buckets, drop the recent window from daily so it isn't counted twice.
+  if (options.excludeRecentDays) {
+    query += ` AND created_at < NOW() - INTERVAL '${Number(options.excludeRecentDays)} days'`;
+  }
+
+  // Only group by dimensions — never by the measures being aggregated.
   if (factor) {
-    query += ` GROUP BY ${factor}, created_at, cost_sum, total_token_count, success_count`;
+    query += ` GROUP BY ${factor}, created_at`;
   }
   return query;
 }
