@@ -21,15 +21,11 @@
  *
  * `variables_path` is left in place: it is still read outside connected_tools.
  * Set CONNECTED_TOOLS_DRY_RUN=true to log the counts without writing anything.
- * ORG_IDS limits the run to those orgs; leave it empty for every org.
  */
 
 import { ObjectId } from "mongodb";
 
 const COLLECTIONS = ["configurations", "configuration_versions"];
-
-// Only documents of these orgs are processed; empty it to run on every org.
-const ORG_IDS = ["80255"];
 
 const BATCH_SIZE = 500;
 
@@ -357,7 +353,7 @@ const fillUrls = (tools, lookup) => {
 
 export const up = async (db) => {
   const dryRun = String(process.env.CONNECTED_TOOLS_DRY_RUN || "").toLowerCase() === "true";
-  console.log(`=== fix_connected_tools${dryRun ? " (DRY RUN — no writes)" : ""}${ORG_IDS.length ? ` (orgs: ${ORG_IDS.join(", ")})` : ""} ===`);
+  console.log(`=== fix_connected_tools${dryRun ? " (DRY RUN — no writes)" : ""} ===`);
 
   const lookup = createApiCallLookup(db);
 
@@ -384,8 +380,7 @@ export const up = async (db) => {
     };
 
     const cursor = coll.find({
-      $or: [{ "connected_tools.0": { $exists: true } }, ...LEGACY_FIELDS.map((field) => ({ [field]: { $exists: true } }))],
-      ...(ORG_IDS.length > 0 && { org_id: { $in: ORG_IDS.flatMap((id) => [String(id), Number(id)]) } })
+      $or: [{ "connected_tools.0": { $exists: true } }, ...LEGACY_FIELDS.map((field) => ({ [field]: { $exists: true } }))]
     });
 
     while (await cursor.hasNext()) {
