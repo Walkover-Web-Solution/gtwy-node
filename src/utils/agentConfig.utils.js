@@ -148,4 +148,38 @@ const cloneConnectedToolsForAgent = async (connected_tools, org_id, agent_id, fo
   return cloned_tools;
 };
 
-export { getUniqueNameAndSlug, normalizeFunctionIds, cloneFunctionsForAgent, cloneConnectedToolsForAgent };
+// Whether `tool` (from a request) refers to the stored connected_tools entry `entry`.
+// Built-in pre-tools (rag_knowledgebase, query_refiner, ...) have no id, so pre_tools
+// match on pre_tool_type and, when the request carries one, the id. There is one
+// post_tool and one built_in_tools entry per agent.
+const isSameConnectedTool = (entry, tool) => {
+  if (!entry || entry.type !== tool.type) return false;
+  if (tool.type === "pre_tool") return entry.pre_tool_type === tool.pre_tool_type && (tool.id == null || String(entry.id) === String(tool.id));
+  if (tool.type === "post_tool" || tool.type === "built_in_tools") return true;
+  return tool.id != null && String(entry.id) === String(tool.id);
+};
+
+// Apply a single connected_tool add (1) / remove (0) / update (2) to the current list.
+const applyConnectedToolOperation = (current = [], tool, operation) => {
+  const op = operation === 1 ? "add" : operation === 0 ? "remove" : operation === 2 ? "update" : operation;
+  const entry = { ...tool };
+  if (entry.id == null) delete entry.id;
+
+  if (op === "add") {
+    // Only one "post_tool" entry may exist at a time; adding a new one replaces the old.
+    const base = entry.type === "post_tool" ? current.filter((t) => t.type !== "post_tool") : current;
+    return [...base, entry];
+  }
+  if (op === "update") return current.map((t) => (isSameConnectedTool(t, tool) ? { ...t, ...entry } : t));
+  if (op === "remove") return current.filter((t) => !isSameConnectedTool(t, tool));
+  return current;
+};
+
+export {
+  getUniqueNameAndSlug,
+  normalizeFunctionIds,
+  cloneFunctionsForAgent,
+  cloneConnectedToolsForAgent,
+  isSameConnectedTool,
+  applyConnectedToolOperation
+};

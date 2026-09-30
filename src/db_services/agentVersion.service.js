@@ -10,7 +10,7 @@ import { purgeAgentCache } from "../services/utils/redis.utils.js";
 import { purgeAgentMemoriesForAgent } from "../services/logQueue/saveToAgentMemory.service.js";
 import { callAiMiddleware } from "../services/utils/aiCall.utils.js";
 import { redis_keys, bridge_ids, AI_OPERATION_CONFIG } from "../configs/constant.js";
-import { getReqOptVariablesInPrompt, transformAgentVariableToToolCallFormat } from "../utils/agentVariables.js";
+import { getReqOptVariablesInPrompt, transformAgentVariableToToolCallFormat, getConnectedToolsVariablePath } from "../utils/agentVariables.js";
 import { convertPromptToString } from "../utils/promptWrapper.utils.js";
 import { executeAiOperation } from "../services/utils/utility.service.js";
 const ObjectId = mongoose.Types.ObjectId;
@@ -429,15 +429,22 @@ async function publish(org_id, version_id, user_id, generate_summary = false) {
   // Extract agent variables logic
   const prompt = convertPromptToString(getVersionData.configuration?.prompt || "");
   const variableState = getVersionData.agent_info?.variables_state || {};
-  const variablePath = getVersionData.variables_path || {};
-
-  if (Array.isArray(getVersionData.pre_tools)) {
-    getVersionData.pre_tools.forEach((tool) => {
-      if (tool.type === "custom_function" && tool.config && tool.config.script_id && tool.args) {
-        variablePath[tool.config.script_id] = variablePath[tool.config.script_id] || {};
-        Object.assign(variablePath[tool.config.script_id], tool.args);
-      }
-    });
+  // Variable mappings live on each connected_tools entry. Versions not migrated yet still keep
+  // them in the legacy variables_path / pre_tools fields, which are ignored once connected_tools
+  // exists so stale legacy mappings do not come back.
+  const connectedTools = getVersionData.connected_tools || [];
+  let variablePath;
+  if (connectedTools.length > 0) {
+    variablePath = getConnectedToolsVariablePath(connectedTools);
+  } else {
+    variablePath = { ...(getVersionData.variables_path || {}) };
+    if (Array.isArray(getVersionData.pre_tools)) {
+      getVersionData.pre_tools.forEach((tool) => {
+        if (tool.type === "custom_function" && tool.config && tool.config.script_id && tool.args) {
+          variablePath[tool.config.script_id] = { ...(variablePath[tool.config.script_id] || {}), ...tool.args };
+        }
+      });
+    }
   }
 
   const agentVariables = getReqOptVariablesInPrompt(prompt, variableState, variablePath);

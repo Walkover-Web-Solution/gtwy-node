@@ -5,7 +5,8 @@ Joi.objectId = joiObjectId(Joi);
 
 const connectedToolItemSchema = Joi.object({
   type: Joi.string().valid("tools", "agent", "docs", "pre_tool", "post_tool", "built_in_tools").required(),
-  id: Joi.string().when("type", { is: Joi.valid("built_in_tools", "pre_tool"), then: Joi.optional(), otherwise: Joi.required() }),
+  // Built-in pre-tools (rag_knowledgebase, query_refiner, ...) have no id; the UI sends null.
+  id: Joi.string().when("type", { is: Joi.valid("built_in_tools", "pre_tool"), then: Joi.allow(null).optional(), otherwise: Joi.required() }),
   built_in_tools: Joi.array().items(Joi.string()).when("type", { is: "built_in_tools", then: Joi.required(), otherwise: Joi.optional() }),
   gtwy_web_search_filters: Joi.array().items(Joi.string()).optional(),
   web_search_filters: Joi.array().items(Joi.string()).optional(),

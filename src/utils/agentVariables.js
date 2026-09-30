@@ -156,4 +156,23 @@ function transformAgentVariableToToolCallFormat(inputData, existingAgentVariable
   };
 }
 
-export { getReqOptVariablesInPrompt, transformAgentVariableToToolCallFormat };
+// Variable mappings ({ param: "agent.variable.path" }) of an agent's connected_tools, keyed per
+// entry, in the shape getReqOptVariablesInPrompt expects. Tools and connected agents keep them in
+// variable_path; pre-tools in args — a pre_tool's variable_path is its config
+// (function_id, script_id, prompt, ...), not variables, so it is left out. Post-tool args were
+// never agent variables and still are not.
+function getConnectedToolsVariablePath(connected_tools = []) {
+  const variablePath = {};
+  for (const tool of connected_tools) {
+    if (!tool || typeof tool !== "object") continue;
+    let mapping = null;
+    if (tool.type === "tools" || tool.type === "agent") mapping = tool.variable_path;
+    else if (tool.type === "pre_tool") mapping = tool.args;
+    if (!mapping || typeof mapping !== "object" || Object.keys(mapping).length === 0) continue;
+    const key = `${tool.type}:${tool.pre_tool_type || ""}:${tool.id || ""}`;
+    variablePath[key] = { ...(variablePath[key] || {}), ...mapping };
+  }
+  return variablePath;
+}
+
+export { getReqOptVariablesInPrompt, transformAgentVariableToToolCallFormat, getConnectedToolsVariablePath };

@@ -8,6 +8,7 @@ import { getDefaultValuesController } from "../services/utils/getDefaultValue.js
 import { purgeAgentCache } from "../services/utils/redis.utils.js";
 import { validateJsonSchemaConfiguration } from "../services/utils/common.utils.js";
 import { convertPromptToString } from "../utils/promptWrapper.utils.js";
+import { applyConnectedToolOperation } from "../utils/agentConfig.utils.js";
 
 const { storeSystemPrompt, addBulkUserEntries } = conversationDbService;
 
@@ -170,22 +171,7 @@ const updateVersionController = async (req, res, next) => {
     }
 
     if (body.connected_tool) {
-      const { operation } = body;
-      const tool = body.connected_tool;
-      const current = version.connected_tools || [];
-
-      // Handle both string and numeric operations
-      const op = operation === 1 ? "add" : operation === 0 ? "remove" : operation === 2 ? "update" : operation;
-
-      if (op === "add") {
-        // Only one "post_tool" entry may exist at a time; adding a new one replaces the old.
-        const base = tool.type === "post_tool" ? current.filter((t) => t.type !== "post_tool") : current;
-        update_fields.connected_tools = [...base, tool];
-      } else if (op === "update") {
-        update_fields.connected_tools = current.map((t) => (t.id === tool.id && t.type === tool.type ? { ...t, ...tool } : t));
-      } else if (op === "remove") {
-        update_fields.connected_tools = current.filter((t) => !(t.id === tool.id && t.type === tool.type));
-      }
+      update_fields.connected_tools = applyConnectedToolOperation(version.connected_tools || [], body.connected_tool, body.operation);
     } else if (body.connected_tools !== undefined) {
       update_fields.connected_tools = body.connected_tools;
     }

@@ -1,378 +1,427 @@
 /**
- * Migration: Migrate legacy tool-related fields to unified connected_tools array
- * in both `configuration` (agents/bridges) and `configuration_versions` (versions) collections.
+ * Migration: Build a correct `connected_tools` array on every agent and version, in both
+ * `configurations` and `configuration_versions`.
  *
- * This migration consolidates the following legacy fields into a single `connected_tools` array:
- * - function_ids → type: "tools"
- * - built_in_tools → type: "built_in_tools"
- * - connected_agents → type: "agent"
- * - doc_ids → type: "docs"
- * - pre_tools → type: "pre_tool"
- * - web_search_filters → type: "built_in_tools" with web_search_filters
- * - gtwy_web_search_filters → type: "built_in_tools" with gtwy_web_search_filters
- * - variables_path → variable_path field in tools/agent
+ * Replaces the conversion done by 20260706120000-migrate-to-connected-tools, which:
+ * - spread pre_tool `args` onto the entry (an arg named `type`, `id`, `url`, ... overwrote that field)
+ * - gave pre_tools a random id instead of the linked function's id
+ * - skipped `connected_agents` (an object keyed by bridge_id, not an array) and then unset it
+ * - stored object doc_ids as "[object Object]"
+ * - never converted `post_tool`
+ *
+ * Runs the same way on every environment, over the full collections. It works from whatever
+ * state a document is in (legacy fields, the broken conversion, or already correct) and is
+ * safe to re-run:
+ * 1. Repairs entries already in connected_tools (the broken shapes above).
+ * 2. Converts whatever legacy fields are still present and unsets them.
+ * 3. Dedupes, keeping the existing connected_tools entry over a legacy one.
+ * 4. Fills empty tool/agent `variable_path` and pre/post tool `args` from `variables_path`,
+ *    which is keyed by the function's script_id (looked up in apicalls) or the agent's bridge_id.
+ * 5. Fills `url` on custom_function pre_tools and post_tools from the linked apicalls document.
+ *
+ * `variables_path` is left in place: it is still read outside connected_tools.
+ * Set CONNECTED_TOOLS_DRY_RUN=true to log the counts without writing anything.
+ * ORG_IDS limits the run to those orgs; leave it empty for every org.
  */
 
-export const up = async (db) => {
-  console.log("=== Starting migrate-to-connected-tools migration ===");
+import { ObjectId } from "mongodb";
 
-  const collections = [
-    { name: "configurations", label: "agents (configuration)" },
-    { name: "configuration_versions", label: "versions (configuration_versions)" }
-  ];
+const COLLECTIONS = ["configurations", "configuration_versions"];
 
-  for (const { name, label } of collections) {
-    console.log(`\n[${label}] Processing...`);
-    const coll = db.collection(name);
+// Only documents of these orgs are processed; empty it to run on every org.
+const ORG_IDS = ["80255"];
 
-    // Find documents that have any of the legacy fields
-    const cursor = coll.find({
-      $or: [
-        { function_ids: { $exists: true, $ne: [] } },
-        { built_in_tools: { $exists: true, $ne: [] } },
-        { connected_agents: { $exists: true, $ne: [] } },
-        { doc_ids: { $exists: true, $ne: [] } },
-        { pre_tools: { $exists: true, $ne: [] } },
-        { web_search_filters: { $exists: true, $ne: [] } },
-        { gtwy_web_search_filters: { $exists: true, $ne: [] } },
-        { variables_path: { $exists: true, $ne: {} } }
-      ]
-    });
+const BATCH_SIZE = 500;
 
-    let processed = 0;
-    let modified = 0;
+const LEGACY_FIELDS = [
+  "function_ids",
+  "built_in_tools",
+  "connected_agents",
+  "doc_ids",
+  "pre_tools",
+  "post_tool",
+  "web_search_filters",
+  "gtwy_web_search_filters"
+];
 
-    while (await cursor.hasNext()) {
-      const doc = await cursor.next();
-      const connected_tools = doc.connected_tools || [];
-      let hasChanges = false;
+const CONNECTED_TOOL_TYPES = new Set(["tools", "agent", "docs", "pre_tool", "post_tool", "built_in_tools"]);
 
-      // Migrate function_ids to type: "tools"
-      if (Array.isArray(doc.function_ids) && doc.function_ids.length > 0) {
-        for (const funcId of doc.function_ids) {
-          if (funcId) {
-            const idStr = typeof funcId === "string" ? funcId : funcId.toString();
-            // Check if already exists in connected_tools
-            const exists = connected_tools.some((t) => t.type === "tools" && t.id === idStr);
-            if (!exists) {
-              const toolEntry = {
-                type: "tools",
-                id: idStr
-              };
-              // Add variable_path if exists for this function
-              if (doc.variables_path && doc.variables_path[idStr]) {
-                toolEntry.variable_path = doc.variables_path[idStr];
-              }
-              connected_tools.push(toolEntry);
-              hasChanges = true;
-            }
-          }
-        }
-      }
+// Fields a pre_tool entry legitimately carries; anything else is a spread arg.
+const PRE_TOOL_KEYS = new Set([
+  "_id",
+  "type",
+  "pre_tool_type",
+  "id",
+  "variable_path",
+  "prompt",
+  "formats",
+  "url",
+  "resource_id",
+  "collection_id",
+  "args",
+  "name",
+  "description"
+]);
 
-      // Migrate built_in_tools to type: "built_in_tools"
-      if (Array.isArray(doc.built_in_tools) && doc.built_in_tools.length > 0) {
-        const builtInTools = doc.built_in_tools.map((t) => (typeof t === "string" ? t : t.toString()));
-        const existingBuiltIn = connected_tools.find((t) => t.type === "built_in_tools");
-        if (existingBuiltIn) {
-          // Merge with existing
-          const merged = [...new Set([...(existingBuiltIn.built_in_tools || []), ...builtInTools])];
-          if (merged.length !== existingBuiltIn.built_in_tools?.length) {
-            existingBuiltIn.built_in_tools = merged;
-            hasChanges = true;
-          }
-        } else {
-          connected_tools.push({
-            type: "built_in_tools",
-            built_in_tools: builtInTools
-          });
-          hasChanges = true;
-        }
-      }
+// The original migration generated ids as Date.now().toString() + Math.random().
+const GENERATED_ID = /^\d{13}0\.\d+$/;
 
-      // Migrate connected_agents to type: "agent"
-      if (Array.isArray(doc.connected_agents) && doc.connected_agents.length > 0) {
-        for (const agent of doc.connected_agents) {
-          const agentId = typeof agent === "string" ? agent : agent.id || agent._id;
-          if (agentId) {
-            const idStr = typeof agentId === "string" ? agentId : agentId.toString();
-            const exists = connected_tools.some((t) => t.type === "agent" && t.id === idStr);
-            if (!exists) {
-              const agentEntry = {
-                type: "agent",
-                id: idStr
-              };
-              // Add additional fields if present
-              if (typeof agent === "object") {
-                if (agent.variable_path) agentEntry.variable_path = agent.variable_path;
-                if (agent.thread_id !== undefined) agentEntry.thread_id = agent.thread_id;
-                if (agent.version_id) agentEntry.version_id = agent.version_id;
-              }
-              // Add variable_path from variables_path if exists
-              if (doc.variables_path && doc.variables_path[idStr]) {
-                agentEntry.variable_path = doc.variables_path[idStr];
-              }
-              connected_tools.push(agentEntry);
-              hasChanges = true;
-            }
-          }
-        }
-      }
+const BROKEN_DOC_ID = "[object Object]";
 
-      // Migrate doc_ids to type: "docs"
-      if (Array.isArray(doc.doc_ids) && doc.doc_ids.length > 0) {
-        for (const docId of doc.doc_ids) {
-          if (docId) {
-            const idStr = typeof docId === "string" ? docId : docId.toString();
-            const exists = connected_tools.some((t) => t.type === "docs" && t.id === idStr);
-            if (!exists) {
-              connected_tools.push({
-                type: "docs",
-                id: idStr
-              });
-              hasChanges = true;
-            }
-          }
-        }
-      }
-
-      // Migrate pre_tools to type: "pre_tool"
-      if (Array.isArray(doc.pre_tools) && doc.pre_tools.length > 0) {
-        for (const preTool of doc.pre_tools) {
-          if (preTool) {
-            const preToolType = preTool.type || preTool.pre_tool_type;
-            const id = preTool.id || (preToolType ? Date.now().toString() + Math.random() : undefined);
-
-            const exists = connected_tools.some((t) => t.type === "pre_tool" && t.pre_tool_type === preToolType && (id ? t.id === id : true));
-
-            if (!exists) {
-              const preToolEntry = {
-                type: "pre_tool",
-                pre_tool_type: preToolType
-              };
-              if (id) preToolEntry.id = id;
-              if (preTool.config) preToolEntry.variable_path = preTool.config;
-              if (preTool.prompt) preToolEntry.prompt = preTool.prompt;
-              if (preTool.formats) preToolEntry.formats = preTool.formats;
-              if (preTool.url) preToolEntry.url = preTool.url;
-              if (preTool.args) Object.assign(preToolEntry, preTool.args);
-              if (preTool.resource_id) preToolEntry.resource_id = preTool.resource_id;
-              if (preTool.collection_id) preToolEntry.collection_id = preTool.collection_id;
-
-              connected_tools.push(preToolEntry);
-              hasChanges = true;
-            }
-          }
-        }
-      }
-
-      // Migrate web_search_filters to built_in_tools web_search_filters
-      if (Array.isArray(doc.web_search_filters) && doc.web_search_filters.length > 0) {
-        const existingBuiltIn = connected_tools.find((t) => t.type === "built_in_tools");
-        if (existingBuiltIn) {
-          if (!existingBuiltIn.web_search_filters || JSON.stringify(existingBuiltIn.web_search_filters) !== JSON.stringify(doc.web_search_filters)) {
-            existingBuiltIn.web_search_filters = doc.web_search_filters;
-            hasChanges = true;
-          }
-        } else {
-          connected_tools.push({
-            type: "built_in_tools",
-            built_in_tools: [],
-            web_search_filters: doc.web_search_filters
-          });
-          hasChanges = true;
-        }
-      }
-
-      // Migrate gtwy_web_search_filters to built_in_tools gtwy_web_search_filters
-      if (Array.isArray(doc.gtwy_web_search_filters) && doc.gtwy_web_search_filters.length > 0) {
-        const existingBuiltIn = connected_tools.find((t) => t.type === "built_in_tools");
-        if (existingBuiltIn) {
-          if (
-            !existingBuiltIn.gtwy_web_search_filters ||
-            JSON.stringify(existingBuiltIn.gtwy_web_search_filters) !== JSON.stringify(doc.gtwy_web_search_filters)
-          ) {
-            existingBuiltIn.gtwy_web_search_filters = doc.gtwy_web_search_filters;
-            hasChanges = true;
-          }
-        } else {
-          connected_tools.push({
-            type: "built_in_tools",
-            built_in_tools: [],
-            gtwy_web_search_filters: doc.gtwy_web_search_filters
-          });
-          hasChanges = true;
-        }
-      }
-
-      // Update document if changes were made
-      if (hasChanges) {
-        await coll.updateOne(
-          { _id: doc._id },
-          {
-            $set: { connected_tools },
-            $unset: {
-              function_ids: "",
-              built_in_tools: "",
-              connected_agents: "",
-              doc_ids: "",
-              pre_tools: "",
-              web_search_filters: "",
-              gtwy_web_search_filters: "",
-              variables_path: ""
-            }
-          }
-        );
-        modified += 1;
-      }
-
-      processed += 1;
-
-      if (processed % 100 === 0) {
-        console.log(`[${label}] Processed ${processed} docs so far, modified ${modified}...`);
-      }
-    }
-
-    console.log(`[${label}] Done. Processed ${processed} docs, modified ${modified}.`);
+const toId = (value) => {
+  if (value === undefined || value === null || value === "") return null;
+  if (typeof value === "object") {
+    if (typeof value.toHexString === "function") return value.toHexString();
+    if (typeof value.$oid === "string") return value.$oid;
   }
-
-  console.log("\n=== Migration completed successfully ===");
+  const id = String(value);
+  return id === BROKEN_DOC_ID ? null : id;
 };
 
-export const down = async (db) => {
-  console.log("=== Starting down migration (revert connected_tools to legacy fields) ===");
+const hasValue = (value) => {
+  if (value === undefined || value === null) return false;
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === "object") return Object.keys(value).length > 0;
+  return true;
+};
 
-  const collections = [
-    { name: "configurations", label: "agents (configuration)" },
-    { name: "configuration_versions", label: "versions (configuration_versions)" }
-  ];
+// Key-order-insensitive comparison, so a re-run does not rewrite already-correct documents.
+const stableStringify = (value) => {
+  if (value instanceof ObjectId) return JSON.stringify(value.toString());
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
+  if (value && typeof value === "object" && !(value instanceof Date)) {
+    return `{${Object.keys(value)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value);
+};
 
-  for (const { name, label } of collections) {
-    console.log(`\n[${label}] Processing...`);
+const isPreTool = (tool) => tool.type === "pre_tool" || (tool.pre_tool_type && !CONNECTED_TOOL_TYPES.has(tool.type));
+
+const needsUrl = (tool) =>
+  (tool.type === "post_tool" || (tool.type === "pre_tool" && tool.pre_tool_type === "custom_function")) && tool.id && !tool.url;
+
+// ---------- repair entries already in connected_tools ----------
+
+const repairPreTool = (tool, stats) => {
+  const fixed = { type: "pre_tool", pre_tool_type: tool.pre_tool_type };
+  const args = {};
+  for (const [key, value] of Object.entries(tool)) {
+    if (!PRE_TOOL_KEYS.has(key)) args[key] = value;
+  }
+  // An arg named "type" overwrote "pre_tool"; its value belongs to the args.
+  if (tool.type !== "pre_tool") args.type = tool.type;
+  if (Object.keys(args).length > 0) stats.pre_tool_args_repaired += 1;
+  Object.assign(args, tool.args || {});
+
+  const functionId = toId(tool.variable_path?.function_id);
+  const id = toId(tool.id);
+  if (fixed.pre_tool_type === "custom_function" && functionId && (!id || GENERATED_ID.test(id))) {
+    fixed.id = functionId;
+    stats.pre_tool_ids_repaired += 1;
+  } else if (id && !GENERATED_ID.test(id)) {
+    fixed.id = id;
+  }
+
+  for (const key of ["variable_path", "prompt", "formats", "url", "resource_id", "collection_id", "name", "description"]) {
+    if (tool[key] !== undefined) fixed[key] = tool[key];
+  }
+  if (Object.keys(args).length > 0) fixed.args = args;
+  return fixed;
+};
+
+const repairEntry = (tool, stats) => {
+  if (!tool || typeof tool !== "object") return null;
+  if (isPreTool(tool)) return repairPreTool(tool, stats);
+
+  switch (tool.type) {
+    case "tools":
+    case "agent":
+    case "post_tool": {
+      const id = toId(tool.id);
+      return id ? { ...tool, id } : null;
+    }
+    case "docs": {
+      const id = toId(tool.id ?? tool.resource_id);
+      if (!id || id === BROKEN_DOC_ID) {
+        stats.broken_docs_removed += 1;
+        return null;
+      }
+      return { ...tool, id };
+    }
+    default:
+      return tool;
+  }
+};
+
+// ---------- convert legacy fields ----------
+
+const legacyTools = (doc) => {
+  const variables_path = doc.variables_path || {};
+  const ids = Array.isArray(doc.function_ids)
+    ? doc.function_ids
+    : doc.function_ids && typeof doc.function_ids === "object"
+      ? Object.values(doc.function_ids)
+      : [];
+  return ids
+    .map(toId)
+    .filter(Boolean)
+    .map((id) => ({ type: "tools", id, variable_path: variables_path[id] || {} }));
+};
+
+const legacyAgents = (doc) => {
+  const variables_path = doc.variables_path || {};
+  const agents = doc.connected_agents;
+  if (!agents || typeof agents !== "object") return [];
+  const pairs = Array.isArray(agents) ? agents.map((info) => [null, info]) : Object.entries(agents);
+
+  const entries = [];
+  for (const [key, info] of pairs) {
+    const id = toId(typeof info === "object" ? (info?.bridge_id ?? info?.id ?? info?._id ?? key) : (info ?? key));
+    if (!id) continue;
+    const entry = { type: "agent", id, variable_path: info?.variable_path || variables_path[id] || {} };
+    entry.thread_id = info?.thread_id !== undefined ? info.thread_id : true;
+    if (info?.version_id) entry.version_id = toId(info.version_id);
+    entries.push(entry);
+  }
+  return entries;
+};
+
+const legacyDocs = (doc) =>
+  (Array.isArray(doc.doc_ids) ? doc.doc_ids : [])
+    .map((item) => {
+      if (item && typeof item === "object" && !(item instanceof ObjectId)) {
+        const id = toId(item.resource_id ?? item.id ?? item._id);
+        if (!id) return null;
+        const entry = { ...item, type: "docs", id };
+        delete entry._id;
+        return entry;
+      }
+      const id = toId(item);
+      return id && id !== BROKEN_DOC_ID ? { type: "docs", id } : null;
+    })
+    .filter(Boolean);
+
+const legacyPreTools = (doc) =>
+  (Array.isArray(doc.pre_tools) ? doc.pre_tools : [])
+    .filter((pre) => pre && (pre.type || pre.pre_tool_type))
+    .map((pre) => {
+      const pre_tool_type = pre.type || pre.pre_tool_type;
+      const entry = { type: "pre_tool", pre_tool_type };
+      const id = toId(pre.config?.function_id) || toId(pre.id);
+      if (id && !GENERATED_ID.test(id)) entry.id = id;
+      if (pre.config) entry.variable_path = pre.config;
+      for (const key of ["prompt", "formats", "url", "resource_id", "collection_id", "name", "description"]) {
+        if (pre[key] !== undefined) entry[key] = pre[key];
+      }
+      if (hasValue(pre.args)) entry.args = pre.args;
+      return entry;
+    });
+
+const legacyPostTool = (doc) => {
+  const post = doc.post_tool;
+  const id = toId(post?.id);
+  if (!id) return [];
+  const entry = { type: "post_tool", id };
+  if (post.url) entry.url = post.url;
+  if (post.script_id) entry.script_id = post.script_id;
+  if (hasValue(post.args)) entry.args = post.args;
+  return [entry];
+};
+
+const legacyBuiltIn = (doc) => {
+  const built_in_tools = (Array.isArray(doc.built_in_tools) ? doc.built_in_tools : []).map(toId).filter(Boolean);
+  const entry = { type: "built_in_tools", built_in_tools };
+  if (hasValue(doc.web_search_filters)) entry.web_search_filters = doc.web_search_filters;
+  if (hasValue(doc.gtwy_web_search_filters)) entry.gtwy_web_search_filters = doc.gtwy_web_search_filters;
+  return built_in_tools.length > 0 || entry.web_search_filters || entry.gtwy_web_search_filters ? entry : null;
+};
+
+// ---------- merge ----------
+
+const entryKey = (tool) => {
+  if (tool.type === "pre_tool") return `pre_tool:${tool.pre_tool_type}:${tool.id || ""}`;
+  if (tool.type === "post_tool") return "post_tool"; // only one post_tool per agent
+  if (tool.id) return `${tool.type}:${tool.id}`;
+  return null;
+};
+
+const mergeBuiltIn = (target, source) => {
+  target.built_in_tools = [...new Set([...(target.built_in_tools || []), ...(source.built_in_tools || [])])];
+  if (!hasValue(target.web_search_filters) && source.web_search_filters) target.web_search_filters = source.web_search_filters;
+  if (!hasValue(target.gtwy_web_search_filters) && source.gtwy_web_search_filters) target.gtwy_web_search_filters = source.gtwy_web_search_filters;
+};
+
+const buildConnectedTools = (doc, stats) => {
+  const result = [];
+  const seen = new Set();
+  let builtIn = null;
+
+  const add = (tool, fromLegacy) => {
+    if (!tool) return;
+    if (tool.type === "built_in_tools") {
+      if (builtIn) mergeBuiltIn(builtIn, tool);
+      else {
+        builtIn = { ...tool, built_in_tools: [...(tool.built_in_tools || [])] };
+        result.push(builtIn);
+      }
+      return;
+    }
+    const key = entryKey(tool);
+    if (key && seen.has(key)) {
+      if (!fromLegacy) stats.duplicates_removed += 1;
+      return;
+    }
+    if (key) seen.add(key);
+    if (fromLegacy) stats.legacy_converted += 1;
+    result.push(tool);
+  };
+
+  for (const tool of Array.isArray(doc.connected_tools) ? doc.connected_tools : []) add(repairEntry(tool, stats), false);
+
+  for (const tool of [
+    ...legacyTools(doc),
+    ...legacyAgents(doc),
+    ...legacyDocs(doc),
+    ...legacyPreTools(doc),
+    ...legacyPostTool(doc),
+    legacyBuiltIn(doc)
+  ]) {
+    add(tool, true);
+  }
+
+  return result;
+};
+
+// ---------- apicalls lookup (script_id + url) ----------
+
+const FUNCTION_TYPES = new Set(["tools", "pre_tool", "post_tool"]);
+
+const createApiCallLookup = (db) => {
+  const apicalls = db.collection("apicalls");
+  const cache = new Map();
+
+  const load = async (tools) => {
+    const ids = [...new Set(tools.filter((t) => FUNCTION_TYPES.has(t.type) && t.id).map((t) => t.id))];
+    const missing = ids.filter((id) => !cache.has(id) && ObjectId.isValid(id));
+    if (missing.length === 0) return;
+    const found = await apicalls.find({ _id: { $in: missing.map((id) => new ObjectId(id)) } }, { projection: { url: 1, script_id: 1 } }).toArray();
+    for (const id of missing) cache.set(id, null);
+    for (const call of found) cache.set(call._id.toString(), { url: call.url || null, script_id: call.script_id || null });
+  };
+
+  return { load, get: (id) => cache.get(id) || null };
+};
+
+const scriptIdOf = (tool, lookup) => tool.variable_path?.script_id || tool.script_id || lookup.get(tool.id)?.script_id || null;
+
+// Legacy variables_path is keyed by the function's script_id (older data: its _id) and by the
+// connected agent's bridge_id; custom_function pre/post tools kept their args there too.
+const fillVariables = (tools, doc, lookup) => {
+  const variables_path = doc.variables_path || {};
+  const pick = (...keys) => keys.map((key) => key && variables_path[key]).find(hasValue);
+  let filled = 0;
+
+  for (const tool of tools) {
+    let value;
+    if (tool.type === "tools" && !hasValue(tool.variable_path)) {
+      value = pick(scriptIdOf(tool, lookup), tool.id);
+      if (value) tool.variable_path = value;
+    } else if (tool.type === "agent" && !hasValue(tool.variable_path)) {
+      value = pick(tool.id, tool.version_id);
+      if (value) tool.variable_path = value;
+    } else if ((tool.type === "post_tool" || (tool.type === "pre_tool" && tool.pre_tool_type === "custom_function")) && !hasValue(tool.args)) {
+      value = pick(scriptIdOf(tool, lookup), tool.id);
+      if (value) tool.args = value;
+    }
+    if (value) filled += 1;
+  }
+  return filled;
+};
+
+const fillUrls = (tools, lookup) => {
+  let filled = 0;
+  for (const tool of tools) {
+    if (!needsUrl(tool)) continue;
+    const scriptId = scriptIdOf(tool, lookup);
+    const url = lookup.get(tool.id)?.url || (scriptId ? `https://flow.sokt.io/func/${scriptId}` : null);
+    if (url) {
+      tool.url = url;
+      filled += 1;
+    }
+  }
+  return filled;
+};
+
+export const up = async (db) => {
+  const dryRun = String(process.env.CONNECTED_TOOLS_DRY_RUN || "").toLowerCase() === "true";
+  console.log(`=== fix_connected_tools${dryRun ? " (DRY RUN — no writes)" : ""}${ORG_IDS.length ? ` (orgs: ${ORG_IDS.join(", ")})` : ""} ===`);
+
+  const lookup = createApiCallLookup(db);
+
+  for (const name of COLLECTIONS) {
     const coll = db.collection(name);
+    const stats = {
+      processed: 0,
+      modified: 0,
+      legacy_converted: 0,
+      pre_tool_args_repaired: 0,
+      pre_tool_ids_repaired: 0,
+      broken_docs_removed: 0,
+      duplicates_removed: 0,
+      variables_filled: 0,
+      urls_filled: 0,
+      urls_missing: 0
+    };
+    let ops = [];
 
-    // Find documents that have connected_tools
-    const cursor = coll.find({ connected_tools: { $exists: true, $ne: [] } });
+    const flush = async () => {
+      if (ops.length === 0) return;
+      if (!dryRun) await coll.bulkWrite(ops, { ordered: false });
+      ops = [];
+    };
 
-    let processed = 0;
-    let modified = 0;
+    const cursor = coll.find({
+      $or: [{ "connected_tools.0": { $exists: true } }, ...LEGACY_FIELDS.map((field) => ({ [field]: { $exists: true } }))],
+      ...(ORG_IDS.length > 0 && { org_id: { $in: ORG_IDS.flatMap((id) => [String(id), Number(id)]) } })
+    });
 
     while (await cursor.hasNext()) {
       const doc = await cursor.next();
-      const connected_tools = doc.connected_tools || [];
+      stats.processed += 1;
 
-      if (connected_tools.length === 0) {
-        processed += 1;
-        continue;
+      const connected_tools = buildConnectedTools(doc, stats);
+      await lookup.load(connected_tools);
+      stats.variables_filled += fillVariables(connected_tools, doc, lookup);
+      stats.urls_filled += fillUrls(connected_tools, lookup);
+      stats.urls_missing += connected_tools.filter(needsUrl).length;
+
+      const $unset = {};
+      for (const field of LEGACY_FIELDS) {
+        if (hasValue(doc[field])) $unset[field] = "";
       }
 
-      const legacyData = {
-        function_ids: [],
-        built_in_tools: [],
-        connected_agents: [],
-        doc_ids: [],
-        pre_tools: [],
-        web_search_filters: [],
-        gtwy_web_search_filters: [],
-        variables_path: {}
-      };
+      const toolsChanged = stableStringify(connected_tools) !== stableStringify(doc.connected_tools || []);
+      if (!toolsChanged && Object.keys($unset).length === 0) continue;
 
-      for (const tool of connected_tools) {
-        switch (tool.type) {
-          case "tools":
-            if (tool.id) {
-              legacyData.function_ids.push(tool.id);
-              if (tool.variable_path) {
-                legacyData.variables_path[tool.id] = tool.variable_path;
-              }
-            }
-            break;
-          case "built_in_tools":
-            if (tool.built_in_tools) {
-              legacyData.built_in_tools = tool.built_in_tools;
-            }
-            if (tool.web_search_filters) {
-              legacyData.web_search_filters = tool.web_search_filters;
-            }
-            if (tool.gtwy_web_search_filters) {
-              legacyData.gtwy_web_search_filters = tool.gtwy_web_search_filters;
-            }
-            break;
-          case "agent":
-            if (tool.id) {
-              const agentEntry = { id: tool.id };
-              if (tool.variable_path) agentEntry.variable_path = tool.variable_path;
-              if (tool.thread_id !== undefined) agentEntry.thread_id = tool.thread_id;
-              if (tool.version_id) agentEntry.version_id = tool.version_id;
-              legacyData.connected_agents.push(agentEntry);
-              if (tool.variable_path) {
-                legacyData.variables_path[tool.id] = tool.variable_path;
-              }
-            }
-            break;
-          case "docs":
-            if (tool.id) {
-              legacyData.doc_ids.push(tool.id);
-            }
-            break;
-          case "pre_tool":
-            if (tool.pre_tool_type) {
-              const preToolEntry = {
-                type: tool.pre_tool_type,
-                id: tool.id
-              };
-              if (tool.variable_path) preToolEntry.config = tool.variable_path;
-              if (tool.prompt) preToolEntry.prompt = tool.prompt;
-              if (tool.formats) preToolEntry.formats = tool.formats;
-              if (tool.url) preToolEntry.url = tool.url;
-              if (tool.resource_id) preToolEntry.resource_id = tool.resource_id;
-              if (tool.collection_id) preToolEntry.collection_id = tool.collection_id;
-              legacyData.pre_tools.push(preToolEntry);
-            }
-            break;
-        }
-      }
+      const update = { $set: { connected_tools } };
+      if (Object.keys($unset).length > 0) update.$unset = $unset;
+      ops.push({ updateOne: { filter: { _id: doc._id }, update } });
+      stats.modified += 1;
 
-      // Only update if we have legacy data to restore
-      if (
-        legacyData.function_ids.length > 0 ||
-        legacyData.built_in_tools.length > 0 ||
-        legacyData.connected_agents.length > 0 ||
-        legacyData.doc_ids.length > 0 ||
-        legacyData.pre_tools.length > 0 ||
-        legacyData.web_search_filters.length > 0 ||
-        legacyData.gtwy_web_search_filters.length > 0 ||
-        Object.keys(legacyData.variables_path).length > 0
-      ) {
-        const updateSet = {};
-        if (legacyData.function_ids.length > 0) updateSet.function_ids = legacyData.function_ids;
-        if (legacyData.built_in_tools.length > 0) updateSet.built_in_tools = legacyData.built_in_tools;
-        if (legacyData.connected_agents.length > 0) updateSet.connected_agents = legacyData.connected_agents;
-        if (legacyData.doc_ids.length > 0) updateSet.doc_ids = legacyData.doc_ids;
-        if (legacyData.pre_tools.length > 0) updateSet.pre_tools = legacyData.pre_tools;
-        if (legacyData.web_search_filters.length > 0) updateSet.web_search_filters = legacyData.web_search_filters;
-        if (legacyData.gtwy_web_search_filters.length > 0) updateSet.gtwy_web_search_filters = legacyData.gtwy_web_search_filters;
-        if (Object.keys(legacyData.variables_path).length > 0) updateSet.variables_path = legacyData.variables_path;
-
-        await coll.updateOne(
-          { _id: doc._id },
-          {
-            $set: updateSet,
-            $unset: { connected_tools: "" }
-          }
-        );
-        modified += 1;
-      }
-
-      processed += 1;
-
-      if (processed % 100 === 0) {
-        console.log(`[${label}] Processed ${processed} docs so far, modified ${modified}...`);
-      }
+      if (ops.length >= BATCH_SIZE) await flush();
+      if (stats.processed % 1000 === 0) console.log(`[${name}] processed ${stats.processed}, modified ${stats.modified}...`);
     }
+    await flush();
 
-    console.log(`[${label}] Done. Processed ${processed} docs, modified ${modified}.`);
+    console.log(`[${name}] ${JSON.stringify(stats)}`);
   }
 
-  console.log("\n=== Down migration completed ===");
+  console.log("=== fix_connected_tools completed ===");
+};
+
+export const down = async () => {
+  // No-op: this repairs connected_tools in place; the broken and legacy shapes are not worth restoring.
 };
