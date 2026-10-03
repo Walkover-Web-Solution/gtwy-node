@@ -405,6 +405,9 @@ async function getSubThreadsWithActivity(org_id, thread_id, bridge_id, { version
  * conversation_logs, so no Mongo lookup is needed.
  */
 
+// Agent and tool types share one list because one query serves both scopes. They
+// stay unambiguous anyway: rows are partitioned by config_id, so a type both can
+// log — "description" — is always read against a single subject, never across.
 const BRIDGE_SCOPE_HISTORY_TYPES = [
   "Version deleted",
   "Version created",
@@ -412,7 +415,12 @@ const BRIDGE_SCOPE_HISTORY_TYPES = [
   "Version published",
   "name",
   "bridge_summary",
-  "editAccess"
+  "editAccess",
+  // tool fields
+  "title",
+  "description",
+  "fields",
+  "required"
 ];
 
 const BRIDGE_SCOPE_LIFECYCLE_TYPES = new Set(["Version deleted", "Version created", "Agent created", "Version published"]);
@@ -535,7 +543,7 @@ async function getUserUpdates(org_id, version_id, page = 1, pageSize = 10, users
 
       const { count: total, rows: history } = await models.pg.user_bridge_config_history.findAndCountAll({
         where: whereConditions,
-        attributes: ["id", "user_id", "org_id", "bridge_id", "type", "time", "version_id", "previous_value", "current_value"],
+        attributes: ["id", "user_id", "org_id", "config_id", "type", "time", "version_id", "previous_value", "current_value"],
         order: [["time", "DESC"]],
         offset: offset,
         limit: pageSize
@@ -577,28 +585,37 @@ async function getUserUpdates(org_id, version_id, page = 1, pageSize = 10, users
   }
 }
 
-async function getBridgeUserUpdates(org_id, bridge_id, page = 1, pageSize = 10, filters = {}) {
+async function getConfigUserUpdates(org_id, config_id, page = 1, pageSize = 10, filters = {}) {
   try {
-    if (!bridge_id) {
-      return { success: false, message: "bridge_id is required", lastPublishedAt: null };
+    if (!config_id) {
+      return { success: false, message: "config_id is required", lastPublishedAt: null };
     }
 
     const offset = (page - 1) * pageSize;
     const userData = await loadOrgUsersForHistory(org_id);
     const filterParts = buildHistoryTimeFilters(filters);
 
+    const { type: typeFilter, ...restFilters } = filterParts;
     const whereConditions = {
       org_id,
-      bridge_id: String(bridge_id),
-      ...filterParts,
-      type: filterParts.type || { [Sequelize.Op.in]: BRIDGE_SCOPE_HISTORY_TYPES }
+      config_id: String(config_id),
+      ...restFilters,
+      // The whitelist exists to keep an agent's per-version field edits out of its
+      // bridge view, and every agent row carries a version. A versionless row is a
+      // subject that has no version at all — a tool or an embed — and its own types
+      // are the only ones its config_id holds, so there is nothing to filter out.
+      ...(typeFilter
+        ? { type: typeFilter }
+        : {
+            [Sequelize.Op.or]: [{ version_id: "" }, { type: { [Sequelize.Op.in]: BRIDGE_SCOPE_HISTORY_TYPES } }]
+          })
     };
 
     // Over-fetch slightly so fan-out de-dupe still fills the page
     const fetchLimit = Math.min(pageSize * 4, 200);
     const { rows: rawHistory } = await models.pg.user_bridge_config_history.findAndCountAll({
       where: whereConditions,
-      attributes: ["id", "user_id", "org_id", "bridge_id", "type", "time", "version_id", "previous_value", "current_value"],
+      attributes: ["id", "user_id", "org_id", "config_id", "type", "time", "version_id", "previous_value", "current_value"],
       order: [["time", "DESC"]],
       offset,
       limit: fetchLimit
@@ -618,7 +635,7 @@ async function getBridgeUserUpdates(org_id, bridge_id, page = 1, pageSize = 10, 
       scope: "bridge"
     };
   } catch (error) {
-    console.error("Error fetching bridge user updates:", error);
+    console.error("Error fetching config user updates:", error);
     return { success: false, message: "Error fetching updates", lastPublishedAt: null, scope: "bridge" };
   }
 }
@@ -652,6 +669,6 @@ export default {
   findThreadMessage,
   getSubThreadsWithActivity,
   getUserUpdates,
-  getBridgeUserUpdates,
+  getConfigUserUpdates,
   addBulkUserEntries
 };

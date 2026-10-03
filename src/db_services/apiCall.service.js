@@ -85,61 +85,38 @@ async function getFunctionById(function_id) {
 }
 
 async function deleteFunctionFromApicallsDb(org_id, script_id) {
-  const functionData = await apiCallModel.findOne({ org_id: org_id, script_id: script_id }, { _id: 1 });
+  // Full doc (not just _id) so the caller can log what was deleted before it's gone.
+  const functionData = await apiCallModel.findOne({ org_id: org_id, script_id: script_id }).lean();
 
   if (!functionData) {
     throw new Error("No matching function found to delete.");
   }
 
   const function_id_str = functionData._id.toString();
+  const connectedToolMatch = {
+    $elemMatch: {
+      $or: [
+        { type: "tools", id: function_id_str },
+        { type: "pre_tool", pre_tool_type: "custom_function", "variable_path.function_id": function_id_str }
+      ]
+    }
+  };
+  const matchFilter = { org_id: org_id, connected_tools: connectedToolMatch };
+
+  // Resolve which agents (bridges) had this tool connected before the pull below
+  // removes the evidence — a version-level connection resolves to its own bridge
+  // via parent_id, since the tool's removal is logged on the bridge's own history.
+  const [affectedConfigs, affectedVersions] = await Promise.all([
+    configurationModel.find(matchFilter, { _id: 1 }).lean(),
+    versionModel.find(matchFilter, { _id: 1, parent_id: 1 }).lean()
+  ]);
+  const affectedBridgeIds = [
+    ...new Set([...affectedConfigs.map((c) => c._id.toString()), ...affectedVersions.map((v) => v.parent_id?.toString()).filter(Boolean)])
+  ];
 
   const [, , result] = await Promise.all([
-    configurationModel.collection.updateMany(
-      {
-        org_id: org_id,
-        connected_tools: {
-          $elemMatch: {
-            $or: [
-              { type: "tools", id: function_id_str },
-              { type: "pre_tool", pre_tool_type: "custom_function", "variable_path.function_id": function_id_str }
-            ]
-          }
-        }
-      },
-      {
-        $pull: {
-          connected_tools: {
-            $or: [
-              { type: "tools", id: function_id_str },
-              { type: "pre_tool", pre_tool_type: "custom_function", "variable_path.function_id": function_id_str }
-            ]
-          }
-        }
-      }
-    ),
-    versionModel.collection.updateMany(
-      {
-        org_id: org_id,
-        connected_tools: {
-          $elemMatch: {
-            $or: [
-              { type: "tools", id: function_id_str },
-              { type: "pre_tool", pre_tool_type: "custom_function", "variable_path.function_id": function_id_str }
-            ]
-          }
-        }
-      },
-      {
-        $pull: {
-          connected_tools: {
-            $or: [
-              { type: "tools", id: function_id_str },
-              { type: "pre_tool", pre_tool_type: "custom_function", "variable_path.function_id": function_id_str }
-            ]
-          }
-        }
-      }
-    ),
+    configurationModel.collection.updateMany(matchFilter, { $pull: { connected_tools: connectedToolMatch.$elemMatch } }),
+    versionModel.collection.updateMany(matchFilter, { $pull: { connected_tools: connectedToolMatch.$elemMatch } }),
     apiCallModel.deleteOne({
       org_id: org_id,
       script_id: script_id
@@ -149,7 +126,9 @@ async function deleteFunctionFromApicallsDb(org_id, script_id) {
   if (result.deletedCount > 0) {
     return {
       success: true,
-      message: "Function deleted successfully."
+      message: "Function deleted successfully.",
+      deletedTool: functionData,
+      affectedBridgeIds
     };
   } else {
     throw new Error("No matching function found to delete.");

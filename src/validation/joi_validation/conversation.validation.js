@@ -190,21 +190,8 @@ const bridgeArchive = {
 const getAllUserUpdates = {
   params: Joi.object()
     .keys({
-      version_id: Joi.objectId().required()
-    })
-    .unknown(true),
-  query: Joi.object()
-    .keys({
-      page: Joi.number().integer(),
-      limit: Joi.number().integer()
-    })
-    .unknown(true)
-};
-
-const getAllBridgeUserUpdates = {
-  params: Joi.object()
-    .keys({
-      bridge_id: Joi.objectId().required()
+      config_id: Joi.objectId().required(),
+      version_id: Joi.objectId()
     })
     .unknown(true),
   query: Joi.object()
@@ -228,6 +215,5 @@ export default {
   updateMessageStatus,
   getThreadMessages,
   bridgeArchive,
-  getAllUserUpdates,
-  getAllBridgeUserUpdates
+  getAllUserUpdates
 };

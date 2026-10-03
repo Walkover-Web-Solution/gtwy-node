@@ -289,26 +289,17 @@ const parseHistoryFilters = (query = {}) => ({
 });
 
 const getAllUserUpdates = async (req, res, next) => {
-  const { version_id } = req.params;
+  const { config_id, version_id } = req.params;
   const org_id = req?.profile?.org?.id || req?.profile?.org_id;
   let page = parseInt(req.query.page) || 1;
   let pageSize = parseInt(req.query.limit) || 30;
 
   const filters = parseHistoryFilters(req.query);
-  const userData = await conversationDbService.getUserUpdates(org_id, version_id, page, pageSize, [], filters);
-  res.locals = { userData, success: true };
-  req.statusCode = 200;
-  return next();
-};
-
-const getAllBridgeUserUpdates = async (req, res, next) => {
-  const { bridge_id } = req.params;
-  const org_id = req?.profile?.org?.id || req?.profile?.org_id;
-  let page = parseInt(req.query.page) || 1;
-  let pageSize = parseInt(req.query.limit) || 30;
-
-  const filters = parseHistoryFilters(req.query);
-  const userData = await conversationDbService.getBridgeUserUpdates(org_id, bridge_id, page, pageSize, filters);
+  // A version narrows the history to that version; without one the whole config
+  // is returned, which is the only way to read a tool — a tool has no version.
+  const userData = version_id
+    ? await conversationDbService.getUserUpdates(org_id, version_id, page, pageSize, [], filters)
+    : await conversationDbService.getConfigUserUpdates(org_id, config_id, page, pageSize, filters);
   res.locals = { userData, success: true };
   req.statusCode = 200;
   return next();
@@ -323,6 +314,5 @@ export default {
   extraThreadID,
   getThreadMessages,
   getAllSubThreadsController,
-  getAllUserUpdates,
-  getAllBridgeUserUpdates
+  getAllUserUpdates
 };

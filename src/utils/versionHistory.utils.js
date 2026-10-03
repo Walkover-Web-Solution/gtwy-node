@@ -67,7 +67,17 @@ export function appendVersionUpdateHistory(entries, { base, body, version, updat
       if (!tool) return;
       const before = version.built_in_tools || [];
       log("built_in_tools_data", before, op === "1" ? (before.includes(tool) ? before : [...before, tool]) : before.filter((t) => t !== tool));
-    }
+    },
+    // A single tool connect/disconnect arrives as `connected_tool` + `operation` (and a
+    // bulk set as `connected_tools`) — log it the same way `function_ids` already does,
+    // an id array diff, instead of the raw `{type, id}` / operation-number fields.
+    connected_tool: () => {
+      const toolIds = (list) => (list || []).filter((t) => t?.type === "tools").map((t) => String(t.id));
+      log("functionData", toolIds(version.connected_tools), toolIds(update_fields.connected_tools ?? version.connected_tools));
+    },
+    connected_tools: () => handlers.connected_tool(),
+    // Consumed by the connected_tool handler above — not a field of its own.
+    operation: () => {}
   };
   for (const key in body) {
     if (handlers[key]) handlers[key]();
