@@ -19,7 +19,8 @@ router.post("/getFineTuneData/:bridge_id", middleware, validate(conversationVali
 router.put("/gethistory/:bridge_id", middleware, validate(conversationValidation.updateThreadMessage), common.updateThreadMessage);
 router.put("/status/:status", chatBotAuth, validate(conversationValidation.updateMessageStatus), common.updateMessageStatus);
 router.get("/get-message-history/:thread_id/:bridge_id", middleware, validate(conversationValidation.getThreadMessages), common.getThreadMessages); //used by some else
-router.get("/getuserupdates/:version_id", middleware, validate(conversationValidation.getAllUserUpdates), common.getAllUserUpdates);
+// Omitting version_id returns the whole config's history — the only way to read a tool.
+router.get("/getuserupdates/:config_id/:version_id?", middleware, validate(conversationValidation.getAllUserUpdates), common.getAllUserUpdates);
 router.get("/gethistory-chatbot/:thread_id/:bridge_slugName", combinedAuthWithChatBotAndPublicChatbot, common.getThreads); //Route Deprecated //Public API for getting history for particular thread
 
 export default router;
