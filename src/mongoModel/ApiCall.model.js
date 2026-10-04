@@ -57,6 +57,10 @@ const apiCall = new mongoose.Schema(
     user_id: {
       type: String,
       default: ""
+    },
+    deletedAt: {
+      type: Date,
+      default: null
     }
   },
   {
@@ -64,6 +68,7 @@ const apiCall = new mongoose.Schema(
   }
 );
 apiCall.index({ org_id: 1, script_id: 1 });
+apiCall.index({ deletedAt: 1 }, { expireAfterSeconds: 2592000 }); // TTL: 30 days
 apiCall.plugin(cacheInvalidationPlugin, { tags: [tag_keys.tool] });
 
 const apiCallModel = mongoose.model("apicall", apiCall);
