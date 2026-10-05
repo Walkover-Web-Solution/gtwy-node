@@ -19,7 +19,8 @@ const API_KEY_ENV_MAP = {
   moonshot: "MOONSHOT_API_KEY",
   minimax: "MINIMAX_API_KEY",
   grok: "GROK_API_KEY",
-  gemini: "GEMINI_API_KEY"
+  gemini: "GEMINI_API_KEY",
+  typesafe: "TYPESAFE_API_KEY"
 };
 
 // Services that require special header formats
@@ -81,6 +82,13 @@ async function validateModelCommon(service, modelName) {
         const name = model.name?.toLowerCase();
         return architecture === normalizedModelName || canonicalName === normalizedModelName || name === normalizedModelName;
       });
+    }
+
+    // TypeSafe lists { models: [{ name }] } and only shows aliases (jev-latest, jev-preview).
+    // Pinned versions such as jev-1.13.0 are documented and callable but not listed.
+    if (service === "typesafe") {
+      const names = (response.data?.models || []).map((model) => model.name?.toLowerCase());
+      return names.includes(normalizedModelName) || /^jev-\d+\.\d+\.\d+$/.test(normalizedModelName);
     }
 
     // Special handling for Mistral which has aliases

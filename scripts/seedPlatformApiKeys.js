@@ -25,7 +25,8 @@ const ENV_KEY_BY_SERVICE = {
   neev_cloud: process.env.PLATFORM_NEEV_CLOUD_API_KEY,
   moonshot: process.env.PLATFORM_MOONSHOT_API_KEY,
   deepseek: process.env.PLATFORM_DEEPSEEK_API_KEY,
-  minimax: process.env.PLATFORM_MINIMAX_API_KEY
+  minimax: process.env.PLATFORM_MINIMAX_API_KEY,
+  typesafe: process.env.PLATFORM_TYPESAFE_API_KEY
 };
 
 const dryRun = process.argv.includes("--dry-run");
