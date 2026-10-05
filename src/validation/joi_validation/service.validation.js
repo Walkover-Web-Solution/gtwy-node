@@ -4,8 +4,8 @@ const createService = {
   body: Joi.object().keys({
     service_name: Joi.string().required(),
     base_url: Joi.string().allow(null).default(null),
-    wire_format: Joi.string().required(), // openai_chat | openai_responses | anthropic | gemini | deepgram
-    client: Joi.string().required(), // openai_sdk | groq_sdk | grok_http | mistral_sdk | openai_completion_sdk | anthropic_sdk | gemini_sdk | deepgram_sdk | minimax_sdk
+    wire_format: Joi.string().required(), // openai_chat | openai_responses | anthropic | gemini | deepgram | typesafe
+    client: Joi.string().required(), // openai_sdk | groq_sdk | grok_http | mistral_sdk | openai_completion_sdk | anthropic_sdk | gemini_sdk | deepgram_sdk | minimax_sdk | typesafe_http
     supports_streaming: Joi.boolean().default(false),
     supports_tool_calls: Joi.boolean().default(false),
     supports_stream_usage: Joi.boolean().default(false),
