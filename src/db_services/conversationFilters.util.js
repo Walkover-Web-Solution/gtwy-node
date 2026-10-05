@@ -95,10 +95,13 @@ export function buildConversationFilterSql(filters = {}) {
           for (const [vn, vv] of Object.entries(val)) {
             const k = String(vn).trim();
             if (!k) continue;
-            const tv = typeof vv === "string" ? vv.trim() : "";
+            const tv = vv === null || vv === undefined ? "" : String(vv).trim();
+            // Value: case-insensitive substring of the text value (covers numbers/booleans).
+            // The UI sends the key "value" when only a value was typed: search every variable.
+            const keyCond = k === "value" ? "" : ` AND kv.key = ${lit(k)}`;
             or.push(
               tv
-                ? `EXISTS (SELECT 1 FROM jsonb_each_text(${varsObj}) AS kv WHERE ${varsIsObj} AND kv.key = ${lit(k)} AND kv.value = ${lit(tv)})`
+                ? `EXISTS (SELECT 1 FROM jsonb_each_text(${varsObj}) AS kv WHERE ${varsIsObj}${keyCond} AND kv.value ILIKE ${like(tv)})`
                 : `EXISTS (SELECT 1 FROM jsonb_each_text(${varsObj}) AS kv WHERE ${varsIsObj} AND kv.key = ${lit(k)})`
             );
           }

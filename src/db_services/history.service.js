@@ -254,12 +254,20 @@ async function findRecentThreadsByBridgeId(org_id, bridge_id, filters, error, pa
           for (const [varName, varVal] of Object.entries(keyword)) {
             const key = String(varName).trim();
             if (!key) continue;
-            const val = typeof varVal === "string" ? varVal.trim() : null;
+            const val = varVal === null || varVal === undefined ? "" : String(varVal).trim();
 
             if (val) {
-              // Exact key=value -> containment, uses idx_cl_variables_gin.
-              const jsonParam = addParam(JSON.stringify({ [key]: val }));
-              orConditions.push(Sequelize.literal(`"conversation_logs"."variables" @> ${jsonParam}::jsonb`));
+              // Case-insensitive substring match on the variable's text value, so partial
+              // input, numbers and booleans match too. The UI sends the key "value" when
+              // only a value was typed: that searches every variable.
+              const keyCond = key === "value" ? "" : `kv.key = ${addParam(key)} AND `;
+              const pat = addParam(`%${escapeLike(val)}%`);
+              orConditions.push(
+                Sequelize.literal(
+                  `EXISTS (SELECT 1 FROM jsonb_each_text(CASE WHEN jsonb_typeof("conversation_logs"."variables") = 'object' ` +
+                    `THEN "conversation_logs"."variables" ELSE '{}'::jsonb END) AS kv WHERE ${keyCond}kv.value ILIKE ${pat} ESCAPE '\\')`
+                )
+              );
             } else {
               const keyParam = addParam(key);
               orConditions.push(Sequelize.literal(`jsonb_exists(COALESCE("conversation_logs"."variables", '{}'::jsonb), ${keyParam})`));
