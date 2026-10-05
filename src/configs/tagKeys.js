@@ -8,5 +8,6 @@ export const tag_keys = {
   wrapper: "wrapper",
   agent: "agent",
   version: "version",
-  rag: "rag"
+  rag: "rag",
+  skill: "skill"
 };

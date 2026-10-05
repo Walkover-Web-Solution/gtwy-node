@@ -4,14 +4,14 @@ import logger from "../logger.js";
 import ApiError from "../utils/ApiError.js";
 import Helper from "./utils/helper.utils.js";
 import ConfigurationServices from "../db_services/configuration.service.js";
-import { deleteInCache } from "../cache_service/index.js";
-import { redis_keys } from "../configs/constant.js";
+import { invalidateByTag } from "../cache_service/index.js";
+import { tag_keys } from "../configs/tagKeys.js";
 
 // Skills are stored upstream; we only keep a reference in connected_tools.
-const SKILL_API_URL = process.env.SKILL_API_URL || "https://mcp.viasocket.com/api/skill";
+const SKILL_API_URL = process.env.SKILL_API_URL
 
 // axios has no default timeout, so a hung upstream would hang the request forever.
-const SKILL_API_TIMEOUT_MS = Number(process.env.SKILL_API_TIMEOUT_MS || 10000);
+const SKILL_API_TIMEOUT_MS = 10000;
 
 // The only place a skill service token is signed.
 const createToken = ({ userId, orgId }) => {
@@ -56,33 +56,21 @@ const pickSkillFields = ({ name, description, content }) => {
   return payload;
 };
 
-// gtwy-ai caches the org's skill list and each skill's content and cannot know when
-// one changes, so clear both here. Otherwise edits wait out the TTL.
-const clearSkillCache = async (orgId, skillId) => {
-  const keys = [`${redis_keys.org_skills_}${orgId}`];
-  if (skillId) keys.push(`${redis_keys.skill_content_}${skillId}`);
-  await deleteInCache(keys);
-};
-
 export const listSkills = async (auth) => callSkillApi("list", () => axios.get(SKILL_API_URL, requestOptions(auth)));
 
 export const getSkill = async (skillId, auth) => callSkillApi("get", () => axios.get(`${SKILL_API_URL}/${skillId}`, requestOptions(auth)));
 
-export const createSkill = async (body, auth) => {
-  const skill = await callSkillApi("create", () => axios.post(SKILL_API_URL, pickSkillFields(body), requestOptions(auth)));
-  await clearSkillCache(auth.orgId);
-  return skill;
-};
+// No cache to clear on create - a brand new skill is not on any agent yet.
+export const createSkill = async (body, auth) => callSkillApi("create", () => axios.post(SKILL_API_URL, pickSkillFields(body), requestOptions(auth)));
 
 export const updateSkill = async (skillId, body, auth) => {
   const skill = await callSkillApi("update", () => axios.put(`${SKILL_API_URL}/${skillId}`, pickSkillFields(body), requestOptions(auth)));
-  await clearSkillCache(auth.orgId, skillId);
+  // Agent configs cache the skill's name and description, so an edit must drop them.
+  await invalidateByTag(tag_keys.skill, skillId);
   return skill;
 };
 
-// Upstream only unlinks from MCP servers, so detach from our agents too.
-// Refuse to delete a skill any agent still uses, so nobody silently loses a
-// capability an agent depends on. Detaching is done on the agent's Connectors tab.
+// Block deleting a skill an agent still uses, so no agent silently loses a capability.
 const assertSkillUnused = async (skillId, orgId) => {
   const agents = await ConfigurationServices.findAgentsUsingSkill(orgId, skillId);
   if (!agents.length) return;
@@ -99,12 +87,11 @@ const assertSkillUnused = async (skillId, orgId) => {
 };
 
 export const deleteSkill = async (skillId, auth) => {
-  //check for - is this skill is attached in any agent if yes then show alert to user for detaching it there first
   await assertSkillUnused(skillId, auth.orgId);
 
   const result = await callSkillApi("delete", () => axios.delete(`${SKILL_API_URL}/${skillId}`, requestOptions(auth)));
 
-  await clearSkillCache(auth.orgId, skillId);
+  await invalidateByTag(tag_keys.skill, skillId);
   logger.info(`skill ${skillId} deleted for org ${auth.orgId}`);
 
   return result;

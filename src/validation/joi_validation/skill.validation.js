@@ -13,10 +13,6 @@ const skillIdParams = Joi.object()
   })
   .unknown(true);
 
-const getAllSkills = {
-  // No validation needed
-};
-
 const getSkill = {
   params: skillIdParams
 };
@@ -81,7 +77,6 @@ const deleteSkill = {
 };
 
 export default {
-  getAllSkills,
   getSkill,
   createSkill,
   updateSkill,
