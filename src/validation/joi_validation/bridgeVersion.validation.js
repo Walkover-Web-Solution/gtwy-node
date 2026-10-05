@@ -2,7 +2,7 @@ import Joi from "joi";
 import { getServiceNames } from "../../services/utils/loadServicesRegistry.js";
 
 const connectedToolItemSchema = Joi.object({
-  type: Joi.string().valid("tools", "agent", "docs", "pre_tool", "post_tool", "built_in_tools").required(),
+  type: Joi.string().valid("tools", "agent", "docs", "pre_tool", "post_tool", "built_in_tools", "skills").required(),
   id: Joi.string().when("type", { is: Joi.valid("built_in_tools", "pre_tool"), then: Joi.optional(), otherwise: Joi.required() }),
   built_in_tools: Joi.array().items(Joi.string()).when("type", { is: "built_in_tools", then: Joi.required(), otherwise: Joi.optional() }),
   gtwy_web_search_filters: Joi.array().items(Joi.string()).optional(),
