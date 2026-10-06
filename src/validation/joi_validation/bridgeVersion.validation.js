@@ -76,6 +76,8 @@ const updateVersionSchema = Joi.object({
     detect_entities: Joi.alternatives().try(Joi.boolean(), Joi.string(), Joi.object()).optional(),
     model_option: Joi.alternatives().try(Joi.string().allow(""), Joi.object()).optional(),
     size: Joi.alternatives().try(Joi.string(), Joi.object()).optional(),
+    // TypeSafe (Jev): map of typed questions (choice / score / noul) saved from the playground.
+    questions: Joi.object().allow(null).optional(),
     mcp_config: Joi.object({
       servers: Joi.array()
         .items(
