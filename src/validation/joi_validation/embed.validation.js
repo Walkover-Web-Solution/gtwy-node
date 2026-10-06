@@ -48,7 +48,9 @@ const updateEmbed = {
       folder_limit: Joi.number().min(0).optional(),
       folder_usage: Joi.number().min(0).optional(),
       folder_limit_reset_period: Joi.string().valid("monthly", "weekly", "daily").optional(),
-      folder_limit_start_date: Joi.date().optional()
+      folder_limit_start_date: Joi.date().optional(),
+      // Set when the save is a revert, so the history row can point at the entry it undid.
+      reverted_from_id: Joi.number().integer().optional()
     })
     .unknown(true)
 };

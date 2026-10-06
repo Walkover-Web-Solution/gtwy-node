@@ -1294,16 +1294,17 @@ const getAllAgentsInOrg = async (org_id, folder_id, user_id, isEmbedUser) => {
 
 // Get all agents with their last publishers for an organization in a single query
 const getAllAgentsWithLastPublishers = async (org_id) => {
-  // Simple query to get all bridge_ids and their last publishers for the organization
+  // Simple query to get all bridge_ids and their last publishers for the organization.
+  // 'Version published' rows are always agents, so config_id holds the bridge id here.
   const agentsWithPublishers = await models.pg.sequelize.query(
     `
-      SELECT DISTINCT ON (bridge_id) 
-             bridge_id, 
+      SELECT DISTINCT ON (config_id)
+             config_id,
              user_id as last_publisher_id
-      FROM user_bridge_config_history 
-      WHERE org_id = :org_id 
+      FROM user_bridge_config_history
+      WHERE org_id = :org_id
         AND type = 'Version published'
-      ORDER BY bridge_id, time DESC
+      ORDER BY config_id, time DESC
     `,
     {
       replacements: { org_id },
@@ -1314,7 +1315,7 @@ const getAllAgentsWithLastPublishers = async (org_id) => {
   // Create a map of bridge_id -> last_publisher_id
   const publishersMap = {};
   agentsWithPublishers.forEach((agent) => {
-    publishersMap[agent.bridge_id] = agent.last_publisher_id;
+    publishersMap[agent.config_id] = agent.last_publisher_id;
   });
 
   return publishersMap;

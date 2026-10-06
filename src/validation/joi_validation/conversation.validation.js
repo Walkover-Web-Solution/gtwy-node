@@ -190,7 +190,8 @@ const bridgeArchive = {
 const getAllUserUpdates = {
   params: Joi.object()
     .keys({
-      version_id: Joi.objectId().required()
+      config_id: Joi.objectId().required(),
+      version_id: Joi.objectId()
     })
     .unknown(true),
   query: Joi.object()
