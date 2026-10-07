@@ -150,7 +150,7 @@ app.use("/api/showcase", showCaseRoutes);
 // app.use('/api/v1/metrics', metrisRoutes);
 
 app.use(responseMiddleware); // send response
-app.use(notFoundMiddleware); // added at the last, so that it runs after all routes is being checked
+app.use(notFoundMiddleware); // added at the  last, so that it runs after all routes is being checked
 app.use(errorHandlerMiddleware);
 
 import { initModelConfiguration, backgroundListenForChanges } from "./services/utils/loadModelConfigs.js";
