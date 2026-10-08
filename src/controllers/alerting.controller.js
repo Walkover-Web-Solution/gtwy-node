@@ -1,4 +1,5 @@
 import alertingDbservices from "../db_services/alerting.service.js";
+import { removeLegacyAlert, syncLegacyAlert } from "../services/notifications/legacyAlerts.service.js";
 
 async function createAlert(req, res, next) {
   const org_id = req.profile?.org?.id;
@@ -12,6 +13,8 @@ async function createAlert(req, res, next) {
     alertType,
     limit
   });
+  // Mirror into notification channels + rules while both alert systems run.
+  await syncLegacyAlert(res.locals);
   req.statusCode = 201;
   return next();
 }
@@ -41,6 +44,7 @@ async function deleteAlert(req, res, next) {
   const { id } = req.body;
 
   const result = await alertingDbservices.deleteAlert(id);
+  if (result.success) await removeLegacyAlert(id, req.profile?.org?.id);
 
   if (!result.success) {
     res.locals = {
@@ -95,6 +99,7 @@ async function updateAlert(req, res, next) {
 
   const updatedAlert = await alertingDbservices.updateAlert(id, alert);
   if (updatedAlert.success) {
+    await syncLegacyAlert(updatedAlert.data);
     res.locals = updatedAlert;
     req.statusCode = 200;
     return next();

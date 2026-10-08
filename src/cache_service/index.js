@@ -9,6 +9,14 @@ async function storeInCache(identifier, data, ttl = DEFAULT_REDIS_TTL) {
   return false;
 }
 
+// Atomically sets the key only if it is absent. Returns true when this caller set it
+// (i.e. claimed it), false when it already existed, null when Redis is unavailable.
+async function setIfAbsentInCache(identifier, ttl) {
+  if (!client.isReady) return null;
+  const result = await timeAsync("redis", `SET NX ${identifier}`, () => client.set(REDIS_PREFIX + identifier, "1", { NX: true, EX: ttl }));
+  return result === "OK";
+}
+
 async function findInCache(identifier) {
   if (client.isReady) return await timeAsync("redis", `GET ${identifier}`, () => client.get(REDIS_PREFIX + identifier));
   return false;
@@ -124,4 +132,4 @@ async function sMembersInCache(identifier) {
   }
 }
 
-export { deleteInCache, storeInCache, findInCache, scanCacheKeys, verifyTTL, invalidateByTag, sMembersInCache };
+export { deleteInCache, storeInCache, findInCache, setIfAbsentInCache, scanCacheKeys, verifyTTL, invalidateByTag, sMembersInCache };
