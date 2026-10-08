@@ -10,6 +10,9 @@ const router = express.Router();
 
 router.get("/", middleware, agentConfigController.getAllAgentController);
 
+// Must stay above "/:agent_id" so "direct" is not read as an agent id.
+router.get("/direct", middleware, agentConfigController.getDirectAgentController);
+
 router.get(
   "/:agent_id",
   middleware,
