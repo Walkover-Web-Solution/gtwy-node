@@ -11,6 +11,10 @@ import { ObjectId } from "mongodb";
 import folderService from "./folder.service.js";
 // import { getAgentData } from "../services/utils/getConfiguration.js";
 
+// The hidden "direct" agent backs every /ai/completion call of its org. Deleting it
+// would fail those calls, and its slug stays taken until the 30-day TTL removes the doc.
+const DIRECT_AGENT_DELETE_ERROR = "This agent backs direct API calls and cannot be deleted";
+
 const cloneAgentToOrg = async (agent_id, to_shift_org_id, cloned_agents_map = null, depth = 0) => {
   try {
     // Initialize cloned_agents_map for tracking and prevent infinite loops
@@ -264,6 +268,9 @@ const deleteAgent = async (agent_id, org_id) => {
         error: "Agent not found"
       };
     }
+    if (agent.bridgeType === "direct") {
+      return { success: false, error: DIRECT_AGENT_DELETE_ERROR };
+    }
 
     // Use aggregation pipeline to find connected agents from both versions and configurations
     const [connectedFromVersions, connectedFromConfigurations] = await Promise.all([
@@ -421,6 +428,9 @@ const permanentlyDeleteAgent = async (agent_id) => {
         success: false,
         error: "Agent not found"
       };
+    }
+    if (agent.bridgeType === "direct") {
+      return { success: false, error: DIRECT_AGENT_DELETE_ERROR };
     }
 
     // Check if any other agent/version references this agent in connected_agents
@@ -731,7 +741,8 @@ const getAgentBySlugname = async (orgId, slugName, versionId) => {
 
 const getAgentsByUserId = async (orgId, userId, agent_id, folder_id) => {
   try {
-    const query = { org_id: String(orgId) };
+    // The hidden "direct" agent backs /ai/completion calls and is never listed.
+    const query = { org_id: String(orgId), bridgeType: { $ne: "direct" } };
     if (userId) {
       query.user_id = String(userId);
     }
@@ -1211,8 +1222,8 @@ const getAllAgentsInOrg = async (org_id, folder_id, user_id, isEmbedUser) => {
   const lastPublishersMap = await getAllAgentsWithLastPublishers(org_id);
   const folderIds = await folderService.getFolderIdsByOrgAndType(org_id, "agent");
 
-  // Build MongoDB query
-  const query = { org_id: org_id };
+  // Build MongoDB query (the hidden "direct" agent is never listed)
+  const query = { org_id: org_id, bridgeType: { $ne: "direct" } };
   if (folder_id && isEmbedUser) {
     try {
       if (ObjectId.isValid(folder_id)) {
@@ -1393,7 +1404,15 @@ const getUniqueAgentNameAndSlug = async (org_id, baseName) => {
   }
 };
 
+// The hidden per-org agent that backs Python's POST /api/v2/model/ai/completion.
+// Created lazily by the Python service on the first direct call; null until then.
+const getDirectAgentId = async (org_id) => {
+  const agent = await configurationModel.findOne({ org_id: String(org_id), bridgeType: "direct", deletedAt: null }, { _id: 1 }).lean();
+  return agent ? agent._id.toString() : null;
+};
+
 export default {
+  getDirectAgentId,
   deleteAgent,
   permanentlyDeleteAgent,
   restoreAgent,
