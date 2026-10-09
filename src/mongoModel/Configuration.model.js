@@ -65,7 +65,7 @@ const configuration = new mongoose.Schema({
   },
   bridgeType: {
     type: String,
-    enum: ["api", "chatbot"],
+    enum: ["api", "chatbot", "direct"],
     required: true,
     default: "chatbot"
   },

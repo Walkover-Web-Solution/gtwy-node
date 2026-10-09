@@ -634,7 +634,19 @@ const permanentlyDeleteAgentController = async (req, res, next) => {
   }
 };
 
+// Responds directly instead of next(): next() would fall through to GET "/:agent_id",
+// whose ObjectId validator rejects "direct" before responseMiddleware runs.
+const getDirectAgentController = async (req, res) => {
+  try {
+    const agent_id = await ConfigurationServices.getDirectAgentId(req.profile.org.id);
+    return res.status(200).json({ success: true, agent_id });
+  } catch (e) {
+    return res.status(500).json({ success: false, message: e.message });
+  }
+};
+
 export {
+  getDirectAgentController,
   createAgentController,
   getAgentController,
   getAllAgentController,
