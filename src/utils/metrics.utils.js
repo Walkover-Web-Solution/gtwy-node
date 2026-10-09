@@ -10,39 +10,68 @@ export function selectTable(range) {
   }
 }
 
+function escapeSqlValue(value) {
+  return String(value).replace(/'/g, "''");
+}
+
+function addFilterCondition(conditions, column, value) {
+  if (value === null || value === undefined) return;
+  const values = Array.isArray(value) ? value.filter((item) => item !== null && item !== undefined && item !== "") : [value];
+  if (values.length === 0) return;
+  if (values.length === 1) {
+    conditions.push(`${column} = '${escapeSqlValue(values[0])}'`);
+    return;
+  }
+  conditions.push(`${column} IN ('${values.map(escapeSqlValue).join("','")}')`);
+}
+
+function toSqlDate(value) {
+  if (value == null) return value;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toISOString();
+}
+
+/**
+ * Build a user-metrics query over metrics_raw_data for an explicit date range.
+ * Reads raw rows so user_id is available as soon as hits are flushed.
+ */
+export function buildUserMetricsQuery({ org_id, user_id, start_date, end_date }) {
+  const conditions = [];
+  addFilterCondition(conditions, "org_id", org_id);
+  addFilterCondition(conditions, "user_id", user_id);
+  conditions.push(`created_at BETWEEN '${toSqlDate(start_date)}' AND '${toSqlDate(end_date)}'`);
+
+  const where = `WHERE ${conditions.join(" AND ")}`;
+  const diffMs = new Date(end_date).getTime() - new Date(start_date).getTime();
+  const bucket = Number.isFinite(diffMs) && diffMs <= 2 * 24 * 60 * 60 * 1000 ? "15 minutes" : "1 day";
+
+  return `
+    SELECT
+      user_id,
+      time_bucket('${bucket}', created_at) AS created_at,
+      SUM(cost) AS cost_sum,
+      AVG(latency) AS latency_sum,
+      COUNT(*) FILTER (WHERE success = true) AS success_count,
+      SUM(total_tokens) AS total_token_count
+    FROM metrics_raw_data
+    ${where}
+    GROUP BY user_id, time_bucket('${bucket}', created_at)
+    ORDER BY created_at ASC
+  `;
+}
+
 export function buildWhereClause(params, values, factor, range, flag = true, start_date = null, end_date = null) {
   const conditions = [];
 
-  if (params.org_id !== null && params.org_id !== undefined) {
-    values.push(params.org_id);
-    conditions.push(`org_id = '${params.org_id}'`);
-  }
-  if (params.bridge_id !== null && params.bridge_id !== undefined) {
-    values.push(params.bridge_id);
-    conditions.push(`bridge_id = '${params.bridge_id}'`);
-  }
-  if (params.version_id !== null && params.version_id !== undefined) {
-    values.push(params.version_id);
-    conditions.push(`version_id = '${params.version_id}'`);
-  }
-  if (params.apikey_id !== null && params.apikey_id !== undefined) {
-    values.push(params.apikey_id);
-    conditions.push(`apikey_id = '${params.apikey_id}'`);
-  }
-  if (params.thread_id !== null && params.thread_id !== undefined) {
-    values.push(params.thread_id);
-    conditions.push(`thread_id = '${params.thread_id}'`);
-  }
-  if (params.service !== null && params.service !== undefined) {
-    values.push(params.service);
-    conditions.push(`service = '${params.service}'`);
-  }
-  if (params.model !== null && params.model !== undefined) {
-    values.push(params.model);
-    conditions.push(`model = '${params.model}'`);
-  }
+  addFilterCondition(conditions, "org_id", params.org_id);
+  addFilterCondition(conditions, "bridge_id", params.bridge_id);
+  addFilterCondition(conditions, "version_id", params.version_id);
+  addFilterCondition(conditions, "apikey_id", params.apikey_id);
+  addFilterCondition(conditions, "thread_id", params.thread_id);
+  addFilterCondition(conditions, "service", params.service);
+  addFilterCondition(conditions, "model", params.model);
 
-  let query = "WHERE " + conditions.join(" AND ");
+  let query = conditions.length ? "WHERE " + conditions.join(" AND ") : "WHERE 1=1";
   if (range && flag) {
     if (range == 1) {
       query += ` AND created_at >= NOW() - INTERVAL '1 hour'`;
@@ -63,7 +92,12 @@ export function buildWhereClause(params, values, factor, range, flag = true, sta
     } else if (range == 9) {
       query += ` AND created_at >= NOW() - INTERVAL '30 days'`;
     } else if (range == 10) {
-      query += ` AND created_at BETWEEN '${start_date}' AND '${end_date}'`;
+      const toSqlDate = (value) => {
+        if (value == null) return value;
+        const date = value instanceof Date ? value : new Date(value);
+        return Number.isNaN(date.getTime()) ? value : date.toISOString();
+      };
+      query += ` AND created_at BETWEEN '${toSqlDate(start_date)}' AND '${toSqlDate(end_date)}'`;
     }
   }
   if (!flag) {
