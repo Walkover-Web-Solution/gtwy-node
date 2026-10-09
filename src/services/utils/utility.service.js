@@ -127,19 +127,20 @@ async function sendAlert(message, error, bridgeId, orgId, channelId) {
   }
 }
 
+// GTWY team alert. Goes through the notification hub, which sends it to the ops webhook.
 function unknown_error_handler_alert(type, token, reason) {
   if (!type) return;
-  axios
-    .post("https://flow.sokt.io/func/scrimCFAKPWg", {
-      type,
-      token,
-      reason,
-      environment: process.env.ENVIRONMENT
-    })
-    .catch((err) => {
-      const message = err?.message || err;
-      console.error("Error reporting login failure", message);
-    });
+  // Imported lazily: the hub's import chain is long and this module is imported almost everywhere.
+  import("../notifications/emit.js")
+    .then(({ emitEvent }) =>
+      emitEvent({
+        eventType: "ops.internal_error",
+        title: String(type),
+        message: String(reason ?? type).slice(0, 500),
+        data: { team_route: "ops", team_body: { type, token, reason, environment: process.env.ENVIRONMENT } }
+      })
+    )
+    .catch((err) => console.error("Error reporting internal alert", err?.message || err));
 }
 
 function convertAIConversation(conversation) {

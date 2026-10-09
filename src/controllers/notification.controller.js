@@ -1,32 +1,26 @@
+import { randomUUID } from "crypto";
 import notificationDbService from "../db_services/notification.service.js";
-import { ResponseSender } from "../services/utils/customResponse.utils.js";
+import { processEvent } from "../services/notifications/hub.service.js";
+import { NOTIFICATION_EVENTS } from "../configs/notificationEvents.js";
 
-const responseSender = new ResponseSender();
-
+// HTTP producers call the hub directly (not through the queue) so the response can
+// carry the stored notification.
 async function createNotification(req, res, next) {
   const org_id = req.profile.org.id;
-  const { agent_id, type, title, message, data } = req.body;
+  const { event_type, agent_id, severity, title, message, data } = req.body;
 
-  const notification = await notificationDbService.createNotification({
+  const { notification } = await processEvent({
+    event_id: randomUUID(),
+    event_type,
+    audience: "org",
+    severity,
     org_id,
     agent_id,
-    type,
     title,
     message,
-    data
+    data,
+    source: "api"
   });
-
-  // Mutually exclusive: an agent-scoped notification goes only to that agent's channel
-  // (so it's not shown while viewing other agents); an org-wide one goes only to the org channel.
-  const rtChannel = agent_id ? `${org_id}_${agent_id}`.replace(/ /g, "_") : `org_${org_id}`;
-  responseSender
-    .sendResponse({
-      rtlLayer: true,
-      data: { type: "notification", notification },
-      reqBody: { rtlOptions: { channel: rtChannel, ttl: 30, apikey: process.env.RTLAYER_AUTH } },
-      headers: {}
-    })
-    .catch((err) => console.error("Error pushing notification via RTLayer:", err));
 
   res.locals = {
     success: true,
@@ -40,18 +34,18 @@ async function createNotification(req, res, next) {
 async function broadcastNotification(req, res, next) {
   // Deliberately does not read req.profile.org.id — this is a global broadcast to
   // every org, not scoped to whoever is calling it. Auth is InternalAuth-only.
-  const { type, title, message, data } = req.body;
+  const { severity, title, message, data } = req.body;
 
-  const notification = await notificationDbService.broadcastNotification({ type, title, message, data });
-
-  responseSender
-    .sendResponse({
-      rtlLayer: true,
-      data: { type: "notification", notification },
-      reqBody: { rtlOptions: { channel: "global_updates", ttl: 30, apikey: process.env.RTLAYER_AUTH } },
-      headers: {}
-    })
-    .catch((err) => console.error("Error broadcasting notification via RTLayer:", err));
+  const { notification } = await processEvent({
+    event_id: randomUUID(),
+    event_type: "system.announcement",
+    audience: "global",
+    severity,
+    title,
+    message,
+    data,
+    source: "api"
+  });
 
   res.locals = {
     success: true,
@@ -62,16 +56,50 @@ async function broadcastNotification(req, res, next) {
   return next();
 }
 
+// Publishes a full event envelope (InternalAuth only), for admin tools and scripts.
+async function publishEvent(req, res, next) {
+  const result = await processEvent({ source: "api", ...req.body, event_id: req.body.event_id || randomUUID() });
+
+  res.locals = {
+    success: true,
+    message: result.duplicate ? "Event already processed" : "Event processed",
+    data: result.notification,
+    duplicate: result.duplicate,
+    internal: result.internal
+  };
+  req.statusCode = result.duplicate ? 200 : 201;
+  return next();
+}
+
+async function getCatalogue(req, res, next) {
+  const events = Object.entries(NOTIFICATION_EVENTS)
+    .filter(([, event]) => event.audience !== "internal" && event.in_app !== false)
+    .map(([event_type, event]) => ({
+      event_type,
+      label: event.label,
+      description: event.description,
+      audience: event.audience,
+      severity: event.severity
+    }));
+
+  res.locals = { success: true, data: events };
+  req.statusCode = 200;
+  return next();
+}
+
 async function getNotifications(req, res, next) {
   const org_id = req.profile.org.id;
   const user_id = req.profile.user.id;
-  const { agent_id, scope, page, limit } = req.query;
+  const { agent_id, scope, unread, severity, event_type, page, limit } = req.query;
 
   const result = await notificationDbService.getNotifications({
     org_id,
     agent_id,
     scope,
     user_id,
+    unread: unread === true || unread === "true",
+    severity,
+    event_type,
     page: page ? Number(page) : 1,
     limit: limit ? Number(limit) : 20
   });
@@ -105,9 +133,9 @@ async function markAsRead(req, res, next) {
 async function markAllAsRead(req, res, next) {
   const org_id = req.profile.org.id;
   const user_id = req.profile.user.id;
-  const { agent_id } = req.body;
+  const { agent_id, scope } = req.body;
 
-  const result = await notificationDbService.markAllAsRead({ org_id, agent_id, user_id });
+  const result = await notificationDbService.markAllAsRead({ org_id, agent_id, scope, user_id });
 
   res.locals = {
     success: true,
@@ -121,6 +149,8 @@ async function markAllAsRead(req, res, next) {
 export default {
   createNotification,
   broadcastNotification,
+  publishEvent,
+  getCatalogue,
   getNotifications,
   markAsRead,
   markAllAsRead
