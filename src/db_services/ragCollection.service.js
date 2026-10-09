@@ -1,6 +1,8 @@
 import RagCollectionModel from "../mongoModel/RagCollection.model.js";
 import configurationModel from "../mongoModel/Configuration.model.js";
 import versionModel from "../mongoModel/BridgeVersion.model.js";
+import { deleteInCache } from "../cache_service/index.js";
+import { redis_keys } from "../configs/constant.js";
 
 /**
  * Create a new RAG collection
@@ -177,6 +179,69 @@ const checkResourceUsage = async (resourceId, org_id) => {
   }
 };
 
+/**
+ * Propagate an edited KB resource description into every agent that references it.
+ *
+ * A KB resource's `description` is stored as a denormalized copy inside each
+ * bridge/version's `doc_ids` array (each entry is `{ resource_id, collection_id,
+ * description }`), and gtwy-ai builds the system prompt from that stored copy.
+ * Editing the resource in the hippocampus store therefore does NOT change what
+ * agents show unless we also update these embedded copies. This mirrors the way
+ * `checkResourceUsage` matches on `doc_ids.resource_id` across both the bridge
+ * (configuration) and version collections, updates the matched array element's
+ * description, and clears the cached bridge/version data so the next query
+ * rebuilds the prompt with the new text.
+ */
+const propagateResourceDescription = async (resourceId, org_id, description) => {
+  try {
+    const query = {
+      org_id: org_id,
+      "doc_ids.resource_id": resourceId
+    };
+
+    // Collect the bridges/versions referencing this resource so we can clear their cache.
+    const [bridges, versions] = await Promise.all([
+      configurationModel.find(query, { _id: 1 }).lean(),
+      versionModel.find(query, { _id: 1, parent_id: 1 }).lean()
+    ]);
+
+    if (bridges.length === 0 && versions.length === 0) {
+      return { success: true, bridges: 0, versions: 0 };
+    }
+
+    // Update the denormalized description on every matching doc_ids element.
+    const update = { $set: { "doc_ids.$[elem].description": description } };
+    const options = { arrayFilters: [{ "elem.resource_id": resourceId }] };
+
+    await Promise.all([configurationModel.updateMany(query, update, options), versionModel.updateMany(query, update, options)]);
+
+    // Invalidate cache for the affected bridges and versions (and each version's
+    // parent bridge) so the rebuilt system prompt reflects the new description.
+    const cacheKeys = new Set();
+    bridges.forEach((bridge) => {
+      cacheKeys.add(`${redis_keys.get_bridge_data_}${org_id}_${bridge._id}`);
+      cacheKeys.add(`${redis_keys.bridge_data_with_tools_}${org_id}_bridge_${bridge._id}`);
+    });
+    versions.forEach((version) => {
+      cacheKeys.add(`${redis_keys.get_bridge_data_}${org_id}_${version._id}`);
+      cacheKeys.add(`${redis_keys.bridge_data_with_tools_}${org_id}_version_${version._id}`);
+      if (version.parent_id) {
+        cacheKeys.add(`${redis_keys.get_bridge_data_}${org_id}_${version.parent_id}`);
+        cacheKeys.add(`${redis_keys.bridge_data_with_tools_}${org_id}_bridge_${version.parent_id}`);
+      }
+    });
+
+    if (cacheKeys.size > 0) {
+      await deleteInCache(Array.from(cacheKeys));
+    }
+
+    return { success: true, bridges: bridges.length, versions: versions.length };
+  } catch (error) {
+    console.error("Error propagating resource description:", error);
+    return { success: false, error: error.message };
+  }
+};
+
 export default {
   create,
   getByCollectionId,
@@ -185,5 +250,6 @@ export default {
   removeResourceId,
   deleteByCollectionId,
   getCollectionByResourceId,
-  checkResourceUsage
+  checkResourceUsage,
+  propagateResourceDescription
 };
