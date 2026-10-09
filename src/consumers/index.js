@@ -3,6 +3,7 @@ import logger from "../logger.js";
 import rabbitmqService from "../services/rabbitmq.service.js";
 import { logQueueProcessor, getPendingBackgroundJobs } from "./logQueueConsumer.js";
 import { metricsQueueProcessor } from "./metricsQueueConsumer.js";
+import { notificationQueueProcessor } from "./notificationQueueConsumer.js";
 
 dotenv.config();
 const CONSUMERS = [
@@ -15,6 +16,11 @@ const CONSUMERS = [
     queueName: process.env.METRICS_QUEUE_NAME,
     process: metricsQueueProcessor,
     batchSize: 100
+  },
+  {
+    queueName: process.env.NOTIFICATION_QUEUE_NAME,
+    process: notificationQueueProcessor,
+    batchSize: 20
   }
 ];
 
@@ -86,7 +92,8 @@ class Consumer {
 const activeConsumers = [];
 
 function init() {
-  CONSUMERS.forEach((consumer) => {
+  // Skip consumers whose queue isn't configured (e.g. NOTIFICATION_QUEUE_NAME on an older .env).
+  CONSUMERS.filter((consumer) => consumer.queueName).forEach((consumer) => {
     activeConsumers.push(new Consumer(consumer));
   });
 }
