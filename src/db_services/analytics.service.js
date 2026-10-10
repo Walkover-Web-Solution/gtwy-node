@@ -128,6 +128,21 @@ async function getResponseTime({ bridge_id, org_id, start, end, bucket, filters 
   return pgSelect(query, finalParams);
 }
 
+// Time-series for the "Cost" chart: sum of tokens.expected_cost per bucket
+// (same source as summary.est_cost).
+async function getCostOverTime({ bridge_id, org_id, start, end, bucket, filters }) {
+  const { bucketSql, finalParams } = getBucketExpressionAndParams(bucket, { bridge_id, org_id, start, end });
+  const query = `
+    SELECT
+      ${bucketSql} AS t,
+      COALESCE(SUM((tokens->>'expected_cost')::float), 0) AS cost
+    FROM conversation_logs
+    WHERE bridge_id = :bridge_id AND org_id = :org_id
+      AND created_at BETWEEN :start AND :end ${filterClause(filters)}
+    GROUP BY 1 ORDER BY 1 ASC`;
+  return pgSelect(query, finalParams);
+}
+
 async function pushAnalytics(channel, data) {
   await responseSender.sendResponse({
     rtlLayer: true,
@@ -137,7 +152,7 @@ async function pushAnalytics(channel, data) {
   });
 }
 
-// Background worker: runs the three sections concurrently and pushes each over the
+// Background worker: runs the dashboard sections concurrently and pushes each over the
 // RT layer the moment it is ready (progressive render). Each section fails
 // independently — a broken section pushes an error message instead of poisoning
 // the rest.
@@ -186,7 +201,17 @@ async function runAndPush({ bridge_id, org_id, channel, window, filters }) {
     }
   })();
 
-  await Promise.allSettled([summaryTask, requestsTask, responseTimeTask]);
+  const costTask = (async () => {
+    try {
+      const cost_over_time = await getCostOverTime(ctx);
+      await pushAnalytics(channel, { type: "cost_over_time", success: true, ...base, cost_over_time });
+    } catch (error) {
+      logger.error(`analytics cost_over_time failed for ${bridge_id}: ${error.message}`);
+      await pushAnalytics(channel, { type: "cost_over_time", success: false, ...base, error: error.message });
+    }
+  })();
+
+  await Promise.allSettled([summaryTask, requestsTask, responseTimeTask, costTask]);
 }
 
 // Distinct filter options for a bridge, used by the frontend to build the

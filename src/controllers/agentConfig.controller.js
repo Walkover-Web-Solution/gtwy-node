@@ -11,6 +11,7 @@ import { ensureChatbotPreview } from "../services/utility.service.js";
 import { modelConfigDocument } from "../services/utils/loadModelConfigs.js";
 import { sendAgentCreatedWebhook } from "../services/utils/agentWebhook.utils.js";
 import { ResponseSender } from "../services/utils/customResponse.utils.js";
+import { applyConnectedToolOperation } from "../utils/agentConfig.utils.js";
 
 const responseSender = new ResponseSender();
 
@@ -354,6 +355,13 @@ const updateAgentController = async (req, res, next) => {
 
     if (body.settings !== undefined) {
       update_fields.settings = { ...agent.settings, ...body.settings };
+    }
+
+    // operation 0 (remove) is falsy, so check for presence rather than truthiness.
+    if (body.connected_tool && body.operation !== undefined && body.operation !== null) {
+      update_fields.connected_tools = applyConnectedToolOperation(agent.connected_tools || [], body.connected_tool, body.operation);
+    } else if (body.connected_tools !== undefined) {
+      update_fields.connected_tools = body.connected_tools;
     }
 
     update_fields.updatedAt = new Date();

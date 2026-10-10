@@ -6,7 +6,7 @@ import { chatbotSuggestions } from "../services/logQueue/chatbotSuggestions.serv
 import { handleGptMemory } from "../services/logQueue/handleGptMemory.service.js";
 import { saveToAgentMemory } from "../services/logQueue/saveToAgentMemory.service.js";
 import { saveFilesToRedis } from "../services/logQueue/saveFilesToRedis.service.js";
-import { processBillingEvents } from "../services/logQueue/billingDebit.service.js";
+import { processBillingEvents, releaseDispatchClaims } from "../services/logQueue/billingDebit.service.js";
 import { broadcastResponseWebhook } from "../services/logQueue/broadcastResponseWebhook.service.js";
 import {
   saveConversationHistory,
@@ -78,6 +78,7 @@ function trackBackgroundJob(promise) {
 
 const getPendingBackgroundJobs = () => pendingBackgroundJobs;
 
+// Returns the billing transaction_ids this message claimed, released once it is acked.
 async function processLogQueueMessage(messages) {
   // Run all independent history writes in parallel
   const parallelTasks = [];
@@ -91,12 +92,13 @@ async function processLogQueueMessage(messages) {
   await Promise.all(parallelTasks);
 
   // Before the image early-return: image usage is wallet-billed too.
+  let claimedBilling = [];
   if (messages["billing"]) {
-    await processBillingEvents(messages["billing"]);
+    claimedBilling = await processBillingEvents(messages["billing"]);
   }
 
   if (messages.type === "image") {
-    return;
+    return claimedBilling;
   }
 
   // Run remaining independent tasks in parallel
@@ -148,14 +150,18 @@ async function processLogQueueMessage(messages) {
       unknown_error_handler_alert("broadcastResponseWebhook", null, err.message);
     });
   }
+
+  return claimedBilling;
 }
 
 async function logQueueProcessor(message, channel) {
   let message_data;
   try {
     message_data = JSON.parse(message.content.toString());
-    await processLogQueueMessage(message_data);
+    const claimedBilling = await processLogQueueMessage(message_data);
     channel.ack(message);
+    // Only after the ack: until then a crash redelivers this message and the claim must hold.
+    await releaseDispatchClaims(claimedBilling);
   } catch (err) {
     logger.error(`Error processing log queue message: ${err.message}`);
     unknown_error_handler_alert("logQueueProcessor", null, err.message);

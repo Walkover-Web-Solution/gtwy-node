@@ -10,7 +10,7 @@ import { purgeAgentCache } from "../services/utils/redis.utils.js";
 import { purgeAgentMemoriesForAgent } from "../services/logQueue/saveToAgentMemory.service.js";
 import { callAiMiddleware } from "../services/utils/aiCall.utils.js";
 import { redis_keys, bridge_ids, AI_OPERATION_CONFIG } from "../configs/constant.js";
-import { getReqOptVariablesInPrompt, transformAgentVariableToToolCallFormat } from "../utils/agentVariables.js";
+import { getReqOptVariablesInPrompt, transformAgentVariableToToolCallFormat, getConnectedToolsVariablePath } from "../utils/agentVariables.js";
 import { convertPromptToString } from "../utils/promptWrapper.utils.js";
 import { executeAiOperation } from "../services/utils/utility.service.js";
 const ObjectId = mongoose.Types.ObjectId;
@@ -78,23 +78,51 @@ async function getVersionWithTools(version_id) {
     const pipeline = [
       { $match: { _id: new ObjectId(version_id) } },
       {
+        $addFields: {
+          _id: { $toString: "$_id" },
+          connected_tools: {
+            $map: {
+              input: { $ifNull: ["$connected_tools", []] },
+              as: "tool",
+              in: {
+                $mergeObjects: [
+                  "$$tool",
+                  {
+                    id: { $toString: "$$tool.id" }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
         $lookup: {
           from: "apicalls",
-          localField: "function_ids",
-          foreignField: "_id",
+          let: { tool_ids: "$connected_tools" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $in: [
+                    "$_id",
+                    {
+                      $map: {
+                        input: { $filter: { input: "$$tool_ids", as: "t", cond: { $eq: ["$$t.type", "tools"] } } },
+                        as: "t",
+                        in: { $toObjectId: "$$t.id" }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          ],
           as: "apiCalls"
         }
       },
       {
         $addFields: {
-          _id: { $toString: "$_id" },
-          function_ids: {
-            $map: {
-              input: "$function_ids",
-              as: "fid",
-              in: { $toString: "$$fid" }
-            }
-          },
           apiCalls: {
             $arrayToObject: {
               $map: {
@@ -156,44 +184,44 @@ async function makeQuestion(parent_id, prompt, functions, save = false) {
 async function _cleanupConnectedAgents(version_id, org_id) {
   const affectedIds = { versions: new Set(), bridges: new Set() };
 
-  // Cleanup agents
-  const agents = await configurationModel.find({ org_id, connected_agents: { $exists: true } });
+  // Cleanup agents - now using connected_tools
+  const agents = await configurationModel.find({ org_id, connected_tools: { $exists: true } });
   for (const agent of agents) {
-    const connectedAgents = agent.connected_agents || {};
+    const connectedTools = agent.connected_tools || [];
     let modified = false;
-    const newAgents = {};
+    const newTools = [];
 
-    for (const [key, info] of Object.entries(connectedAgents)) {
-      if (info.version_id !== version_id) {
-        newAgents[key] = info;
-      } else {
+    for (const tool of connectedTools) {
+      if (tool.type === "agent" && tool.version_id === version_id) {
         modified = true;
+      } else {
+        newTools.push(tool);
       }
     }
 
     if (modified) {
-      await configurationModel.updateOne({ _id: agent._id }, { $set: { connected_agents: newAgents } });
+      await configurationModel.updateOne({ _id: agent._id }, { $set: { connected_tools: newTools } });
       affectedIds.bridges.add(agent._id.toString());
     }
   }
 
-  // Cleanup versions
-  const versions = await bridgeVersionModel.find({ org_id, connected_agents: { $exists: true } });
+  // Cleanup versions - now using connected_tools
+  const versions = await bridgeVersionModel.find({ org_id, connected_tools: { $exists: true } });
   for (const version of versions) {
-    const connectedAgents = version.connected_agents || {};
+    const connectedTools = version.connected_tools || [];
     let modified = false;
-    const newAgents = {};
+    const newTools = [];
 
-    for (const [key, info] of Object.entries(connectedAgents)) {
-      if (info.version_id !== version_id) {
-        newAgents[key] = info;
-      } else {
+    for (const tool of connectedTools) {
+      if (tool.type === "agent" && tool.version_id === version_id) {
         modified = true;
+      } else {
+        newTools.push(tool);
       }
     }
 
     if (modified) {
-      await bridgeVersionModel.updateOne({ _id: version._id }, { $set: { connected_agents: newAgents } });
+      await bridgeVersionModel.updateOne({ _id: version._id }, { $set: { connected_tools: newTools } });
       affectedIds.versions.add(version._id.toString());
     }
   }
@@ -401,15 +429,22 @@ async function publish(org_id, version_id, user_id, generate_summary = false) {
   // Extract agent variables logic
   const prompt = convertPromptToString(getVersionData.configuration?.prompt || "");
   const variableState = getVersionData.agent_info?.variables_state || {};
-  const variablePath = getVersionData.variables_path || {};
-
-  if (Array.isArray(getVersionData.pre_tools)) {
-    getVersionData.pre_tools.forEach((tool) => {
-      if (tool.type === "custom_function" && tool.config && tool.config.script_id && tool.args) {
-        variablePath[tool.config.script_id] = variablePath[tool.config.script_id] || {};
-        Object.assign(variablePath[tool.config.script_id], tool.args);
-      }
-    });
+  // Variable mappings live on each connected_tools entry. Versions not migrated yet still keep
+  // them in the legacy variables_path / pre_tools fields, which are ignored once connected_tools
+  // exists so stale legacy mappings do not come back.
+  const connectedTools = getVersionData.connected_tools || [];
+  let variablePath;
+  if (connectedTools.length > 0) {
+    variablePath = getConnectedToolsVariablePath(connectedTools);
+  } else {
+    variablePath = { ...(getVersionData.variables_path || {}) };
+    if (Array.isArray(getVersionData.pre_tools)) {
+      getVersionData.pre_tools.forEach((tool) => {
+        if (tool.type === "custom_function" && tool.config && tool.config.script_id && tool.args) {
+          variablePath[tool.config.script_id] = { ...(variablePath[tool.config.script_id] || {}), ...tool.args };
+        }
+      });
+    }
   }
 
   const agentVariables = getReqOptVariablesInPrompt(prompt, variableState, variablePath);
