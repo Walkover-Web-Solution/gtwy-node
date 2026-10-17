@@ -136,8 +136,12 @@ reads; gtwy-ai needs nothing.
    org's usage credits (a $10.67 fee consumed 4,268 credits), the card was never
    charged, and the "paid" webhook would then have refilled the credits. Every
    wallet is therefore created with `applies_to.fee_types = ["charge"]` (usage
-   only), and a paid invoice with any `prepaid_credit_amount_cents` is a
-   **permanent failure + alert**, never a credit.
+   only). A renewal invoice carries the new month's $20 fee **and** last
+   month's usage charges, and the wallet paying that usage is expected. A paid
+   subscription invoice whose `prepaid_credit_amount_cents` exceeds its
+   `charge` fee lines (taxes included) means the wallet paid part of the fee:
+   that is a **permanent failure + alert** (`lagoFeePaidFromWallet`), never a
+   credit.
 1. **Prepaid top-ups grant credits before payment.** Lago's customer portal has
    a wallet top-up, and with `invoice_requires_successful_payment` false (the
    default) Lago hands over the credits immediately and merely issues an

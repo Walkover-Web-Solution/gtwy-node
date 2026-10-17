@@ -165,6 +165,20 @@ export const invoiceIsForPaidPlan = (invoice, paidPlanCode) => {
   return Number(invoice?.total_amount_cents) > 0;
 };
 
+// The part of an invoice the wallet is allowed to pay: its usage-charge lines,
+// taxes included. A renewal invoice carries last period's usage next to the new
+// period's fee, and the wallet (restricted to `charge` fees, see
+// ensureWalletInvariants) settles that usage — normal. A wallet share above this
+// figure means the wallet paid the subscription fee. No fee lines => 0, so any
+// wallet share is treated as the fee.
+const usageChargeCents = (invoice) =>
+  (Array.isArray(invoice?.fees) ? invoice.fees : [])
+    .filter((fee) => fee?.item?.type === "charge")
+    .reduce((sum, fee) => {
+      const total = fee.total_amount_cents ?? (Number(fee.amount_cents) || 0) + (Number(fee.taxes_amount_cents) || 0);
+      return sum + (Number(total) || 0);
+    }, 0);
+
 // Lago puts the payload under a key named after object_type. Accept both the
 // documented shape and a flat one.
 export const parseLagoEvent = (body) => {
@@ -965,19 +979,21 @@ const handleInvoicePaymentStatusUpdated = async ({ object, org_id, unique_key, s
   switch (invoice.payment_status) {
     case "succeeded": {
       // The fee must have been paid by the card, never by the org's own
-      // credits. A wallet that paid any part of it is misconfigured (see
-      // ensureWalletInvariants); crediting here would refill credits that
-      // just paid for themselves. Permanent: a human fixes the wallet and replays.
-      if (Number(invoice.prepaid_credit_amount_cents) > 0) {
+      // credits. The wallet may pay the invoice's usage lines (last period's
+      // usage rides on the renewal invoice); anything beyond them means it paid
+      // the fee and is misconfigured (see ensureWalletInvariants). Crediting
+      // here would refill credits that just paid for themselves. Permanent: a
+      // human fixes the wallet and replays.
+      const fromWallet = Number(invoice.prepaid_credit_amount_cents) || 0;
+      const usageCents = usageChargeCents(invoice);
+      if (fromWallet > usageCents) {
         alert(
           "lagoFeePaidFromWallet",
-          `org ${org_id}: invoice ${invoice.lago_id} had ${invoice.prepaid_credit_amount_cents} cents paid from wallet credits; not crediting`
+          `org ${org_id}: invoice ${invoice.lago_id} had ${fromWallet} cents paid from wallet credits against ${usageCents} cents of usage charges; not crediting`
         );
         throw new BillingError(
-          `invoice ${invoice.lago_id}: ${invoice.prepaid_credit_amount_cents} cents were paid from wallet credits, not the card`,
-          {
-            permanent: true
-          }
+          `invoice ${invoice.lago_id}: ${fromWallet} cents were paid from wallet credits, more than its ${usageCents} cents of usage charges — the subscription fee was not paid by the card`,
+          { permanent: true }
         );
       }
       const result = await applyPaidCycle({ org_id, invoice, unique_key, steps });
@@ -1177,6 +1193,21 @@ const syntheticPaidEvent = (invoice) => ({
   synthetic: true
 });
 
+// Replay one paid invoice we never credited and file it by what actually
+// happened: only a processed event is a credit. A refused one — failing now, or
+// already failed permanently on an earlier night and still waiting for a human —
+// is an error, so the summary and the lagoReconcileChanges alert never report
+// credits that were not granted. A dry run lists every candidate as credited.
+const replayMissedInvoice = async (summary, dryRun, entry, invoice, step) => {
+  if (dryRun) {
+    summary.credited.push(entry);
+    return;
+  }
+  const result = await processLagoEvent(syntheticPaidEvent(invoice));
+  if (result.status === "processed") summary.credited.push(entry);
+  else if (result.status === "failed" || result.status === "failed_permanent") summary.errors.push({ ...entry, step, error: result.status });
+};
+
 // Every org that might be paying: our rows plus every Lago subscription on the paid plan.
 const collectPayingOrgs = async (summary) => {
   const orgs = new Set();
@@ -1219,8 +1250,7 @@ export const reconcileBilling = async ({ dryRun = true, lookbackDays = 45 } = {}
         if (invoice.status === "voided") continue;
         if (!invoiceIsForPaidPlan(invoice, paidPlan.plan_code)) continue;
         if (await billingEventService.hasCreditedInvoice(invoice.lago_id)) continue;
-        summary.credited.push({ org_id, invoice: invoice.lago_id, number: invoice.number });
-        if (!dryRun) await processLagoEvent(syntheticPaidEvent(invoice));
+        await replayMissedInvoice(summary, dryRun, { org_id, invoice: invoice.lago_id, number: invoice.number }, invoice, "missed_payments");
       }
     } catch (err) {
       summary.errors.push({ org_id, step: "missed_payments", error: err.message });
@@ -1245,8 +1275,8 @@ export const reconcileBilling = async ({ dryRun = true, lookbackDays = 45 } = {}
         if (new Date(invoice.created_at ?? invoice.issuing_date).getTime() < since) continue;
         if (invoice.status === "voided") continue;
         if (await billingEventService.hasCreditedInvoice(invoice.lago_id)) continue;
-        summary.credited.push({ org_id: row.org_id, invoice: invoice.lago_id, number: invoice.number, kind: "credit_pack" });
-        if (!dryRun) await processLagoEvent(syntheticPaidEvent(invoice));
+        const entry = { org_id: row.org_id, invoice: invoice.lago_id, number: invoice.number, kind: "credit_pack" };
+        await replayMissedInvoice(summary, dryRun, entry, invoice, "missed_credit_packs");
       }
 
       const abandoned = (await listCreditPackInvoices(row.org_id, "pending")).filter(
