@@ -131,15 +131,20 @@ const getAgentAnalytics = async (req, res, next) => {
   }
 };
 
-// GET /api/analytics/agent/:bridge_id/filters
-// Returns the distinct tools (name -> id) and models (grouped by service) ever
-// used by the bridge, so the frontend can populate the filter dropdowns.
+// GET /api/analytics/agent/:bridge_id/filters?version_id=
+// Returns the tools, knowledge bases, connected agents and models configured on the
+// agent and all its versions (or one version), for the filter dropdowns.
 const getAgentAnalyticsFilters = async (req, res, next) => {
   try {
     const { bridge_id } = req.params;
+    const { version_id } = req.query;
     const org_id = req.profile?.org?.id;
 
-    const { tools_data, knowledgebase_data, agent_data, unique_model } = await analyticsService.getFilterOptions({ bridge_id, org_id });
+    const { tools_data, knowledgebase_data, agent_data, unique_model } = await analyticsService.getFilterOptions({
+      bridge_id,
+      org_id,
+      version_id
+    });
 
     res.locals = {
       success: true,
