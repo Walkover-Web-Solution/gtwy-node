@@ -1,5 +1,6 @@
 import logger from "../logger.js";
 import { processMetrics, saveMetrics, publishFailedMetrics } from "../services/logQueue/saveMetrics.service.js";
+import { unknown_error_handler_alert } from "../services/utils/utility.service.js";
 
 const BATCH_SIZE = 100;
 const FLUSH_INTERVAL_MS = 300_000; // 5 minutes
@@ -25,6 +26,7 @@ class MetricsBatcher {
       logger.info(`[MetricsQueue] Flush complete — ${rowsToInsert.length} rows inserted`);
     } catch (err) {
       logger.error(`[MetricsQueue] Flush failed: ${err.message}`);
+      unknown_error_handler_alert("metricsQueueFlush", null, err.message);
       const shifted = await publishFailedMetrics(rowsToInsert, err);
       if (shifted) {
         msgsToAck.forEach(({ message, channel }) => channel.ack(message));
@@ -62,6 +64,7 @@ class MetricsBatcher {
       }
     } catch (err) {
       logger.error(`[MetricsQueue] Error processing message: ${err.message}`);
+      unknown_error_handler_alert("metricsQueueProcessor", null, err.message);
       channel.nack(message, false, false);
     }
   }
