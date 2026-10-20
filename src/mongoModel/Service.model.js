@@ -22,6 +22,10 @@ const ServiceSchema = new mongoose.Schema(
     apikey_status_codes: { type: mongoose.Schema.Types.Mixed, default: {} },
     validation_config: { type: mongoose.Schema.Types.Mixed, default: {} }, // { method, path, headers, query_param } used to validate an API key against the provider
     service_keys: { type: mongoose.Schema.Types.Mixed, default: {} }, // maps generic param names to this service's actual API param names
+    web_search_tool: { type: mongoose.Schema.Types.Mixed, default: null },
+    image_generation_tool: { type: mongoose.Schema.Types.Mixed, default: null },
+    code_interpreter_tool: { type: mongoose.Schema.Types.Mixed, default: null },
+    in_built_tools: { type: [mongoose.Schema.Types.Mixed], default: [] }, // [{ name, description, value }] provider-native prebuilt tools exposed in the Tools dropdown
     status: { type: Number, default: 1 }
   },
   { strict: true }
