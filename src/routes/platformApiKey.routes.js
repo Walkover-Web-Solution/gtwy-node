@@ -9,6 +9,8 @@ const router = express.Router();
 // Admin-only: the platform's provider keys, returned masked.
 router.put("/", middleware, InternalAuth, validate(platformApiKeyValidation.setPlatformApiKey), platformApiKeyController.setPlatformApiKey);
 router.get("/", middleware, InternalAuth, platformApiKeyController.listPlatformApiKeys);
+router.get("/usage", middleware, InternalAuth, platformApiKeyController.platformApiKeyUsage);
+router.get("/usage/by-agent", middleware, InternalAuth, platformApiKeyController.platformApiKeyCostByAgent);
 router.delete("/", middleware, InternalAuth, validate(platformApiKeyValidation.removePlatformApiKey), platformApiKeyController.removePlatformApiKey);
 
 export default router;
