@@ -320,3 +320,35 @@ export const organizationIdFrom = (payload) => {
   const id = candidates.find((value) => value !== undefined && value !== null && String(value).trim() !== "");
   return id === undefined ? null : String(id);
 };
+
+// Who a proxy_auth_token belongs to, from any MSG91 project, email included.
+export async function getProxyTokenIdentity(proxyToken) {
+  const response = await axios.get("https://routes.msg91.com/api/c/getDetails", {
+    headers: { proxy_auth_token: proxyToken },
+    timeout: MSG91_TIMEOUT_MS
+  });
+  const user = response?.data?.data?.[0];
+  if (!user?.id) throw new Error("Invalid token");
+  return { id: String(user.id), name: user.name || null, email: user.email || null };
+}
+
+const ADMIN_COMPANY_NAME = "GTWY Admin";
+
+// Finds or creates an admin in the platform project under ADMIN_COMPANY_NAME and returns their platform proxy_auth_token.
+export async function createAdminPlatformProxyToken({ name, email }) {
+  // MSG91 rejects a Cuser.name containing anything but letters and spaces.
+  const cleanName = (name || "").replace(/[^A-Za-z ]/g, "").trim() || "Admin";
+  const created = await createOrFindUserAndCompany({
+    feature_id: process.env.PUBLIC_REFERENCEID,
+    Cuser: { name: cleanName, email: email.toLowerCase(), meta: { type: "admin" } },
+    company: { name: ADMIN_COMPANY_NAME, is_readable: true }
+  });
+
+  const userId = created?.data?.user?.id;
+  const companyId = created?.data?.company?.id;
+  if (!userId || !companyId) throw new Error("createCUsers returned no user or company id");
+
+  const proxyAuthToken = await createProxyToken({ user_id: userId, company_id: companyId });
+  if (!proxyAuthToken) throw new Error("getAuthToken returned no proxy_auth_token");
+  return proxyAuthToken;
+}
