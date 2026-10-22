@@ -302,3 +302,14 @@ export const organizationIdFrom = (payload) => {
   const id = candidates.find((value) => value !== undefined && value !== null && String(value).trim() !== "");
   return id === undefined ? null : String(id);
 };
+
+// Who a proxy_auth_token belongs to, from any MSG91 project, email included.
+export async function getProxyTokenIdentity(proxyToken) {
+  const response = await axios.get("https://routes.msg91.com/api/c/getDetails", {
+    headers: { proxy_auth_token: proxyToken },
+    timeout: MSG91_TIMEOUT_MS
+  });
+  const user = response?.data?.data?.[0];
+  if (!user?.id) throw new Error("Invalid token");
+  return { id: String(user.id), name: user.name || null, email: user.email || null };
+}
