@@ -82,7 +82,9 @@ const updateVersionSchema = Joi.object({
         .items(
           Joi.object({
             name: Joi.string().required(),
-            url: Joi.string().uri().required()
+            url: Joi.string().uri().required(),
+            // Auth headers sent to the MCP server; values may use {{variable}} placeholders
+            headers: Joi.object().pattern(Joi.string(), Joi.string().allow("")).optional()
           })
         )
         .optional()
