@@ -181,6 +181,35 @@ const getAllInBuiltToolsController = async (req, res, next) => {
         description: "Allow models that support Browser to run and access any website.",
         isGtwyTool: true,
         value: "Gtwy_Browser"
+      },
+      // One hosted browser service each; Python folds these into Gtwy_Browser on that service
+      {
+        id: "5",
+        name: "GTWY Browser (Browserbase)",
+        description: "Allow models that support Browser to run and access any website, in a Browserbase browser.",
+        isGtwyTool: true,
+        value: "Gtwy_Browser_Browserbase"
+      },
+      {
+        id: "6",
+        name: "GTWY Browser (Steel)",
+        description: "Allow models that support Browser to run and access any website, in a Steel browser.",
+        isGtwyTool: true,
+        value: "Gtwy_Browser_Steel"
+      },
+      {
+        id: "7",
+        name: "GTWY Browser (Kernel)",
+        description: "Allow models that support Browser to run and access any website, in a Kernel browser.",
+        isGtwyTool: true,
+        value: "Gtwy_Browser_Kernel"
+      },
+      {
+        id: "8",
+        name: "GTWY Browser (Anchor)",
+        description: "Allow models that support Browser to run and access any website, in an Anchor browser.",
+        isGtwyTool: true,
+        value: "Gtwy_Browser_Anchor"
       }
     ]
   };
