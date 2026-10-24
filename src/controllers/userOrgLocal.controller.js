@@ -1,5 +1,13 @@
 import { storeInCache } from "../cache_service/index.js";
-import { updateProxyDetails, getProxyDetails, removeClientUser, generateProxyAuthToken } from "../services/proxy.service.js";
+import {
+  updateProxyDetails,
+  getProxyDetails,
+  removeClientUser,
+  generateProxyAuthToken,
+  getProxyTokenIdentity,
+  createOrFindUserAndCompany,
+  createProxyToken
+} from "../services/proxy.service.js";
 import { blacklistToken } from "../services/token.service.js";
 
 const userOrgLocalToken = async (req, res, next) => {
@@ -84,4 +92,42 @@ const logout = async (req, res, next) => {
   }
 };
 
-export { userOrgLocalToken, switchUserOrgLocal, updateUserDetails, removeUsersFromOrg, logout };
+const ADMIN_COMPANY_NAME = "GTWY Admin";
+
+// Admin console sign-in: trades an admin-project proxy token for a platform one.
+const adminProxyToken = async (req, res, next) => {
+  const token = req.headers.proxy_auth_token;
+  if (!token) {
+    res.locals = { success: false, message: "proxy_auth_token header is required" };
+    req.statusCode = 400;
+    return next();
+  }
+
+  const identity = await getProxyTokenIdentity(token);
+  if (!identity.email) {
+    res.locals = { success: false, message: "proxy_auth_token has no email" };
+    req.statusCode = 401;
+    return next();
+  }
+
+  // MSG91 rejects a Cuser.name containing anything but letters and spaces.
+  const name = (identity.name || "").replace(/[^A-Za-z ]/g, "").trim() || "Admin";
+  const created = await createOrFindUserAndCompany({
+    feature_id: process.env.PUBLIC_REFERENCEID,
+    Cuser: { name, email: identity.email.toLowerCase(), meta: { type: "admin" } },
+    company: { name: ADMIN_COMPANY_NAME, is_readable: true }
+  });
+
+  const userId = created?.data?.user?.id;
+  const companyId = created?.data?.company?.id;
+  if (!userId || !companyId) throw new Error("createCUsers returned no user or company id");
+
+  const proxyAuthToken = await createProxyToken({ user_id: userId, company_id: companyId });
+  if (!proxyAuthToken) throw new Error("getAuthToken returned no proxy_auth_token");
+
+  res.locals = { data: { proxy_auth_token: proxyAuthToken }, success: true };
+  req.statusCode = 200;
+  return next();
+};
+
+export { userOrgLocalToken, adminProxyToken, switchUserOrgLocal, updateUserDetails, removeUsersFromOrg, logout };
