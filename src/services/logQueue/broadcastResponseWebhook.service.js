@@ -2,7 +2,7 @@ import { get_webhook_data } from "../../db_services/webhookAlert.service.js";
 import { sendResponse } from "../utils/utility.service.js";
 import logger from "../../logger.js";
 
-async function broadcastResponseWebhook({ bridge_id, org_id, response, user_question, variables, error_type }) {
+async function broadcastResponseWebhook({ bridge_id, org_id, user_id, folder_id, response, user_question, variables, error_type }) {
   try {
     const result = await get_webhook_data(org_id);
     if (!result?.webhook_data) return;
@@ -30,6 +30,11 @@ async function broadcastResponseWebhook({ bridge_id, org_id, response, user_ques
     });
 
     const broadcast_data = {
+      org_id,
+      agent_id: bridge_id,
+      user_id: user_id ?? null,
+      // Only agents inside a folder (e.g. embed) have one
+      ...(folder_id ? { folder_id } : {}),
       response: response || {},
       user_question: user_question || "",
       variables: variables || {}
