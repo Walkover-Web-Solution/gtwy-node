@@ -33,6 +33,24 @@ export async function getUserOrgMapping(userId, orgId) {
   }
 }
 
+// The user's record inside one company (null if they aren't in it). Unlike
+// getUserOrgMapping this returns the record, so callers can read meta.type.
+export async function getOrgUser(userId, orgId) {
+  const response = await axios.get(`https://routes.msg91.com/api/${process.env.PUBLIC_REFERENCEID}/getDetails`, {
+    params: {
+      company_id: orgId,
+      user_id: userId
+    },
+    headers: {
+      "Content-Type": "application/json",
+      Authkey: process.env.ADMIN_API_KEY
+    },
+    timeout: MSG91_TIMEOUT_MS
+  });
+  const users = response?.data?.data?.data;
+  return Array.isArray(users) ? users.find((user) => String(user?.id) === String(userId)) || null : null;
+}
+
 export const switchOrganization = async (data, proxyToken) => {
   try {
     const organization = await axios.post(`https://routes.msg91.com/api/c/switchCompany`, data, {
