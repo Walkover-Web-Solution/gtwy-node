@@ -15,7 +15,8 @@ const unblockOrg = {
 
 const blockUser = {
   body: Joi.object().keys({
-    org_id: Joi.string().required(),
+    // Optional; another org than the caller's is allowed for internal staff only
+    org_id: Joi.string(),
     user_id: Joi.string().required(),
     reason: Joi.string().allow(null, "")
   })
@@ -23,8 +24,10 @@ const blockUser = {
 
 const unblockUser = {
   params: Joi.object().keys({
-    org_id: Joi.string().required(),
     user_id: Joi.string().required()
+  }),
+  query: Joi.object().keys({
+    org_id: Joi.string()
   })
 };
 
