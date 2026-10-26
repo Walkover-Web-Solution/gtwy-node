@@ -341,6 +341,12 @@ const INTERNAL_ALLOWED_EMAILS = new Set(
     .filter(Boolean)
 );
 
+// For routes open to every caller where internal staff get extra reach (e.g. any org)
+const isInternalUser = (profile) => {
+  const userEmail = profile?.user?.email?.toLowerCase();
+  return !!userEmail && INTERNAL_ALLOWED_EMAILS.has(userEmail);
+};
+
 const InternalAuth = async (req, res, next) => {
   try {
     const userEmail = req.profile?.user?.email?.toLowerCase();
@@ -689,6 +695,7 @@ export {
   combine_middleware,
   EmbeddecodeToken,
   InternalAuth,
+  isInternalUser,
   loginAuth,
   combinedAuthMiddleware,
   checkAgentAccessMiddleware,
