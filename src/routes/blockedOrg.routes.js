@@ -10,8 +10,10 @@ router.post("/", middleware, InternalAuth, validate(blockedOrgValidation.blockOr
 router.delete("/:org_id", middleware, InternalAuth, validate(blockedOrgValidation.unblockOrg), blockedOrgController.unblockOrg);
 router.get("/", middleware, blockedOrgController.listBlockedOrgs);
 
-router.post("/user", middleware, InternalAuth, validate(blockedOrgValidation.blockUser), blockedOrgController.blockUser);
-router.delete("/user/:org_id/:user_id", middleware, InternalAuth, validate(blockedOrgValidation.unblockUser), blockedOrgController.unblockUser);
+// The org comes from the caller's auth (pauthkey, proxy token or JWT); internal
+// staff may pass org_id (body for POST, query for DELETE/GET) to act on any org
+router.post("/user", middleware, validate(blockedOrgValidation.blockUser), blockedOrgController.blockUser);
+router.delete("/user/:user_id", middleware, validate(blockedOrgValidation.unblockUser), blockedOrgController.unblockUser);
 router.get("/user", middleware, validate(blockedOrgValidation.listBlockedUsers), blockedOrgController.listBlockedUsers);
 
 export default router;
