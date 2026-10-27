@@ -105,6 +105,7 @@ const updateVersionSchema = Joi.object({
   cache_on: Joi.boolean().optional(),
   web_search_filters: Joi.alternatives().try(Joi.array().items(Joi.string()), Joi.object()).optional(),
   gtwy_web_search_filters: Joi.alternatives().try(Joi.array().items(Joi.string()), Joi.object()).optional(),
+  auto_login: Joi.boolean().optional(),
   connected_agent_flow: Joi.object().optional(),
   settings: Joi.object({
     review_agent: Joi.object({
