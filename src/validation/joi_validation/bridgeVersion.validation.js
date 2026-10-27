@@ -8,6 +8,8 @@ const connectedToolItemSchema = Joi.object({
   built_in_tools: Joi.array().items(Joi.string()).when("type", { is: "built_in_tools", then: Joi.required(), otherwise: Joi.optional() }),
   gtwy_web_search_filters: Joi.array().items(Joi.string()).optional(),
   web_search_filters: Joi.array().items(Joi.string()).optional(),
+  // Gtwy_Browser: whether the browser session should log in automatically.
+  auto_login: Joi.boolean().optional(),
   variable_path: Joi.object().optional(),
   pre_tool_type: Joi.string()
     .valid("custom", "custom_function", "query_refiner", "gtwy_web_search", "rag_knowledgebase")
