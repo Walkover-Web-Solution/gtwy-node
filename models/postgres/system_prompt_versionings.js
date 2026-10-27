@@ -40,6 +40,10 @@ export default (sequelize, DataTypes) => {
       org_id: {
         allowNull: false,
         type: DataTypes.STRING
+      },
+      version_id: {
+        allowNull: true,
+        type: DataTypes.STRING
       }
     },
     {
