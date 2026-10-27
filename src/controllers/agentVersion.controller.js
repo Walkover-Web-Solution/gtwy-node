@@ -126,6 +126,7 @@ const updateVersionController = async (req, res, next) => {
       "cache_on",
       "web_search_filters",
       "gtwy_web_search_filters",
+      "auto_login",
       "connected_agent_flow",
       "variables_state"
     ];

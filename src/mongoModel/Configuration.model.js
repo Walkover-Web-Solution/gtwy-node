@@ -127,6 +127,11 @@ const configuration = new mongoose.Schema({
     type: Array,
     default: []
   },
+  // Gtwy_Browser: whether the browser session should log in automatically.
+  auto_login: {
+    type: Boolean,
+    default: false
+  },
   bridge_summary: {
     type: String,
     default: ""

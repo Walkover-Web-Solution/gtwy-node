@@ -139,6 +139,11 @@ const version = new mongoose.Schema({
     type: [String],
     default: []
   },
+  // Gtwy_Browser: whether the browser session should log in automatically.
+  auto_login: {
+    type: Boolean,
+    default: false
+  },
   user_reference: {
     type: String,
     default: ""
