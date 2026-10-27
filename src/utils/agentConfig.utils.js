@@ -148,42 +148,4 @@ const cloneConnectedToolsForAgent = async (connected_tools, org_id, agent_id, fo
   return cloned_tools;
 };
 
-// Whether `tool` (from a request) refers to the stored connected_tools entry `entry`.
-// Built-in pre-tools (rag_knowledgebase, query_refiner, ...) have no id, so pre_tools
-// match on pre_tool_type and, when the request carries one, the id. There is one
-// post_tool and one built_in_tools entry per agent.
-const isSameConnectedTool = (entry, tool) => {
-  if (!entry || entry.type !== tool.type) return false;
-  if (tool.type === "pre_tool") return entry.pre_tool_type === tool.pre_tool_type && (tool.id == null || String(entry.id) === String(tool.id));
-  if (tool.type === "post_tool" || tool.type === "built_in_tools") return true;
-  return tool.id != null && String(entry.id) === String(tool.id);
-};
-
-// Apply a single connected_tool add (1) / remove (0) / update (2) to the current list.
-const applyConnectedToolOperation = (current = [], tool, operation) => {
-  const op = operation === 1 ? "add" : operation === 0 ? "remove" : operation === 2 ? "update" : operation;
-  const entry = { ...tool };
-  if (entry.id == null) delete entry.id;
-
-  if (op === "add") {
-    // Adding an entry that already exists (same tool id, same pre-tool, or the single
-    // post_tool / built_in_tools entry) replaces it in place instead of appending a duplicate.
-    // A different post_tool replaces the old one outright so its fields do not leak over.
-    const index = current.findIndex((t) => isSameConnectedTool(t, tool));
-    if (index === -1) return [...current, entry];
-    const merge = (t) => (String(t.id) === String(entry.id) ? { ...t, ...entry } : entry);
-    return current.filter((t, i) => i === index || !isSameConnectedTool(t, tool)).map((t, i) => (i === index ? merge(t) : t));
-  }
-  if (op === "update") return current.map((t) => (isSameConnectedTool(t, tool) ? { ...t, ...entry } : t));
-  if (op === "remove") return current.filter((t) => !isSameConnectedTool(t, tool));
-  return current;
-};
-
-export {
-  getUniqueNameAndSlug,
-  normalizeFunctionIds,
-  cloneFunctionsForAgent,
-  cloneConnectedToolsForAgent,
-  isSameConnectedTool,
-  applyConnectedToolOperation
-};
+export { getUniqueNameAndSlug, normalizeFunctionIds, cloneFunctionsForAgent, cloneConnectedToolsForAgent };
