@@ -112,6 +112,8 @@ CRUD for bridges, cloning, and metadata updates is hosted at `/api/agent`. The a
 
 Version lifecycle management hangs off `/api/versions`, allowing creation, publication, deletion, discard, bulk publishing, and dependency insights (`/connected-agents`, `/suggest-model`). The agentVersion controller and service keep versions in sync and handle cache invalidation.
 
+Every prompt save (`PUT /api/versions/:version_id` with `configuration.prompt`) writes a row to the Postgres table `system_prompt_versionings`: the parent agent id (`bridge_id`), the version it was saved on (`version_id`), and the prompt text (`system_prompt`; structured prompts are flattened by `convertPromptToString`). `/api/prompt-versions/:bridge_id` lists that history for the org with each entry's `system_prompt`, newest first (`?version_id=`, `page`, `limit` ≤ 100). To restore an entry, send its `system_prompt` back through `PUT /api/versions/:version_id`; that save becomes a new entry.
+
 ### ChatBot Management
 
 `/api/chatbot` exposes chatbot CRUD, subscription/login, bridge assignments, UI config updates, and action management. The chatbot controller uses `chatBot.service` plus configuration services and shared token generators to persist changes and issue client tokens.
