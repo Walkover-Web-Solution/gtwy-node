@@ -106,7 +106,7 @@ const updateVersionController = async (req, res, next) => {
 
     if (new_configuration && new_configuration.prompt) {
       const promptString = convertPromptToString(new_configuration.prompt);
-      const prompt_result = await storeSystemPrompt(promptString, org_id, parent_id || version_id);
+      const prompt_result = await storeSystemPrompt(promptString, org_id, parent_id || version_id, version_id);
       if (prompt_result && prompt_result.id) {
         new_configuration.system_prompt_version_id = prompt_result.id;
       }
