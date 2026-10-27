@@ -24,10 +24,6 @@ const apiCall = new mongoose.Schema(
       type: String,
       required: true
     },
-    url: {
-      type: String,
-      default: ""
-    },
     fields: {
       type: Map,
       of: fieldValueSchema,

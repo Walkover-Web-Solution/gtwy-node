@@ -78,51 +78,23 @@ async function getVersionWithTools(version_id) {
     const pipeline = [
       { $match: { _id: new ObjectId(version_id) } },
       {
-        $addFields: {
-          _id: { $toString: "$_id" },
-          connected_tools: {
-            $map: {
-              input: { $ifNull: ["$connected_tools", []] },
-              as: "tool",
-              in: {
-                $mergeObjects: [
-                  "$$tool",
-                  {
-                    id: { $toString: "$$tool.id" }
-                  }
-                ]
-              }
-            }
-          }
-        }
-      },
-      {
         $lookup: {
           from: "apicalls",
-          let: { tool_ids: "$connected_tools" },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $in: [
-                    "$_id",
-                    {
-                      $map: {
-                        input: { $filter: { input: "$$tool_ids", as: "t", cond: { $eq: ["$$t.type", "tools"] } } },
-                        as: "t",
-                        in: { $toObjectId: "$$t.id" }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          ],
+          localField: "function_ids",
+          foreignField: "_id",
           as: "apiCalls"
         }
       },
       {
         $addFields: {
+          _id: { $toString: "$_id" },
+          function_ids: {
+            $map: {
+              input: "$function_ids",
+              as: "fid",
+              in: { $toString: "$$fid" }
+            }
+          },
           apiCalls: {
             $arrayToObject: {
               $map: {
@@ -184,44 +156,44 @@ async function makeQuestion(parent_id, prompt, functions, save = false) {
 async function _cleanupConnectedAgents(version_id, org_id) {
   const affectedIds = { versions: new Set(), bridges: new Set() };
 
-  // Cleanup agents - now using connected_tools
-  const agents = await configurationModel.find({ org_id, connected_tools: { $exists: true } });
+  // Cleanup agents
+  const agents = await configurationModel.find({ org_id, connected_agents: { $exists: true } });
   for (const agent of agents) {
-    const connectedTools = agent.connected_tools || [];
+    const connectedAgents = agent.connected_agents || {};
     let modified = false;
-    const newTools = [];
+    const newAgents = {};
 
-    for (const tool of connectedTools) {
-      if (tool.type === "agent" && tool.version_id === version_id) {
-        modified = true;
+    for (const [key, info] of Object.entries(connectedAgents)) {
+      if (info.version_id !== version_id) {
+        newAgents[key] = info;
       } else {
-        newTools.push(tool);
+        modified = true;
       }
     }
 
     if (modified) {
-      await configurationModel.updateOne({ _id: agent._id }, { $set: { connected_tools: newTools } });
+      await configurationModel.updateOne({ _id: agent._id }, { $set: { connected_agents: newAgents } });
       affectedIds.bridges.add(agent._id.toString());
     }
   }
 
-  // Cleanup versions - now using connected_tools
-  const versions = await bridgeVersionModel.find({ org_id, connected_tools: { $exists: true } });
+  // Cleanup versions
+  const versions = await bridgeVersionModel.find({ org_id, connected_agents: { $exists: true } });
   for (const version of versions) {
-    const connectedTools = version.connected_tools || [];
+    const connectedAgents = version.connected_agents || {};
     let modified = false;
-    const newTools = [];
+    const newAgents = {};
 
-    for (const tool of connectedTools) {
-      if (tool.type === "agent" && tool.version_id === version_id) {
-        modified = true;
+    for (const [key, info] of Object.entries(connectedAgents)) {
+      if (info.version_id !== version_id) {
+        newAgents[key] = info;
       } else {
-        newTools.push(tool);
+        modified = true;
       }
     }
 
     if (modified) {
-      await bridgeVersionModel.updateOne({ _id: version._id }, { $set: { connected_tools: newTools } });
+      await bridgeVersionModel.updateOne({ _id: version._id }, { $set: { connected_agents: newAgents } });
       affectedIds.versions.add(version._id.toString());
     }
   }

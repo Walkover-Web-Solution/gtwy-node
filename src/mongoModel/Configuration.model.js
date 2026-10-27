@@ -93,6 +93,14 @@ const configuration = new mongoose.Schema({
     type: String,
     default: null
   },
+  pre_tools: {
+    type: Array,
+    default: []
+  },
+  post_tool: {
+    type: Object,
+    default: null
+  },
   is_drafted: {
     type: Boolean,
     default: false
@@ -104,6 +112,10 @@ const configuration = new mongoose.Schema({
   published_version_id: {
     type: String,
     default: null
+  },
+  variables_path: {
+    type: Object,
+    default: {}
   },
   agent_info: {
     type: agentInfoSchema,
@@ -123,7 +135,15 @@ const configuration = new mongoose.Schema({
     type: String,
     default: ""
   },
-  connected_tools: {
+  connected_agents: {
+    type: Object,
+    default: {}
+  },
+  doc_ids: {
+    type: Array,
+    default: []
+  },
+  built_in_tools: {
     type: Array,
     default: []
   },
@@ -143,6 +163,10 @@ const configuration = new mongoose.Schema({
   bridge_status: {
     type: Number,
     default: 1
+  },
+  function_ids: {
+    type: Array,
+    default: []
   },
   agent_variables: {
     type: Object,
