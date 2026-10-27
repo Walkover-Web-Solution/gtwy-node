@@ -217,10 +217,44 @@ async function runAndPush({ bridge_id, org_id, channel, window, filters }) {
   await Promise.allSettled([summaryTask, requestsTask, responseTimeTask, costTask]);
 }
 
-const CONFIG_FIELDS = { connected_tools: 1, service: 1, "configuration.model": 1, "settings.fall_back": 1 };
+const CONFIG_FIELDS = {
+  function_ids: 1,
+  pre_tools: 1,
+  post_tool: 1,
+  connected_agents: 1,
+  doc_ids: 1,
+  service: 1,
+  "configuration.model": 1,
+  "settings.fall_back": 1
+};
 
-// Stored connected_tools can hold malformed ids, which would make the whole $in query throw.
+// Stored tool ids can be malformed, which would make the whole $in query throw.
 const OBJECT_ID = /^[0-9a-f]{24}$/i;
+
+const toId = (value) => (value === undefined || value === null || value === "" ? undefined : String(value));
+
+// The agent's tools, pre/post tool, connected agents and docs as one list of { type, id, ... } entries.
+// connected_agents is keyed by bridge_id (older agents: by agent name).
+const toolEntries = (config) => [
+  ...(config?.function_ids || []).map((id) => ({ type: "tools", id: toId(id) })),
+  ...(config?.pre_tools || []).map((pre) => ({
+    type: "pre_tool",
+    pre_tool_type: pre?.type,
+    id: toId(pre?.config?.function_id),
+    variable_path: pre?.config
+  })),
+  ...(config?.post_tool?.id ? [{ ...config.post_tool, type: "post_tool", id: toId(config.post_tool.id) }] : []),
+  ...Object.entries(config?.connected_agents || {}).map(([key, agent]) => ({
+    type: "agent",
+    id: toId(agent?.bridge_id),
+    name: agent?.name || key
+  })),
+  ...(config?.doc_ids || []).map((doc) =>
+    doc && typeof doc === "object" && !OBJECT_ID.test(String(doc))
+      ? { ...doc, type: "docs", id: toId(doc.resource_id ?? doc.id) }
+      : { type: "docs", id: toId(doc) }
+  )
+];
 
 // Pre/post tools resolve their script_id the way gtwy-ai does when it logs the call.
 const isApiCallTool = (tool) =>
@@ -249,7 +283,7 @@ function buildFilterOptions(configs, { apiCallsById = {}, agentNamesById = {} } 
   };
 
   for (const config of configs) {
-    for (const tool of config?.connected_tools || []) {
+    for (const tool of toolEntries(config)) {
       const id = String(tool?.id || "");
       if (isApiCallTool(tool)) {
         const apiCall = apiCallsById[id];
@@ -287,7 +321,7 @@ async function getFilterOptions({ bridge_id, org_id, version_id }) {
   const versions = await versionModel.find(versionQuery).select(CONFIG_FIELDS).lean();
   const configs = version_id ? versions : [agent, ...versions];
 
-  const tools = configs.flatMap((config) => config.connected_tools || []);
+  const tools = configs.flatMap(toolEntries);
   const apiCallIds = [...new Set(tools.filter(isApiCallTool).map((t) => t.id))].filter((id) => OBJECT_ID.test(id));
   const agentIds = [...new Set(tools.filter((t) => t?.type === "agent").map((t) => t.id))].filter((id) => OBJECT_ID.test(id));
 
