@@ -3,9 +3,6 @@ import models from "../../models/index.js";
 import { ResponseSender } from "../services/utils/customResponse.utils.js";
 import { buildConversationFilterSql } from "./conversationFilters.util.js";
 import logger from "../logger.js";
-import configurationModel from "../mongoModel/Configuration.model.js";
-import versionModel from "../mongoModel/BridgeVersion.model.js";
-import apiCallModel from "../mongoModel/ApiCall.model.js";
 
 const responseSender = new ResponseSender();
 
@@ -217,133 +214,92 @@ async function runAndPush({ bridge_id, org_id, channel, window, filters }) {
   await Promise.allSettled([summaryTask, requestsTask, responseTimeTask, costTask]);
 }
 
-const CONFIG_FIELDS = {
-  function_ids: 1,
-  pre_tools: 1,
-  post_tool: 1,
-  connected_agents: 1,
-  doc_ids: 1,
-  service: 1,
-  "configuration.model": 1,
-  "settings.fall_back": 1
-};
+// Distinct filter options for a bridge, used by the frontend to build the
+// dropdowns. Scans the whole bridge (no time window). Returns:
+//   tools_data:        { "<display tool name>": "<tool id>" }  (function/MCP calls)
+//   knowledgebase_data:{ "<resource_id>": "<resource_id>" }    (RAG calls)
+//   agent_data:        { "<agent name>": "<id>" }              (agent calls)
+//   unique_model:      { "<service>": ["<model>", ...] }
+async function getFilterOptions({ bridge_id, org_id }) {
+  // Calls: unnest the JSONB array, then each `{ "fc_..": {entry} }` object, and
+  // pull the type discriminator (data.metadata.type), display name + id. Filter to
+  // array rows first so jsonb_array_elements never runs on a non-array value.
+  // One row per (type, id). Some records carry no display_tool_name/name
+  // (queued/in-progress or older rows), so we aggregate across all records and
+  // prefer a real name — only falling back to the id when no record ever stored a
+  // name (or only stored the id as the name).
+  const toolsQuery = `
+    SELECT
+      call_type,
+      call_id,
+      COALESCE(
+        MAX(call_name) FILTER (WHERE call_name IS NOT NULL AND call_name <> call_id),
+        call_id
+      ) AS call_name
+    FROM (
+      SELECT
+        COALESCE(kv.value->'data'->'metadata'->>'type', 'function') AS call_type,
+        -- The usable identifier depends on the call type: functions/MCP have a
+        -- top-level id; RAG (knowledgebase) has a null id and lives in
+        -- args.resource_id; agent calls have a null id and live in
+        -- data.metadata.agent_id (the called agent's bridge id). Resolve in order.
+        COALESCE(
+          kv.value->>'id',
+          kv.value->'args'->>'resource_id',
+          kv.value->'data'->'metadata'->>'agent_id',
+          kv.value->>'bridge_id'
+        ) AS call_id,
+        COALESCE(kv.value->>'display_tool_name', kv.value->>'name') AS call_name
+      FROM (
+        SELECT tools_call_data
+        FROM conversation_logs
+        WHERE bridge_id = :bridge_id AND org_id = :org_id
+          AND jsonb_typeof(tools_call_data) = 'array'
+          AND tools_call_data <> '[]'::jsonb
+      ) cl
+      CROSS JOIN LATERAL jsonb_array_elements(cl.tools_call_data) AS elem
+      CROSS JOIN LATERAL jsonb_each(elem) AS kv
+      WHERE COALESCE(
+        kv.value->>'id',
+        kv.value->'args'->>'resource_id',
+        kv.value->'data'->'metadata'->>'agent_id',
+        kv.value->>'bridge_id'
+      ) IS NOT NULL
+    ) t
+    GROUP BY call_type, call_id`;
 
-// Stored tool ids can be malformed, which would make the whole $in query throw.
-const OBJECT_ID = /^[0-9a-f]{24}$/i;
+  const modelsQuery = `
+    SELECT DISTINCT service, model
+    FROM conversation_logs
+    WHERE bridge_id = :bridge_id AND org_id = :org_id
+      AND model IS NOT NULL AND model <> ''`;
 
-const toId = (value) => (value === undefined || value === null || value === "" ? undefined : String(value));
+  const [toolRows, modelRows] = await Promise.all([pgSelect(toolsQuery, { bridge_id, org_id }), pgSelect(modelsQuery, { bridge_id, org_id })]);
 
-// The agent's tools, pre/post tool, connected agents and docs as one list of { type, id, ... } entries.
-// connected_agents is keyed by bridge_id (older agents: by agent name).
-const toolEntries = (config) => [
-  ...(config?.function_ids || []).map((id) => ({ type: "tools", id: toId(id) })),
-  ...(config?.pre_tools || []).map((pre) => ({
-    type: "pre_tool",
-    pre_tool_type: pre?.type,
-    id: toId(pre?.config?.function_id),
-    variable_path: pre?.config
-  })),
-  ...(config?.post_tool?.id ? [{ ...config.post_tool, type: "post_tool", id: toId(config.post_tool.id) }] : []),
-  ...Object.entries(config?.connected_agents || {}).map(([key, agent]) => ({
-    type: "agent",
-    id: toId(agent?.bridge_id),
-    name: agent?.name || key
-  })),
-  ...(config?.doc_ids || []).map((doc) =>
-    doc && typeof doc === "object" && !OBJECT_ID.test(String(doc))
-      ? { ...doc, type: "docs", id: toId(doc.resource_id ?? doc.id) }
-      : { type: "docs", id: toId(doc) }
-  )
-];
-
-// Pre/post tools resolve their script_id the way gtwy-ai does when it logs the call.
-const isApiCallTool = (tool) =>
-  tool?.type === "tools" || tool?.type === "post_tool" || (tool?.type === "pre_tool" && tool?.pre_tool_type === "custom_function");
-
-// Keeps both entries when two labels collide.
-function addOption(map, label, value) {
-  const key = map[label] === undefined || map[label] === value ? label : `${label} (${value})`;
-  map[key] = value;
-}
-
-// Builds the dropdown options from agent/version configs. Values match the ids the
-// log filter (conversationFilters.util.js) matches: tools -> script_id, agents ->
-// bridge id, docs -> resource_id. MCP tools and built-in pre-tools are skipped.
-function buildFilterOptions(configs, { apiCallsById = {}, agentNamesById = {} } = {}) {
+  // Bucket each call by its type: agent -> agent_data, RAG -> knowledgebase_data,
+  // everything else (function / mcp / unknown) -> tools_data.
   const tools_data = {};
   const knowledgebase_data = {};
   const agent_data = {};
+  for (const row of toolRows) {
+    const name = row.call_name || row.call_id;
+    if (!name) continue;
+    const type = (row.call_type || "function").toLowerCase();
+    if (type === "agent") agent_data[name] = row.call_id;
+    // KB calls share a generic display name ("get_knowledge_base_data"), so key by
+    // the resource_id to keep each distinct knowledgebase as its own entry.
+    else if (type === "rag") knowledgebase_data[row.call_id] = row.call_id;
+    else tools_data[name] = row.call_id;
+  }
+
   const unique_model = {};
-
-  const addModel = (service, model) => {
-    if (!model) return;
-    const key = service;
-    if (!unique_model[key]) unique_model[key] = [];
-    if (!unique_model[key].includes(model)) unique_model[key].push(model);
-  };
-
-  for (const config of configs) {
-    for (const tool of toolEntries(config)) {
-      const id = String(tool?.id || "");
-      if (isApiCallTool(tool)) {
-        const apiCall = apiCallsById[id];
-        const scriptId = tool.type === "tools" ? apiCall?.script_id : tool.variable_path?.script_id || tool.script_id || apiCall?.script_id;
-        if (scriptId) addOption(tools_data, tool.title || apiCall?.title || scriptId, scriptId);
-      } else if (tool?.type === "agent" && id) {
-        addOption(agent_data, agentNamesById[id] || tool.name || id, id);
-      } else if (tool?.type === "docs" && (tool.resource_id || id)) {
-        const resourceId = String(tool.resource_id || id);
-        addOption(knowledgebase_data, tool.name || resourceId, resourceId);
-      }
-    }
-
-    addModel(config?.service, config?.configuration?.model);
-    // A disabled fallback never runs.
-    const fallBack = config?.settings?.fall_back;
-    if (fallBack?.is_enable) addModel(fallBack.service || config?.service, fallBack.model);
+  for (const row of modelRows) {
+    const service = row.service || "other";
+    if (!unique_model[service]) unique_model[service] = [];
+    if (!unique_model[service].includes(row.model)) unique_model[service].push(row.model);
   }
 
   return { tools_data, knowledgebase_data, agent_data, unique_model };
-}
-
-// Filter options for one agent, from its config and all its versions (or one version).
-async function getFilterOptions({ bridge_id, org_id, version_id }) {
-  const empty = { tools_data: {}, knowledgebase_data: {}, agent_data: {}, unique_model: {} };
-
-  const agent = await configurationModel
-    .findOne({ _id: bridge_id, org_id })
-    .select({ ...CONFIG_FIELDS, versions: 1 })
-    .lean();
-  if (!agent) return empty;
-
-  // A requested version must belong to this agent; agent.versions already does.
-  const versionQuery = version_id ? { _id: version_id, parent_id: bridge_id, org_id } : { _id: { $in: agent.versions || [] }, org_id };
-  const versions = await versionModel.find(versionQuery).select(CONFIG_FIELDS).lean();
-  const configs = version_id ? versions : [agent, ...versions];
-
-  const tools = configs.flatMap(toolEntries);
-  const apiCallIds = [...new Set(tools.filter(isApiCallTool).map((t) => t.id))].filter((id) => OBJECT_ID.test(id));
-  const agentIds = [...new Set(tools.filter((t) => t?.type === "agent").map((t) => t.id))].filter((id) => OBJECT_ID.test(id));
-
-  const [apiCalls, agents] = await Promise.all([
-    apiCallIds.length
-      ? apiCallModel
-          .find({ _id: { $in: apiCallIds }, org_id })
-          .select({ script_id: 1, title: 1 })
-          .lean()
-      : [],
-    agentIds.length
-      ? configurationModel
-          .find({ _id: { $in: agentIds }, org_id })
-          .select({ name: 1 })
-          .lean()
-      : []
-  ]);
-
-  return buildFilterOptions(configs, {
-    apiCallsById: Object.fromEntries(apiCalls.map((a) => [a._id, a])),
-    agentNamesById: Object.fromEntries(agents.map((a) => [a._id, a.name]))
-  });
 }
 
 export default {
