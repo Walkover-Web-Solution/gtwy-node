@@ -157,12 +157,13 @@ async function deleteLastThread(org_id, thread_id, bridge_id) {
   };
 }
 
-async function storeSystemPrompt(promptText, orgId, bridgeId) {
+async function storeSystemPrompt(promptText, orgId, bridgeId, versionId = null) {
   try {
     const result = await models.pg.system_prompt_versionings.create({
       system_prompt: promptText,
       org_id: orgId,
       bridge_id: bridgeId,
+      version_id: versionId,
       created_at: new Date(),
       updated_at: new Date()
     });
