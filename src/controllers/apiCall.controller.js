@@ -1,10 +1,14 @@
 import service from "../db_services/apiCall.service.js";
 import { validateRequiredParams } from "../services/utils/apiCall.utils.js";
+import ConfigurationServices from "../db_services/configuration.service.js";
 import Helper from "../services/utils/helper.utils.js";
 import agentVersionService from "../db_services/agentVersion.service.js";
 import { deleteInCache } from "../cache_service/index.js";
 import { syncToolToViasocketEmbed } from "../services/utils/viasocketSync.utils.js";
+import conversationDbService from "../db_services/conversation.service.js";
 import apiCallService from "../db_services/apiCall.service.js";
+
+const { addBulkUserEntries } = conversationDbService;
 
 const getAllApiCalls = async (req, res, next) => {
   const org_id = req.profile?.org?.id;
@@ -76,7 +80,7 @@ const deleteFunction = async (req, res, next) => {
 
 const createApi = async (req, res, next) => {
   try {
-    const { id: script_id, status, title, desc, url } = req.body;
+    const { id: script_id, status, title, desc } = req.body;
     const org_id = req.profile.org.id;
     const folder_id = req.folder_id || null;
     const user_id = req.profile.user.id;
@@ -90,7 +94,7 @@ const createApi = async (req, res, next) => {
       const api_data = await service.getApiData(org_id, script_id, folder_id, user_id, isEmbedUser);
       const cleanedTitle = Helper.makeFunctionName(title || script_id || "");
 
-      const result = await service.saveApi(desc, org_id, folder_id, user_id, api_data, [], script_id, fields, cleanedTitle, required, url);
+      const result = await service.saveApi(desc, org_id, folder_id, user_id, api_data, [], script_id, fields, cleanedTitle, required);
       if (result.success) {
         const responseData = result.api_data;
         responseData._id = responseData._id.toString();
@@ -133,6 +137,87 @@ const createApi = async (req, res, next) => {
     return next();
   } catch (e) {
     console.error("Error in createApi:", e);
+    res.locals = { success: false, message: e.message };
+    req.statusCode = 400;
+    return next();
+  }
+};
+
+const addPreTool = async (req, res, next) => {
+  try {
+    const { agent_id: bridgeId } = req.params;
+    const { version_id, pre_tools: pre_tool_entry, status } = req.body;
+    const org_id = req.profile.org.id;
+    const user_id = req.profile.user.id;
+
+    const model_config = await ConfigurationServices.getAgentsWithTools(bridgeId, org_id, version_id);
+
+    if (!model_config.success) {
+      res.locals = { success: false, message: "bridge id is not found" };
+      req.statusCode = 400;
+      return next();
+    }
+
+    const current_pre_tools = model_config.bridges?.pre_tools || [];
+    const parent_id = model_config.bridges?.parent_id || bridgeId;
+    const data_to_update = {};
+
+    if (status === "1") {
+      // Prevent adding a new tool if one already exists (only one pre-tool allowed)
+      if (current_pre_tools.length > 0) {
+        res.locals = { success: false, message: "A pre-tool is already configured. Remove it before adding a new one." };
+        req.statusCode = 400;
+        return next();
+      }
+      data_to_update["pre_tools"] = [...current_pre_tools, pre_tool_entry];
+    } else {
+      data_to_update["pre_tools"] = current_pre_tools.filter((t) => t.type !== pre_tool_entry?.type);
+    }
+
+    if (version_id) {
+      data_to_update["is_drafted"] = true;
+    }
+
+    await ConfigurationServices.updateAgent(bridgeId, data_to_update, version_id);
+    const result = await ConfigurationServices.getAgentsWithTools(bridgeId, org_id, version_id);
+
+    try {
+      await addBulkUserEntries([
+        {
+          user_id: String(user_id),
+          org_id: String(org_id),
+          bridge_id: String(parent_id),
+          version_id: version_id ? String(version_id) : null,
+          type: "pre_tools",
+          time: new Date()
+        }
+      ]);
+    } catch (historyError) {
+      // History should not block pre-tool update responses.
+      console.error("Failed to add pre_tools history:", historyError);
+    }
+
+    if (result.success) {
+      const response = await Helper.responseMiddlewareForBridge(
+        result.bridges.service,
+        {
+          success: true,
+          message: "Agent pre-tool updated successfully",
+          agent: result.bridges
+        },
+        true
+      );
+
+      res.locals = response;
+      req.statusCode = 200;
+      return next();
+    } else {
+      res.locals = result;
+      req.statusCode = 400;
+      return next();
+    }
+  } catch (e) {
+    console.error("Error in addPreTool:", e);
     res.locals = { success: false, message: e.message };
     req.statusCode = 400;
     return next();
@@ -183,20 +268,22 @@ const getAllInBuiltToolsController = async (req, res, next) => {
         value: "Gtwy_Browser"
       },
       // One hosted browser service each; Python folds these into Gtwy_Browser on that service
-      {
-        id: "5",
-        name: "GTWY Browser (Browserbase)",
-        description: "Allow models that support Browser to run and access any website, in a Browserbase browser.",
-        isGtwyTool: true,
-        value: "Gtwy_Browser_Browserbase"
-      },
-      {
-        id: "6",
-        name: "GTWY Browser (Steel)",
-        description: "Allow models that support Browser to run and access any website, in a Steel browser.",
-        isGtwyTool: true,
-        value: "Gtwy_Browser_Steel"
-      },
+       
+      // {
+      //   id: "5",
+      //   name: "GTWY Browser (Browserbase)",
+      //   description: "Allow models that support Browser to run and access any website, in a Browserbase browser.",
+      //   isGtwyTool: true,
+      //   value: "Gtwy_Browser_Browserbase"
+      // },
+      // {
+      //   id: "6",
+      //   name: "GTWY Browser (Steel)",
+      //   description: "Allow models that support Browser to run and access any website, in a Steel browser.",
+      //   isGtwyTool: true,
+      //   value: "Gtwy_Browser_Steel"
+      // },
+       
       {
         id: "7",
         name: "GTWY Browser (Kernel)",
@@ -222,6 +309,7 @@ export default {
   updateApiCalls,
   deleteFunction,
   createApi,
+  addPreTool,
   getAllInBuiltToolsController,
   getAgentsAndVersionsByFunctionIds
 };

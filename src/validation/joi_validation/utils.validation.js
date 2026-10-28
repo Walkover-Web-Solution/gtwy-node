@@ -99,15 +99,6 @@ const getAffiliateEmbedToken = {
   })
 };
 
-const getViasocketEmbedToken = {
-  body: Joi.object()
-    .keys({
-      user_id: Joi.string().optional(),
-      unique_identifier: Joi.string().optional()
-    })
-    .unknown(true)
-};
-
 const generateToken = {
   body: Joi.object()
     .keys({
@@ -140,6 +131,5 @@ export default {
   callAi,
   generateToken,
   getAffiliateEmbedToken,
-  getViasocketEmbedToken,
   checkLatency
 };

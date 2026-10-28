@@ -59,16 +59,6 @@ const getAgentAnalyticsFilters = {
         "any.required": "bridge_id is required"
       })
     })
-    .unknown(true),
-  query: Joi.object()
-    .keys({
-      // Omit for all versions of the agent.
-      version_id: Joi.string()
-        .trim()
-        .pattern(/^[0-9a-fA-F]{24}$/)
-        .optional()
-        .messages({ "string.pattern.base": "version_id must be a valid id" })
-    })
     .unknown(true)
 };
 
