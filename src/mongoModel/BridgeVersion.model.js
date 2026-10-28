@@ -100,6 +100,14 @@ const version = new mongoose.Schema({
       variables_state: {}
     })
   },
+  function_ids: {
+    type: [String],
+    default: []
+  },
+  variables_path: {
+    type: Object,
+    default: {}
+  },
   agent_variables: {
     type: Object,
     default: {}
@@ -131,6 +139,14 @@ const version = new mongoose.Schema({
     type: Array,
     default: []
   },
+  pre_tools: {
+    type: Array,
+    default: []
+  },
+  post_tool: {
+    type: Object,
+    default: null
+  },
   web_search_filters: {
     type: [String],
     default: []
@@ -139,14 +155,13 @@ const version = new mongoose.Schema({
     type: [String],
     default: []
   },
-  // Gtwy_Browser: whether the browser session should log in automatically.
-  auto_login: {
-    type: Boolean,
-    default: false
-  },
   user_reference: {
     type: String,
     default: ""
+  },
+  built_in_tools: {
+    type: Array,
+    default: []
   },
   created_at: {
     type: Date,
@@ -182,9 +197,9 @@ const version = new mongoose.Schema({
   hello_id: {
     type: String
   },
-  connected_tools: {
-    type: Array,
-    default: []
+  connected_agents: {
+    type: Object,
+    default: {}
   },
   deletedAt: {
     type: Date,
