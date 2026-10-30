@@ -28,6 +28,12 @@ async function getFolderData(folder_id) {
   }
 }
 
+// Per-service model overrides set on an embed folder: { [service]: { [model_name]: { hide, value } } }
+async function getFolderModels(folder_id) {
+  const folder = await getFolderData(folder_id);
+  return folder?.config?.models || {};
+}
+
 async function createFolder(folderData) {
   const { name, org_id, type = "agent", config = null } = folderData;
   const existingFolder = await Folder.findOne({
@@ -88,6 +94,7 @@ async function getFolderIdsByOrgAndType(org_id, type) {
 
 export default {
   getFolderData,
+  getFolderModels,
   createFolder,
   updateFolder,
   deleteFolder,
