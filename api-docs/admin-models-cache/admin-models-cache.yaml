@@ -1,0 +1,522 @@
+openapi: 3.0.3
+info:
+  title: "Admin: Models & Cache"
+  version: 1.0.0
+servers:
+  - url: https://db.gtwy.ai/api
+paths:
+  /utils/redis:
+    delete:
+      summary: Clear Redis Cache
+      description: |-
+        Deletes keys from the shared Redis cache. With `id` or `ids` in the body, deletes exactly those keys (`ids` wins if both are sent). With an empty body, scans all keys and deletes every key except protected ones (keys whose name, after the AIMIDDLEWARE_<ENV>_ prefix, starts with `nd_`, and any key containing `blacklist:`). Internal admin tool only. 401 if no valid auth, 403 if the user is not on the internal allowlist.
+
+        Accepted auth: Authorization (dashboard user JWT).
+
+        Internal only: the caller's email must be in INTERNAL_ALLOWED_EMAILS, so only a dashboard user JWT works (pauthkey / proxy_auth_token carry no email -> 403).
+
+        Body fields:
+        - id: string, optional, a single cache key to delete
+        - ids: string or array of strings, optional, cache keys to delete; omit both id and ids to clear all non-protected keys
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              ids:
+                - AIMIDDLEWARE_PROD_cd_bridge_6650f1c2a1b2c3d4e5f60789
+      responses:
+        "200":
+          description: Success (specific keys)
+          content:
+            application/json:
+              examples:
+                Success_specific_keys:
+                  summary: Success (specific keys)
+                  value:
+                    message: Redis Key cleared successfully
+                    cleared_keys:
+                      - AIMIDDLEWARE_PROD_cd_bridge_6650f1c2a1b2c3d4e5f60789
+                    count: 1
+                Success_full_clear:
+                  summary: Success (full clear)
+                  value:
+                    message: Redis cleared successfully
+                    cleared_keys:
+                      - "..."
+                    skipped_keys:
+                      - "..."
+                    count: 120
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Forbidden (not an internal admin)
+          content:
+            application/json:
+              examples:
+                Forbidden_not_an_internal_admin:
+                  summary: Forbidden (not an internal admin)
+                  value:
+                    success: false
+                    message: "Access denied: you are not authorized for this action"
+      x-docstar-published: true
+  /utils/redis/{id}:
+    get:
+      summary: Get Redis Cache Value
+      description: |-
+        Reads one key from the Redis cache and returns the raw stored value as the response body (whatever was cached, typically a JSON string; null/empty if the key does not exist). Internal debugging tool. 401 without auth, 403 if not an internal admin.
+
+        Accepted auth: Authorization (dashboard user JWT).
+
+        Internal only: the caller's email must be in INTERNAL_ALLOWED_EMAILS, so only a dashboard user JWT works (pauthkey / proxy_auth_token carry no email -> 403).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: string, required, the cache key to read
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value: '{"cached":"value"}'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Forbidden (not an internal admin)
+          content:
+            application/json:
+              examples:
+                Forbidden_not_an_internal_admin:
+                  summary: Forbidden (not an internal admin)
+                  value:
+                    success: false
+                    message: "Access denied: you are not authorized for this action"
+      x-docstar-published: true
+  /utils/getBridgesAndVersions/{modelName}:
+    get:
+      summary: List Agents Using Model
+      description: |-
+        Returns every agent (across all orgs) whose `configuration.model` equals the given model name, with org_id, name, versions and bridge_id. The result is keyed by the model name. Used for model-retirement impact checks; there is no authentication on this route. 500 with {success:false,message} on DB error.
+
+        Accepted auth: none (public).
+      parameters:
+        - name: modelName
+          in: path
+          required: true
+          description: string, required, exact model name, e.g. gpt-4o
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Fetched models and agents they are used in successfully.
+                    gpt-4o:
+                      - org_id: "12345"
+                        name: Support Bot
+                        versions:
+                          - 6650f1c2a1b2c3d4e5f60790
+                        bridge_id: 6650f1c2a1b2c3d4e5f60789
+      x-docstar-published: true
+  /utils/models/status:
+    patch:
+      summary: Set Model Status
+      description: |-
+        Enables (status 1) or disables (status 0) a model in the global model configuration for a service. When disabling, every agent and agent version using that model as primary or fallback model is switched to the service's default model, and the affected ids are returned. 404 if the model/service config does not exist; 409 if it is already in the requested state.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Body fields:
+        - model_name: string, required, model name
+        - service: string, required, one of the registered service names (e.g. openai, anthropic, groq, ...)
+        - status: number, required, 0 = disable, 1 = enable
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              model_name: gpt-4o
+              service: openai
+              status: 0
+      responses:
+        "200":
+          description: Success (disabled)
+          content:
+            application/json:
+              examples:
+                Success_disabled:
+                  summary: Success (disabled)
+                  value:
+                    success: true
+                    message: Model 'gpt-4o' for service 'openai' has been disabled. Updated 2 agent version(s) to use default model.
+                    modelConfig:
+                      model_name: gpt-4o
+                      service: openai
+                      status: 0
+                    usageInfo: {}
+                    updatedVersions:
+                      - 6650f1c2a1b2c3d4e5f60790
+        "404":
+          description: Not found
+          content:
+            application/json:
+              examples:
+                Not_found:
+                  summary: Not found
+                  value:
+                    success: false
+                    message: Model configuration not found.
+        "409":
+          description: Already in state
+          content:
+            application/json:
+              examples:
+                Already_in_state:
+                  summary: Already in state
+                  value:
+                    success: false
+                    message: Model 'gpt-4o' for service 'openai' is already disabled.
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: status must be 0 (disable) or 1 (enable)
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /utils/models/bulk-update:
+    post:
+      summary: Bulk Update Model Configurations
+      description: |-
+        Applies one `change` to many global model configuration documents, selected by a list of `models` (by model_name) and/or a Mongo-style `filter`. `change` may be Mongo update operators or a plain object patch; `status` cannot be changed here (use Set Model Status). 400 for an invalid/restricted change or filter key, 404 if no matching model configs.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Body fields:
+        - models: array of {model_name: string without spaces}, min 1; required unless filter is sent
+        - filter: object (min 1 key), optional, Mongo filter on model configs; required unless models is sent
+        - change: object, required, update operators or plain patch; must not contain status
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              models:
+                - model_name: gpt-4o
+                - model_name: gpt-4o-mini
+              change:
+                configuration.max_tokens.max: 16384
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Bulk model configuration update completed
+                    result:
+                      requestedCount: 2
+                      matchedCount: 2
+                      modifiedCount: 2
+                      updatedModels:
+                        - service: openai
+                          model_name: gpt-4o
+                      notFoundModels: []
+        "400":
+          description: Invalid change
+          content:
+            application/json:
+              examples:
+                Invalid_change:
+                  summary: Invalid change
+                  value:
+                    success: false
+                    message: Invalid or restricted key 'org_id' in change payload.
+        "404":
+          description: Not found
+          content:
+            application/json:
+              examples:
+                Not_found:
+                  summary: Not found
+                  value:
+                    success: false
+                    message: No model configurations found for the provided models/filter.
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /utils/models/status/{status}:
+    get:
+      summary: List Models By Status
+      description: |-
+        Lists model names in the global model configuration with the given status, grouped by service. status 1 = active, 0 = disabled. 400 for any other status value.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: status
+          in: path
+          required: true
+          description: 0 (disabled) or 1 (active)
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Disabled models fetched successfully
+                    data:
+                      openai:
+                        - gpt-4
+                      anthropic:
+                        - claude-2
+        "400":
+          description: Invalid status
+          content:
+            application/json:
+              examples:
+                Invalid_status:
+                  summary: Invalid status
+                  value:
+                    success: false
+                    message: Invalid status. Status must be 0 or 1.
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /utils/latency-check:
+    post:
+      summary: Run Latency Check
+      description: |-
+        Measures GTWY request latency. single: runs one check and returns the result inline. bulk: starts 50 checks in the background and posts results to `webhook`. load: starts `count` checks in the background and posts results to `webhook`. Unknown body keys are rejected. Internal admin only.
+
+        Accepted auth: Authorization (dashboard user JWT).
+
+        Internal only: the caller's email must be in INTERNAL_ALLOWED_EMAILS, so only a dashboard user JWT works (pauthkey / proxy_auth_token carry no email -> 403).
+
+        Body fields:
+        - type: string, required, single | bulk | load
+        - count: integer >= 1, required for load, forbidden otherwise
+        - webhook: URI string, required for bulk and load, forbidden for single
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              type: load
+              count: 20
+              webhook: https://example.com/latency-results
+      responses:
+        "200":
+          description: Success (single)
+          content:
+            application/json:
+              examples:
+                Success_single:
+                  summary: Success (single)
+                  value:
+                    success: true
+                    type: single
+                    data: {}
+                Success_bulk_load:
+                  summary: Success (bulk/load)
+                  value:
+                    success: true
+                    message: Latency check initiated. Results will be sent to the webhook.
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: '"webhook" is required'
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Forbidden (not an internal admin)
+          content:
+            application/json:
+              examples:
+                Forbidden_not_an_internal_admin:
+                  summary: Forbidden (not an internal admin)
+                  value:
+                    success: false
+                    message: "Access denied: you are not authorized for this action"
+      x-docstar-published: true

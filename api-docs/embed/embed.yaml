@@ -1,0 +1,862 @@
+openapi: 3.0.3
+info:
+  title: Embed
+  version: 1.0.0
+servers:
+  - url: https://db.gtwy.ai/api
+paths:
+  /embed:
+    put:
+      summary: Update Embed
+      description: |-
+        Updates an embed folder of the org: config (validated as JSON-schema-compatible), API key mapping, name, spend limit, usage reset and reset period. Note: config and apikey_object_id are replaced wholesale (omitting apikey_object_id clears it). Tools removed from config.tools_id are also unset from embed overrides on the folder's agents, and agent caches are cleared. Sending folder_usage: 0 resets usage. Returns 404 'Folder not found', 400 for invalid config or other errors. Users whose JWT role resolves to 'viewer' (permissions lack create_agent) get 403 {success:false, message:"You don't have access"}; pauthkey/proxy-token callers and embed users are not blocked.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Agent access check (checkAgentAccessMiddleware): restricts by the caller's role on the agent.
+
+        Body fields:
+        - folder_id: string (24-hex ObjectId), required, embed folder id
+        - name: string, optional, new name
+        - config: object, optional, full replacement config
+        - apikey_object_id: object, optional, map service -> API key ObjectId (replaces existing; omitted = cleared)
+        - folder_limit: number >= 0, optional
+        - folder_usage: number, optional, send 0 to reset usage
+        - folder_limit_reset_period: string, optional, monthly | weekly | daily; restarts the window now
+        - folder_limit_start_date: date, optional (validated, not used)
+        - tools_id: array, optional, merged into config
+        - pre_tool_id: string, optional, merged into config
+        - variables_path: object, optional, merged into config
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              folder_id: 6652cc11dd22ee33ff44aa55
+              name: Customer Portal
+              config:
+                themeMode: dark
+                tools_id: []
+              apikey_object_id:
+                openai: 665f1c2e9b1d4a0012ab34cd
+              folder_limit: 100
+              folder_usage: 0
+              folder_limit_reset_period: monthly
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    data:
+                      _id: 6652cc11dd22ee33ff44aa55
+                      folder_id: 6652cc11dd22ee33ff44aa55
+                      name: Customer Portal
+                      org_id: "12345"
+                      type: embed
+                      config:
+                        showHistory: false
+                        themeMode: light
+                        tools_id: []
+                      apikey_object_id:
+                        openai: 665f1c2e9b1d4a0012ab34cd
+                      folder_limit: 0
+                      folder_usage: 0
+                      folder_limit_reset_period: monthly
+                      folder_limit_start_date: "2026-10-01T00:00:00.000Z"
+                      created_at: "2026-10-01T00:00:00.000Z"
+                      updated_at: "2026-10-01T00:00:00.000Z"
+                      __v: 0
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              examples:
+                Not_Found:
+                  summary: Not Found
+                  value:
+                    success: false
+                    message: Folder not found
+        "400":
+          description: Validation Error
+          content:
+            application/json:
+              examples:
+                Validation_Error:
+                  summary: Validation Error
+                  value:
+                    message: folder_id is required
+                    data: {}
+        "403":
+          description: Forbidden (viewer role)
+          content:
+            application/json:
+              examples:
+                Forbidden_viewer_role:
+                  summary: Forbidden (viewer role)
+                  value:
+                    success: false
+                    message: You don't have access
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+    post:
+      summary: Create Embed
+      description: |-
+        Creates an embed integration (stored as a folder of type 'embed' or 'rag_embed') for the org, with UI config, per-service API key mapping and an optional spend limit. tools_id, pre_tool_id and variables_path sent at the top level are merged into config. Embed-type folders get default UI flags filled in on save. Returns 400 'Error in creating embed: ...' on failure (e.g. duplicate name in the org). Users whose JWT role resolves to 'viewer' (permissions lack create_agent) get 403 {success:false, message:"You don't have access"}; pauthkey/proxy-token callers and embed users are not blocked.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Agent access check (checkAgentAccessMiddleware): restricts by the caller's role on the agent.
+
+        Body fields:
+        - name: string, required, embed name (unique per org)
+        - config: object, optional, embed UI/behaviour config (e.g. showHistory, themeMode, tools_id, variables_path)
+        - apikey_object_id: object, optional, map of service name -> API key ObjectId
+        - folder_limit: number >= 0, optional, spend limit (default 0 = none)
+        - folder_limit_reset_period: string, optional, monthly | weekly | daily
+        - folder_limit_start_date: date, optional
+        - type: string, optional, embed | rag_embed (default embed)
+        - tools_id: array, optional, tool ids merged into config
+        - pre_tool_id: string, optional, merged into config
+        - variables_path: object, optional, merged into config
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              name: Customer Portal
+              config:
+                themeMode: light
+                showHistory: false
+              apikey_object_id:
+                openai: 665f1c2e9b1d4a0012ab34cd
+              folder_limit: 50
+              folder_limit_reset_period: monthly
+              type: embed
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    data:
+                      _id: 6652cc11dd22ee33ff44aa55
+                      folder_id: 6652cc11dd22ee33ff44aa55
+                      name: Customer Portal
+                      org_id: "12345"
+                      type: embed
+                      config:
+                        showHistory: false
+                        themeMode: light
+                        tools_id: []
+                      apikey_object_id:
+                        openai: 665f1c2e9b1d4a0012ab34cd
+                      folder_limit: 0
+                      folder_usage: 0
+                      folder_limit_reset_period: monthly
+                      folder_limit_start_date: "2026-10-01T00:00:00.000Z"
+                      created_at: "2026-10-01T00:00:00.000Z"
+                      updated_at: "2026-10-01T00:00:00.000Z"
+                      __v: 0
+        "400":
+          description: Error
+          content:
+            application/json:
+              examples:
+                Error:
+                  summary: Error
+                  value:
+                    success: false
+                    message: "Error in creating embed: E11000 duplicate key error ..."
+        "403":
+          description: Forbidden (viewer role)
+          content:
+            application/json:
+              examples:
+                Forbidden_viewer_role:
+                  summary: Forbidden (viewer role)
+                  value:
+                    success: false
+                    message: You don't have access
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+    get:
+      summary: List Embeds
+      description: |-
+        Lists all folders/embeds of the org (all types) with folder_id and the current folder_usage (live value from cache when available).
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    data:
+                      - _id: 6652cc11dd22ee33ff44aa55
+                        folder_id: 6652cc11dd22ee33ff44aa55
+                        name: Customer Portal
+                        org_id: "12345"
+                        type: embed
+                        config:
+                          showHistory: false
+                          themeMode: light
+                          tools_id: []
+                        apikey_object_id:
+                          openai: 665f1c2e9b1d4a0012ab34cd
+                        folder_limit: 0
+                        folder_usage: 0
+                        folder_limit_reset_period: monthly
+                        folder_limit_start_date: "2026-10-01T00:00:00.000Z"
+                        created_at: "2026-10-01T00:00:00.000Z"
+                        updated_at: "2026-10-01T00:00:00.000Z"
+                        __v: 0
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /embed/getAgents:
+    get:
+      summary: List Embed User Agents
+      description: |-
+        Called with a customer-signed embed JWT to list the agents that embed user created in the given embed folder (org + user + folder), optionally filtered to one agent_id. Returns id, name, service, configuration.model/prompt/type, bridgeType, slugName, variables_state, meta, timestamps and deletedAt (null fields are dropped). Returns 400 on error and the embed token errors (498/401).
+
+        Accepted auth: Authorization (GTWY embed JWT).
+      parameters:
+        - name: agent_id
+          in: query
+          required: false
+          description: string (24-hex ObjectId), optional, return only this agent
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY embed JWT signed by the customer with the org's gtwyAccessToken; payload org_id, folder_id, user_id.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Get Agents data successfully
+                    data:
+                      - _id: 6650aa11bb22cc33dd44ee55
+                        name: My Agent
+                        service: openai
+                        configuration:
+                          model: gpt-4o
+                          prompt: You are...
+                          type: chat
+                        bridgeType: api
+                        slugName: my_agent
+                        variables_state: {}
+                        folder_id: 6652cc11dd22ee33ff44aa55
+                        createdAt: "2026-10-01T00:00:00.000Z"
+                        updatedAt: "2026-10-02T00:00:00.000Z"
+        "498":
+          description: Missing Token
+          content:
+            application/json:
+              examples:
+                Missing_Token:
+                  summary: Missing Token
+                  value:
+                    message: invalid token
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user, user_id (or unique_identifier), folder id or org id not provided
+      x-docstar-published: true
+  /embed/{agent_id}:
+    put:
+      summary: Update Embed Agent Metadata
+      description: |-
+        Lets an embed user rename an agent and/or replace its meta object. At least one of name or meta is required and no other body keys are allowed (400 otherwise). Returns 404 'Agent not found' if the agent is not in the token's org; the response echoes the agent with the updated fields.
+
+        Accepted auth: Authorization (GTWY embed JWT).
+
+        Body fields:
+        - name: string, optional, new agent name
+        - meta: object, optional, replaces the agent's meta
+      parameters:
+        - name: agent_id
+          in: path
+          required: true
+          description: Agent id, from List Embed User Agents
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY embed JWT signed by the customer with the org's gtwyAccessToken; payload org_id, folder_id, user_id.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              name: Renamed Agent
+              meta:
+                customer_ref: abc
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Agent metadata updated successfully
+                    agent:
+                      _id: 6650aa11bb22cc33dd44ee55
+                      name: Renamed Agent
+                      meta:
+                        customer_ref: abc
+                      updatedAt: "2026-10-23T00:00:00.000Z"
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              examples:
+                Not_Found:
+                  summary: Not Found
+                  value:
+                    success: false
+                    message: Agent not found
+        "400":
+          description: Validation Error
+          content:
+            application/json:
+              examples:
+                Validation_Error:
+                  summary: Validation Error
+                  value:
+                    message: At least one of name or meta is required
+                    data: {}
+        "498":
+          description: Missing Token
+          content:
+            application/json:
+              examples:
+                Missing_Token:
+                  summary: Missing Token
+                  value:
+                    message: invalid token
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user, user_id (or unique_identifier), folder id or org id not provided
+      x-docstar-published: true
+    delete:
+      summary: Delete Embed Agent
+      description: |-
+        Soft-deletes an agent (sets deletedAt on the agent and its versions; permanently removed after 30 days) or restores it when body restore is true. Deletion is refused when another agent is connected to it. Scoped to the token's org only (not to the embed user). Returns 400 with {success:false,error} for 'Agent not found' or connected-agent conflicts.
+
+        Accepted auth: Authorization (GTWY embed JWT).
+
+        Body fields:
+        - restore: boolean, optional, true to restore a soft-deleted agent instead of deleting (default false)
+      parameters:
+        - name: agent_id
+          in: path
+          required: true
+          description: Agent id, from List Embed User Agents
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY embed JWT signed by the customer with the org's gtwyAccessToken; payload org_id, folder_id, user_id.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              restore: false
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              examples:
+                Deleted:
+                  summary: Deleted
+                  value:
+                    success: true
+                    message: Agent "My Agent" and 2 versions marked for deletion. They will be permanently deleted after 30 days.
+                Restored:
+                  summary: Restored
+                  value:
+                    success: true
+                    bridge:
+                      _id: 6650aa11bb22cc33dd44ee55
+                    restoredVersionsCount: 2
+                    message: Agent and 2 versions restored successfully.
+        "400":
+          description: Failed
+          content:
+            application/json:
+              examples:
+                Failed:
+                  summary: Failed
+                  value:
+                    success: false
+                    error: "Cannot delete agent. It is connected to the following agent: Router"
+        "498":
+          description: Missing Token
+          content:
+            application/json:
+              examples:
+                Missing_Token:
+                  summary: Missing Token
+                  value:
+                    message: invalid token
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user, user_id (or unique_identifier), folder id or org id not provided
+      x-docstar-published: true
+  /utils/token:
+    post:
+      summary: Generate Org Token
+      description: |-
+        Issues or returns an org-level secret/token selected by `type`. rag: returns the org's knowledge-base `auth_token` (generated and saved on the org if the org has no meta.accessKey; note that if meta.accessKey exists the code returns a fresh random value that is not saved - behaviour unclear). org: returns the org's chatbot `orgAccessToken` (created and saved if missing). embed: returns the org's `gtwyAccessToken` (created if missing) used to sign embed JWTs, with embedToken null. embed_preview / rag_embed_preview / chatbot_embed_preview: additionally, when `folder_id` and `user_id` are sent, returns a ready-signed HS256 preview JWT ({org_id, folder_id|chatbot_id, user_id}) signed with gtwyAccessToken / the RAG auth_token / orgAccessToken respectively (null if that secret is missing). 400 for an invalid type.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Body fields:
+        - type: string, required, one of rag | org | embed | embed_preview | rag_embed_preview | chatbot_embed_preview
+        - folder_id: string, optional, embed folder id (or chatbot id for chatbot_embed_preview); used only by the *_preview types
+        - user_id: string, optional, end-user id to put in the preview token; used only by the *_preview types
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              type: embed_preview
+              folder_id: 6650f1c2a1b2c3d4e5f60791
+              user_id: user_42
+      responses:
+        "200":
+          description: Success (embed / *_preview)
+          content:
+            application/json:
+              examples:
+                Success_embed__preview:
+                  summary: Success (embed / *_preview)
+                  value:
+                    embedToken: <jwt or null>
+                    gtwyAccessToken: <secret>
+                Success_org:
+                  summary: Success (org)
+                  value:
+                    orgAccessToken: <secret>
+                Success_rag:
+                  summary: Success (rag)
+                  value:
+                    auth_token: <secret>
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: '"type" must be one of [rag, org, embed, embed_preview, rag_embed_preview, chatbot_embed_preview]'
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /utils/affiliate/embed-token:
+    post:
+      summary: Generate Affiliate Embed Token
+      description: |-
+        Proxies a request to the affiliate service (apireftest.hostnsoft.com /api/v1/embed/token/generate) using the server's AFFILIATE_ORG_TOKEN, and returns that service's JSON response and HTTP status unchanged. 500 if AFFILIATE_ORG_TOKEN is not configured.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Body fields:
+        - organization: string, required, organisation name/identifier passed to the affiliate service
+        - expires_in_hours: integer >= 1, optional, token lifetime
+        - label: string, optional (may be empty), label for the token
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              organization: Acme Inc
+              expires_in_hours: 24
+              label: Partner dashboard
+      responses:
+        "200":
+          description: Success (upstream response passed through)
+          content:
+            application/json:
+              examples:
+                Success_upstream_response_passed_through:
+                  summary: Success (upstream response passed through)
+                  value:
+                    token: <affiliate embed token>
+        "500":
+          description: Not configured
+          content:
+            application/json:
+              examples:
+                Not_configured:
+                  summary: Not configured
+                  value:
+                    success: false
+                    message: AFFILIATE_ORG_TOKEN is not configured
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: '"organization" is required'
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /utils/viasocket/embed-token:
+    post:
+      summary: Generate viaSocket Embed Token
+      description: |-
+        Mints a viaSocket embed token (signed with GTWY's viaSocket ACCESS_KEY, scoped to GTWY's viaSocket org/project) for one of the caller's end users, so SDK integrators can embed viaSocket's tool-builder widget. The token's user_id is `user_id`, or `unique_identifier` if user_id is absent.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Body fields:
+        - user_id: string, optional, end-user identifier to scope the token to
+        - unique_identifier: string, optional, used when user_id is not sent
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              user_id: customer_user_42
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    embed_token: <jwt>
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /embed/login:
+    post:
+      summary: Embed Login
+      description: |-
+        Logs an end user of a customer's app into the GTWY embed (agent builder iframe). The customer signs a JWT with the org's gtwyAccessToken containing org_id, folder_id and user_id (or unique_identifier); GTWY creates or fetches the matching proxy user and returns a GTWY embed session token plus the embed folder's config and API key mapping. Token errors: 498 when missing, 401 when claims are missing or the org has no gtwyAccessToken, 401 on bad signature.
+
+        Accepted auth: Authorization (GTWY embed JWT).
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY embed JWT signed by the customer with the org's gtwyAccessToken; payload org_id, folder_id, user_id.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    data:
+                      org_id: "12345"
+                      folder_id: 6652cc11dd22ee33ff44aa55
+                      user_id: "9876"
+                      email: user@customer.com
+                      name: Jane
+                      meta:
+                        type: embed
+                      org_name: Acme
+                      iat: 1730000000
+                      token: <gtwy embed jwt>
+                      config:
+                        showHistory: false
+                        themeMode: light
+                        apikey_object_id:
+                          openai: 665f1c2e9b1d4a0012ab34cd
+                    message: logged in successfully
+        "498":
+          description: Missing Token
+          content:
+            application/json:
+              examples:
+                Missing_Token:
+                  summary: Missing Token
+                  value:
+                    message: invalid token
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user, user_id (or unique_identifier), folder id or org id not provided
+      x-docstar-published: true

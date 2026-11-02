@@ -1,0 +1,387 @@
+openapi: 3.0.3
+info:
+  title: Prompt Wrappers
+  version: 1.0.0
+servers:
+  - url: https://db.gtwy.ai/api
+paths:
+  /prompt_wrappers:
+    post:
+      summary: Create Prompt Wrapper
+      description: |-
+        Creates an org-level prompt wrapper: a reusable template text with {{variable}} placeholders. Variable names are extracted from the template automatically and stored in `variables`. 400 if the auth has no user id or org id (e.g. some pauthkey keys).
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Body fields:
+        - name: string, required, trimmed
+        - template: string, required, wrapper text with {{variable}} placeholders
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              name: Polite wrapper
+              template: Always be polite. {{prompt}} Respond in {{language}}.
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              examples:
+                Created:
+                  summary: Created
+                  value:
+                    success: true
+                    message: Prompt wrapper created successfully
+                    data:
+                      _id: 6650f1c2a1b2c3d4e5f60901
+                      name: Polite wrapper
+                      template: Always be polite. {{prompt}} Respond in {{language}}.
+                      variables:
+                        - prompt
+                        - language
+                      org_id: "12345"
+                      created_by: "101"
+                      createdAt: "2025-01-01T00:00:00.000Z"
+                      updatedAt: "2025-01-01T00:00:00.000Z"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: name is required
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+    get:
+      summary: List Prompt Wrappers
+      description: |-
+        Lists all prompt wrappers of the caller's org.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Prompt wrappers retrieved successfully
+                    data:
+                      - _id: 6650f1c2a1b2c3d4e5f60901
+                        name: Polite wrapper
+                        template: Always be polite. {{prompt}} Respond in {{language}}.
+                        variables:
+                          - prompt
+                          - language
+                        org_id: "12345"
+                        created_by: "101"
+                        createdAt: "2025-01-01T00:00:00.000Z"
+                        updatedAt: "2025-01-01T00:00:00.000Z"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /prompt_wrappers/{wrapper_id}:
+    get:
+      summary: Get Prompt Wrapper
+      description: |-
+        Returns one prompt wrapper of the caller's org. 404 if it does not exist in this org.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: wrapper_id
+          in: path
+          required: true
+          description: prompt wrapper id, from List Prompt Wrappers
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Prompt wrapper retrieved successfully
+                    data:
+                      _id: 6650f1c2a1b2c3d4e5f60901
+                      name: Polite wrapper
+                      template: Always be polite. {{prompt}} Respond in {{language}}.
+                      variables:
+                        - prompt
+                        - language
+                      org_id: "12345"
+                      created_by: "101"
+                      createdAt: "2025-01-01T00:00:00.000Z"
+                      updatedAt: "2025-01-01T00:00:00.000Z"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              examples:
+                Not_found:
+                  summary: Not found
+                  value:
+                    success: false
+                    message: Prompt wrapper not found
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+    put:
+      summary: Update Prompt Wrapper
+      description: |-
+        Updates the name and/or template of an org prompt wrapper; when template changes, `variables` is re-extracted. At least one field is required. 404 if not found in this org.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Body fields:
+        - name: string, optional, trimmed
+        - template: string, optional, new wrapper text
+      parameters:
+        - name: wrapper_id
+          in: path
+          required: true
+          description: prompt wrapper id, from List Prompt Wrappers
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              template: Be concise. {{prompt}}
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Prompt wrapper updated successfully
+                    data:
+                      _id: 6650f1c2a1b2c3d4e5f60901
+                      name: Polite wrapper
+                      template: Be concise. {{prompt}}
+                      variables:
+                        - prompt
+                      org_id: "12345"
+                      created_by: "101"
+                      createdAt: "2025-01-01T00:00:00.000Z"
+                      updatedAt: "2025-01-01T00:00:00.000Z"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              examples:
+                Not_found:
+                  summary: Not found
+                  value:
+                    success: false
+                    message: Prompt wrapper not found
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: At least one field is required for update
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+    delete:
+      summary: Delete Prompt Wrapper
+      description: |-
+        Permanently deletes an org prompt wrapper. 404 if not found in this org.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: wrapper_id
+          in: path
+          required: true
+          description: prompt wrapper id, from List Prompt Wrappers
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Prompt wrapper deleted successfully
+        "404":
+          description: Not found
+          content:
+            application/json:
+              examples:
+                Not_found:
+                  summary: Not found
+                  value:
+                    success: false
+                    message: Prompt wrapper not found
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true

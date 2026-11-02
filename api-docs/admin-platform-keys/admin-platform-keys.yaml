@@ -1,0 +1,210 @@
+openapi: 3.0.3
+info:
+  title: "Admin: Platform Keys"
+  version: 1.0.0
+servers:
+  - url: https://db.gtwy.ai/api
+paths:
+  /platform-keys:
+    put:
+      summary: Set Platform API Key
+      description: |-
+        Stores or replaces GTWY's own platform provider API key for one service (encrypted at rest, picked up live by the Python backend). The response only shows the key masked. Internal admin only.
+
+        Accepted auth: Authorization (dashboard user JWT).
+
+        Internal only: the caller's email must be in INTERNAL_ALLOWED_EMAILS, so only a dashboard user JWT works (pauthkey / proxy_auth_token carry no email -> 403).
+
+        Body fields:
+        - service: string, required, provider service name (e.g. openai)
+        - apikey: string, required, min 8 chars, the provider API key
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              service: openai
+              apikey: ""
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: platform api key saved
+                    data:
+                      service: openai
+                      apikey: sk-****abcd
+                      updated_at: "2025-01-01T00:00:00.000Z"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: apikey looks too short
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Forbidden (not an internal admin)
+          content:
+            application/json:
+              examples:
+                Forbidden_not_an_internal_admin:
+                  summary: Forbidden (not an internal admin)
+                  value:
+                    success: false
+                    message: "Access denied: you are not authorized for this action"
+      x-docstar-published: true
+    get:
+      summary: List Platform API Keys
+      description: |-
+        Lists all platform provider keys with masked values ("<undecryptable>" if a stored key cannot be decrypted). Internal admin only.
+
+        Accepted auth: Authorization (dashboard user JWT).
+
+        Internal only: the caller's email must be in INTERNAL_ALLOWED_EMAILS, so only a dashboard user JWT works (pauthkey / proxy_auth_token carry no email -> 403).
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    data:
+                      - service: openai
+                        apikey: sk-****abcd
+                        updated_by: admin@example.com
+                        updated_at: "2025-01-01T00:00:00.000Z"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Forbidden (not an internal admin)
+          content:
+            application/json:
+              examples:
+                Forbidden_not_an_internal_admin:
+                  summary: Forbidden (not an internal admin)
+                  value:
+                    success: false
+                    message: "Access denied: you are not authorized for this action"
+      x-docstar-published: true
+    delete:
+      summary: Remove Platform API Key
+      description: |-
+        Deletes the platform provider key for one service. Succeeds even if no key existed. Internal admin only.
+
+        Accepted auth: Authorization (dashboard user JWT).
+
+        Internal only: the caller's email must be in INTERNAL_ALLOWED_EMAILS, so only a dashboard user JWT works (pauthkey / proxy_auth_token carry no email -> 403).
+
+        Body fields:
+        - service: string, required, provider service name
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              service: openai
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: platform api key removed
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: service required
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Forbidden (not an internal admin)
+          content:
+            application/json:
+              examples:
+                Forbidden_not_an_internal_admin:
+                  summary: Forbidden (not an internal admin)
+                  value:
+                    success: false
+                    message: "Access denied: you are not authorized for this action"
+      x-docstar-published: true

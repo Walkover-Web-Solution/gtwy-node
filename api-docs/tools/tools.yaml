@@ -1,0 +1,524 @@
+openapi: 3.0.3
+info:
+  title: Tools
+  version: 1.0.0
+servers:
+  - url: https://db.gtwy.ai/api
+paths:
+  /tools/agents-versions-by-functions:
+    get:
+      summary: Get Tool Usage By Agents
+      description: |-
+        Returns a map of tool (function) id -> agent id -> list of version ids that have the tool connected, across the org. Use it to see where each custom tool is used before editing or deleting it.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Agents and versions by function IDs retrieved successfully
+                    data:
+                      6657ff11aa22bb33cc44dd55:
+                        6650aa11bb22cc33dd44ee55:
+                          - 6650aa11bb22cc33dd44ee56
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /tools:
+    get:
+      summary: List Tools
+      description: |-
+        Lists the org's custom tools (API-call functions). Normal users get tools without a folder; embed users get tools of their folder (and only their own), plus any tools whitelisted in the embed folder's config.tools_id.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Get all functions of a org successfully
+                    data:
+                      - _id: 6657ff11aa22bb33cc44dd55
+                        org_id: "12345"
+                        script_id: scri42hM0QuZ
+                        title: get_order_status
+                        description: Fetch an order's status
+                        fields:
+                          order_id:
+                            type: string
+                            description: Order id
+                        required:
+                          - order_id
+                        url: https://flow.sokt.io/func/scri42hM0QuZ
+                        folder_id: ""
+                        user_id: "678"
+                        bridge_ids: []
+                    org_id: "12345"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+    delete:
+      summary: Delete Tool
+      description: |-
+        Deletes a custom tool by its script_id and disconnects it from all agents and versions in the org (both as a tool and as a custom-function pre-tool). Returns 400 'No matching function found to delete.' when not found. Users whose JWT role resolves to 'viewer' (permissions lack create_agent) get 403 {success:false, message:"You don't have access"}; pauthkey/proxy-token callers and embed users are not blocked.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Agent access check (checkAgentAccessMiddleware): restricts by the caller's role on the agent.
+
+        Body fields:
+        - script_id: string, required, the tool's script_id
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              script_id: scri42hM0QuZ
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Function deleted successfully.
+        "400":
+          description: Not Found
+          content:
+            application/json:
+              examples:
+                Not_Found:
+                  summary: Not Found
+                  value:
+                    message: No matching function found to delete.
+                    data: {}
+        "403":
+          description: Forbidden (viewer role)
+          content:
+            application/json:
+              examples:
+                Forbidden_viewer_role:
+                  summary: Forbidden (viewer role)
+                  value:
+                    success: false
+                    message: You don't have access
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+    post:
+      summary: Create Or Update Tool
+      description: |-
+        Upserts a custom tool from a viaSocket flow (sent by the frontend from the viaSocket embed). With status 'published' or 'updated' it creates or updates the tool for the org (scoped to the embed folder/user for embed users) using openaiToolJson.function.parameters for fields and required, and a sanitized function name from title or id. With status 'delete' or 'paused' it deletes the tool and disconnects it from agents. Returns 400 {success:false,message} on failure. Users whose JWT role resolves to 'viewer' (permissions lack create_agent) get 403 {success:false, message:"You don't have access"}; pauthkey/proxy-token callers and embed users are not blocked.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Agent access check (checkAgentAccessMiddleware): restricts by the caller's role on the agent.
+
+        Body fields:
+        - id: string, required, viaSocket script id (stored as script_id)
+        - desc: string, required, tool description shown to the model
+        - status: string, required, published | updated | delete | paused
+        - title: string, optional, letters/numbers/_/- only; defaults to id
+        - url: string (URI), optional, endpoint the tool calls
+        - payload: object, optional (accepted, not used)
+        - openaiToolJson: object, optional, OpenAI tool JSON; function.parameters.properties -> fields, function.parameters.required -> required
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              id: scri42hM0QuZ
+              title: get_order_status
+              desc: Fetch an order's status
+              status: published
+              url: https://flow.sokt.io/func/scri42hM0QuZ
+              payload: {}
+              openaiToolJson:
+                type: function
+                function:
+                  name: get_order_status
+                  parameters:
+                    type: object
+                    properties:
+                      order_id:
+                        type: string
+                        description: Order id
+                    required:
+                      - order_id
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              examples:
+                Saved:
+                  summary: Saved
+                  value:
+                    message: API saved successfully
+                    success: true
+                    data:
+                      _id: 6657ff11aa22bb33cc44dd55
+                      org_id: "12345"
+                      script_id: scri42hM0QuZ
+                      title: get_order_status
+                      description: Fetch an order's status
+                      fields:
+                        order_id:
+                          type: string
+                          description: Order id
+                      required:
+                        - order_id
+                      url: https://flow.sokt.io/func/scri42hM0QuZ
+                      folder_id: ""
+                      user_id: "678"
+                      bridge_ids: []
+                Deleted:
+                  summary: Deleted
+                  value:
+                    message: API deleted successfully
+                    success: true
+                    deleted: true
+                    data:
+                      success: true
+                      message: Function deleted successfully.
+        "400":
+          description: Validation Error
+          content:
+            application/json:
+              examples:
+                Validation_Error:
+                  summary: Validation Error
+                  value:
+                    message: desc is required
+                    data: {}
+        "403":
+          description: Forbidden (viewer role)
+          content:
+            application/json:
+              examples:
+                Forbidden_viewer_role:
+                  summary: Forbidden (viewer role)
+                  value:
+                    success: false
+                    message: You don't have access
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /tools/{function_id}:
+    put:
+      summary: Update Tool
+      description: |-
+        Updates a custom tool's stored fields (e.g. title, description, fields/parameter schema, required) in the caller's org; entries in any 'required' arrays that are not defined properties are dropped, and the previous fields are kept in old_fields. The change is synced to the viaSocket embed and caches of connected agents are cleared. Throws 400 when the function does not exist in the org. Users whose JWT role resolves to 'viewer' (permissions lack create_agent) get 403 {success:false, message:"You don't have access"}; pauthkey/proxy-token callers and embed users are not blocked.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Agent access check (checkAgentAccessMiddleware): restricts by the caller's role on the agent.
+
+        Body fields:
+        - dataToSend: object, required, fields to $set on the tool; title (if given) may contain only letters, numbers, _ or -
+      parameters:
+        - name: function_id
+          in: path
+          required: true
+          description: Tool _id, from List Tools
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              dataToSend:
+                title: get_order_status
+                description: Fetch an order's status
+                fields:
+                  order_id:
+                    type: string
+                    description: Order id
+                required:
+                  - order_id
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    data:
+                      _id: 6657ff11aa22bb33cc44dd55
+                      org_id: "12345"
+                      script_id: scri42hM0QuZ
+                      title: get_order_status
+                      description: Fetch an order's status
+                      fields:
+                        order_id:
+                          type: string
+                          description: Order id
+                      required:
+                        - order_id
+                      url: https://flow.sokt.io/func/scri42hM0QuZ
+                      folder_id: ""
+                      user_id: "678"
+                      bridge_ids: []
+                      old_fields:
+                        order_id:
+                          type: string
+        "400":
+          description: Validation Error
+          content:
+            application/json:
+              examples:
+                Validation_Error:
+                  summary: Validation Error
+                  value:
+                    message: dataToSend is required
+                    data: {}
+        "403":
+          description: Forbidden (viewer role)
+          content:
+            application/json:
+              examples:
+                Forbidden_viewer_role:
+                  summary: Forbidden (viewer role)
+                  value:
+                    success: false
+                    message: You don't have access
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /tools/inbuilt:
+    get:
+      summary: List Built-in Tools
+      description: |-
+        Returns the static list of built-in tools that can be enabled on agents: web_search, image_generation (provider-native) and Gtwy_Web_Search, Gtwy_Browser (GTWY-run tools, isGtwyTool true).
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Get all inbuilt tools successfully
+                    in_built_tools:
+                      - id: "1"
+                        name: Web Search
+                        description: Allow models to search the web for the latest information before generating a response.
+                        value: web_search
+                      - id: "2"
+                        name: Image Generation
+                        description: Allow models to generate images based on the user's input.
+                        value: image_generation
+                      - id: "3"
+                        name: GTWY Web Search
+                        isGtwyTool: true
+                        description: Allow models that support tool calling to search the web for the latest information before generating a response.
+                        value: Gtwy_Web_Search
+                      - id: "4"
+                        name: GTWY Browser
+                        description: Allow models that support Browser to run and access any website.
+                        isGtwyTool: true
+                        value: Gtwy_Browser
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true

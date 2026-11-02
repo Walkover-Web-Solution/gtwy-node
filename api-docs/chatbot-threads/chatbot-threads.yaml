@@ -1,0 +1,431 @@
+openapi: 3.0.3
+info:
+  title: Chatbot Threads
+  version: 1.0.0
+servers:
+  - url: https://db.gtwy.ai/api
+paths:
+  /v1/config/gethistory-chatbot/{thread_id}/{bridge_slugName}:
+    get:
+      summary: Get Chatbot Thread History (Deprecated)
+      description: |-
+        Deprecated (per code comment); use GET /api/history/:thread_id/:bridge_slugName instead. Returns formatted user/assistant history of a thread for the agent identified by its slugName, plus its starter questions if enabled. For chatbot tokens the org comes from the token; for public-agent tokens the org is taken from the agent found by slug. Errors: 498 missing token, 401 invalid token.
+
+        Accepted auth: Authorization (public chatbot/agent token) OR Authorization (chatbot token).
+      parameters:
+        - name: thread_id
+          in: path
+          required: true
+          description: Thread id
+          schema:
+            type: string
+        - name: bridge_slugName
+          in: path
+          required: true
+          description: Agent slugName
+          schema:
+            type: string
+        - name: pageNo
+          in: query
+          required: false
+          description: integer, optional, default 1
+          schema:
+            type: string
+          example: "1"
+        - name: limit
+          in: query
+          required: false
+          description: integer, optional, default 30
+          schema:
+            type: string
+          example: "30"
+        - name: sub_thread_id
+          in: query
+          required: false
+          description: string, optional; defaults to thread_id
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: "Accepts any ONE of: (1) Public chatbot / public agent token signed with GTWY's PUBLIC_CHATBOT_TOKEN (issued by the runagents login endpoints). | (2) GTWY chatbot token signed with GTWY's CHATBOTSECRETKEY (issued by Login Chatbot User). Raw or 'Bearer <token>'."
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    data:
+                      - Id: 1201
+                        content: How do I reset my password?
+                        role: user
+                        createdAt: "2026-10-20T10:00:00.000Z"
+                        chatbot_message: null
+                        tools_call_data: null
+                        user_feedback: null
+                        sub_thread_id: thread_abc
+                        image_urls: []
+                        urls: null
+                        message_id: b1c2d3
+                        error: ""
+                      - Id: 1201_llm
+                        content: Go to Settings > Security and click Reset.
+                        role: assistant
+                        createdAt: "2026-10-20T10:00:00.000Z"
+                        chatbot_message: ""
+                        tools_call_data: null
+                        user_feedback: null
+                        sub_thread_id: thread_abc
+                        image_urls: null
+                        urls: null
+                        message_id: b1c2d3_llm
+                        fallback_model: ""
+                        plans: null
+                        error: ""
+                    totalPages: 1
+                    totalEnteries: 1
+                    starterQuestion:
+                      - How do I reset my password?
+        "498":
+          description: Missing token
+          content:
+            application/json:
+              examples:
+                Missing_token:
+                  summary: Missing token
+                  value:
+                    message: invalid token
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /history/{thread_id}/{bridge_slugName}:
+    get:
+      summary: Get Chatbot Thread History
+      description: |-
+        Returns raw conversation log rows of a thread (oldest first within the page) for the agent identified by slugName, plus its starter questions if enabled. Used by the chatbot / public agent UI. For public-agent tokens, bridge_slugName may be '<org_id>::<slugName>' to select the org; otherwise the org comes from the agent found by slug. For chatbot tokens the org comes from the token. Errors: 498 missing token, 401 invalid token, 500 on database error.
+
+        Accepted auth: Authorization (public chatbot/agent token) OR Authorization (chatbot token).
+      parameters:
+        - name: thread_id
+          in: path
+          required: true
+          description: Thread id
+          schema:
+            type: string
+        - name: bridge_slugName
+          in: path
+          required: true
+          description: Agent slugName, or '<org_id>::<slugName>' for public agents
+          schema:
+            type: string
+        - name: pageNo
+          in: query
+          required: false
+          description: integer, optional, default 1
+          schema:
+            type: string
+          example: "1"
+        - name: limit
+          in: query
+          required: false
+          description: integer, optional, default 30
+          schema:
+            type: string
+          example: "30"
+        - name: sub_thread_id
+          in: query
+          required: false
+          description: string, optional; defaults to thread_id
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: "Accepts any ONE of: (1) Public chatbot / public agent token signed with GTWY's PUBLIC_CHATBOT_TOKEN (issued by the runagents login endpoints). | (2) GTWY chatbot token signed with GTWY's CHATBOTSECRETKEY (issued by Login Chatbot User). Raw or 'Bearer <token>'."
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    data:
+                      - id: 1201
+                        llm_message: Go to Settings > Security.
+                        user: How do I reset my password?
+                        chatbot_message: null
+                        error: null
+                        user_feedback: 0
+                        message_id: b1c2d3
+                        sub_thread_id: thread_abc
+                        thread_id: thread_abc
+                        version_id: 665f1c2e8b3a4d0012ab34ce
+                        bridge_id: 665f1c2e8b3a4d0012ab34cd
+                        user_urls: []
+                        llm_urls: []
+                        plans: null
+                        created_at: "2026-10-20T10:00:00.000Z"
+                        updated_at: "2026-10-20T10:00:01.000Z"
+                    starterQuestion: []
+        "498":
+          description: Missing token
+          content:
+            application/json:
+              examples:
+                Missing_token:
+                  summary: Missing token
+                  value:
+                    message: invalid token
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /thread:
+    post:
+      summary: Create Sub Thread
+      description: |-
+        Creates a new sub-thread (conversation tab) inside a chatbot thread and stores its display name until the first message is saved; nothing else is persisted. subThreadId is generated if omitted, and display_name defaults to it. Caution: the controller reads org_id from req.profile.org_id, which neither the chatbot nor the public-agent auth path sets in this code, so requests appear to fail with 400 ('All fields are required' or a TypeError message). Errors: 400, 498 missing token, 401 invalid token.
+
+        Accepted auth: Authorization (public chatbot/agent token) OR Authorization (chatbot token).
+
+        Body fields:
+        - thread_id: string, required; parent thread id
+        - subThreadId: string, optional; id for the new sub-thread (generated if omitted)
+        - name: string, optional (may be empty); display name
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: "Accepts any ONE of: (1) Public chatbot / public agent token signed with GTWY's PUBLIC_CHATBOT_TOKEN (issued by the runagents login endpoints). | (2) GTWY chatbot token signed with GTWY's CHATBOTSECRETKEY (issued by Login Chatbot User). Raw or 'Bearer <token>'."
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              thread_id: thread_abc
+              subThreadId: sub_002
+              name: Refund question
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              examples:
+                Created:
+                  summary: Created
+                  value:
+                    thread:
+                      thread_id: thread_abc
+                      sub_thread_id: sub_002
+                      display_name: Refund question
+                      org_id: "12345"
+                      created_at: "2026-10-20T10:00:00.000Z"
+                    success: true
+        "400":
+          description: Error
+          content:
+            application/json:
+              examples:
+                Error:
+                  summary: Error
+                  value:
+                    message: All fields are required
+                    data: {}
+        "498":
+          description: Missing token
+          content:
+            application/json:
+              examples:
+                Missing_token:
+                  summary: Missing token
+                  value:
+                    message: invalid token
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /thread/ai:
+    post:
+      summary: Create Sub Thread With AI Name
+      description: |-
+        Like Create Sub Thread, but when name is empty an AI-generated display name is created from the user text; if botId is given the result is also pushed over RTLayer on channel <botId><thread_id><sub_thread_id>. Caution: like Create Sub Thread, the controller reads org_id from req.profile.org_id, which the auth paths in this code do not set, so requests appear to fail with 400. Errors: 400 (including AI naming failures), 498 missing token, 401 invalid token.
+
+        Accepted auth: Authorization (public chatbot/agent token) OR Authorization (chatbot token).
+
+        Body fields:
+        - thread_id: string, required; parent thread id
+        - subThreadId: string, optional; generated if omitted
+        - name: string, optional; if empty an AI name is generated
+        - user: string, optional; user message used to generate the name
+        - botId: string, optional; chatbot id for the RTLayer notification
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: "Accepts any ONE of: (1) Public chatbot / public agent token signed with GTWY's PUBLIC_CHATBOT_TOKEN (issued by the runagents login endpoints). | (2) GTWY chatbot token signed with GTWY's CHATBOTSECRETKEY (issued by Login Chatbot User). Raw or 'Bearer <token>'."
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              thread_id: thread_abc
+              subThreadId: sub_003
+              name: ""
+              user: I want a refund for my last order
+              botId: 665f1c2e8b3a4d0012abb0b0
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              examples:
+                Created:
+                  summary: Created
+                  value:
+                    thread:
+                      thread_id: thread_abc
+                      sub_thread_id: sub_003
+                      display_name: Refund for last order
+                      org_id: "12345"
+                      created_at: "2026-10-20T10:00:00.000Z"
+                    success: true
+        "400":
+          description: Error
+          content:
+            application/json:
+              examples:
+                Error:
+                  summary: Error
+                  value:
+                    message: All fields are required
+                    data: {}
+        "498":
+          description: Missing token
+          content:
+            application/json:
+              examples:
+                Missing_token:
+                  summary: Missing token
+                  value:
+                    message: invalid token
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /thread/{thread_id}:
+    get:
+      summary: List Chatbot Sub Threads
+      description: |-
+        Lists the sub-threads of a chatbot thread for the agent identified by slugName, with display names and last activity, most recent first. For chatbot tokens the org comes from the token; for public-agent tokens the org is taken from the agent found by slug. Errors: 400 validation, 498 missing token, 401 invalid token.
+
+        Accepted auth: Authorization (public chatbot/agent token) OR Authorization (chatbot token).
+      parameters:
+        - name: thread_id
+          in: path
+          required: true
+          description: Thread id
+          schema:
+            type: string
+        - name: slugName
+          in: query
+          required: false
+          description: string, optional but needed to identify the agent; agent slugName
+          schema:
+            type: string
+          example: support_bot
+        - name: Authorization
+          in: header
+          required: false
+          description: "Accepts any ONE of: (1) Public chatbot / public agent token signed with GTWY's PUBLIC_CHATBOT_TOKEN (issued by the runagents login endpoints). | (2) GTWY chatbot token signed with GTWY's CHATBOTSECRETKEY (issued by Login Chatbot User). Raw or 'Bearer <token>'."
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    threads:
+                      - thread_id: thread_abc
+                        sub_thread_id: sub_002
+                        display_name: Refund question
+                        updated_at: "2026-10-20T10:05:00.000Z"
+                    success: true
+        "498":
+          description: Missing token
+          content:
+            application/json:
+              examples:
+                Missing_token:
+                  summary: Missing token
+                  value:
+                    message: invalid token
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true

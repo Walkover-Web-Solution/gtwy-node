@@ -1,0 +1,52 @@
+openapi: 3.0.3
+info:
+  title: "Admin: System"
+  version: 1.0.0
+servers:
+  - url: https://api.gtwy.ai
+paths:
+  /healthcheck:
+    get:
+      summary: Health Check
+      description: |-
+        Liveness probe for the Python AI service; always returns 200 with a status string while the process is up.
+
+        Accepted auth: none (public).
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              examples:
+                OK:
+                  summary: OK
+                  value:
+                    status: OK running good... v1.3
+      x-docstar-published: true
+  /ready:
+    get:
+      summary: Readiness Check
+      description: |-
+        Readiness probe for the load balancer: 200 while serving, 503 after the pod receives SIGTERM so traffic drains.
+
+        Accepted auth: none (public).
+      responses:
+        "200":
+          description: Ready
+          content:
+            application/json:
+              examples:
+                Ready:
+                  summary: Ready
+                  value:
+                    status: ready
+        "503":
+          description: Shutting down
+          content:
+            application/json:
+              examples:
+                Shutting_down:
+                  summary: Shutting down
+                  value:
+                    status: shutting down
+      x-docstar-published: true

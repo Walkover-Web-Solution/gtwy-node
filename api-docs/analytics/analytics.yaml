@@ -1,0 +1,488 @@
+openapi: 3.0.3
+info:
+  title: Analytics
+  version: 1.0.0
+servers:
+  - url: https://db.gtwy.ai/api
+paths:
+  /analytics/agent/{bridge_id}/filters:
+    get:
+      summary: Get Agent Analytics Filters
+      description: |-
+        Returns the distinct filter options ever seen in the agent's conversation logs (whole history, caller's org): tools (display name -> tool id), knowledge bases (resource id -> resource id), connected agents (name -> bridge id) and models grouped by service. Use to populate Get Agent Analytics filters. 500 on failure.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: bridge_id
+          in: path
+          required: true
+          description: agent (bridge) id, from List Agents
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    bridge_id: 6650f1c2a1b2c3d4e5f60789
+                    tools_data:
+                      search_orders: 6650f1c2a1b2c3d4e5f60c01
+                    knowledgebase_data:
+                      6650f1c2a1b2c3d4e5f60d01: 6650f1c2a1b2c3d4e5f60d01
+                    agent_data:
+                      Billing Agent: 6650f1c2a1b2c3d4e5f60700
+                    unique_model:
+                      openai:
+                        - gpt-4o
+                        - gpt-4o-mini
+        "500":
+          description: Failure
+          content:
+            application/json:
+              examples:
+                Failure:
+                  summary: Failure
+                  value:
+                    success: false
+                    error: "..."
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /analytics/embed/{folder_id}:
+    get:
+      summary: Get Embed Analytics
+      description: |-
+        Returns usage analytics for an embed integration folder: summary and lifetime summary, requests-over-time and response-time series, per-agent stats and per-end-user stats (paginated, searchable) for all non-deleted agents in the folder. End-user names/emails are resolved from the org's proxy users. 404 if the folder does not exist or belongs to another org; 400 if the folder is not an embed or rag_embed folder.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: folder_id
+          in: path
+          required: true
+          description: embed folder id, from the embed/folder APIs
+          schema:
+            type: string
+        - name: range
+          in: query
+          required: false
+          description: optional; integer days 1-365, or string like '24h' / '7d'; default 7d; ignored when both start_date and end_date are set
+          schema:
+            type: string
+          example: 7d
+        - name: interval
+          in: query
+          required: false
+          description: string like '1h' or '1d', optional, chart bucket size
+          schema:
+            type: string
+          example: 1d
+        - name: start_date
+          in: query
+          required: false
+          description: ISO date, optional
+          schema:
+            type: string
+        - name: end_date
+          in: query
+          required: false
+          description: ISO date >= start_date, optional
+          schema:
+            type: string
+        - name: user_id
+          in: query
+          required: false
+          description: string, optional, restrict to agents owned by this end user
+          schema:
+            type: string
+        - name: search
+          in: query
+          required: false
+          description: string up to 200, optional, filters users by name, email, external user id, user id or agent name
+          schema:
+            type: string
+        - name: page
+          in: query
+          required: false
+          description: integer >= 1, optional, users page (default 1)
+          schema:
+            type: string
+          example: "1"
+        - name: limit
+          in: query
+          required: false
+          description: integer 1-100, optional, users per page (default 5)
+          schema:
+            type: string
+          example: "5"
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    folder_id: 6650f1c2a1b2c3d4e5f60791
+                    range_start: "2025-01-01T00:00:00.000Z"
+                    range_end: "2025-01-08T00:00:00.000Z"
+                    summary:
+                      total_requests: 120
+                      success_rate: 97.5
+                      avg_response: 1830
+                      failed_runs: 3
+                      total_tokens: 250000
+                      est_cost: 1.234567
+                      positive_feedback: 10
+                      negative_feedback: 1
+                      unique_users: 4
+                      active_agents: 3
+                    lifetime_summary:
+                      total_requests: 120
+                      success_rate: 97.5
+                      avg_response: 1830
+                      failed_runs: 3
+                      total_tokens: 250000
+                      est_cost: 1.234567
+                      positive_feedback: 10
+                      negative_feedback: 1
+                    requests_over_time: []
+                    response_time: []
+                    agents:
+                      - bridge_id: 6650f1c2a1b2c3d4e5f60789
+                        name: Support Bot
+                        total_requests: 60
+                    users:
+                      - user_id: "101"
+                        name: Jane
+                        email: jane@example.com
+                        external_user_id: customer_42
+                        agent_count: 1
+                        total_requests: 60
+                        success_rate: 98.3
+                        failed_runs: 1
+                        total_tokens: 120000
+                        est_cost: 0.5
+                        positive_feedback: 3
+                        negative_feedback: 0
+                        thread_count: 12
+                        last_active: "2025-01-07T12:00:00.000Z"
+                        agents: []
+                    users_pagination:
+                      page: 1
+                      limit: 5
+                      total: 4
+                      total_pages: 1
+                      search: ""
+                    meta:
+                      queried_bridge_ids: 3
+                      lifetime_requests: 120
+                      range_requests: 120
+        "404":
+          description: Folder not found
+          content:
+            application/json:
+              examples:
+                Folder_not_found:
+                  summary: Folder not found
+                  value:
+                    success: false
+                    message: Embed folder not found
+        "400":
+          description: Not an embed folder
+          content:
+            application/json:
+              examples:
+                Not_an_embed_folder:
+                  summary: Not an embed folder
+                  value:
+                    success: false
+                    message: Folder is not an embed integration
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: end_date must be after start_date
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /analytics/agent/{bridge_id}:
+    get:
+      summary: Get Agent Analytics
+      description: |-
+        Returns a page of the agent's recent conversation threads (from conversation logs, scoped to the caller's org), optionally filtered; with keyword/filter_by it also returns matching messages and sub-threads per thread. When analytics=true and page=1 it also starts a background aggregation and pushes the dashboard data (messages of type summary, requests_over_time, response_time) over the RTLayer channel returned as `channel` ('<org_id>_<bridge_id>_<user_id>'). Note: total_user_feedback_count is currently not populated by the thread query. 500 on failure.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: bridge_id
+          in: path
+          required: true
+          description: agent (bridge) id, from List Agents
+          schema:
+            type: string
+        - name: range
+          in: query
+          required: false
+          description: optional; integer days 1-365, or string like '24h' / '7d'; default 7d; ignored when both start_date and end_date are set
+          schema:
+            type: string
+          example: 7d
+        - name: interval
+          in: query
+          required: false
+          description: string like '1h' or '1d', optional, chart bucket size (default hour if window <= 72h, else day)
+          schema:
+            type: string
+          example: 1h
+        - name: start_date
+          in: query
+          required: false
+          description: ISO date, optional, window start
+          schema:
+            type: string
+          example: "2025-01-01T00:00:00Z"
+        - name: end_date
+          in: query
+          required: false
+          description: ISO date >= start_date, optional, window end (default now)
+          schema:
+            type: string
+          example: "2025-01-08T00:00:00Z"
+        - name: tool_id
+          in: query
+          required: false
+          description: string (comma-separated) or tool_id[] array, optional, match any
+          schema:
+            type: string
+        - name: model
+          in: query
+          required: false
+          description: string (comma-separated) or array, optional, match any
+          schema:
+            type: string
+        - name: service
+          in: query
+          required: false
+          description: string (comma-separated) or array, optional, match any
+          schema:
+            type: string
+        - name: agent_id
+          in: query
+          required: false
+          description: string or array, optional (not validated), filter by connected agent called
+          schema:
+            type: string
+        - name: knowledgebase_id
+          in: query
+          required: false
+          description: string or array, optional (not validated), filter by knowledge base resource used
+          schema:
+            type: string
+        - name: user_feedback
+          in: query
+          required: false
+          description: good | bad | all, optional, default all; only applied to the background analytics
+          schema:
+            type: string
+          example: all
+        - name: error
+          in: query
+          required: false
+          description: "'true' | 'false', optional, only errored threads when true"
+          schema:
+            type: string
+          example: "false"
+        - name: review_failed
+          in: query
+          required: false
+          description: optional (not validated), filter threads whose review failed
+          schema:
+            type: string
+        - name: version_id
+          in: query
+          required: false
+          description: string, optional, restrict to one agent version
+          schema:
+            type: string
+        - name: testcase_id
+          in: query
+          required: false
+          description: string, optional, restrict to one testcase run
+          schema:
+            type: string
+        - name: keyword
+          in: query
+          required: false
+          description: string 1-500, optional, searches user message, llm message, message_id, thread_id, batch_id
+          schema:
+            type: string
+        - name: message_id
+          in: query
+          required: false
+          description: string, optional, find the thread containing this message
+          schema:
+            type: string
+        - name: filter_by
+          in: query
+          required: false
+          description: object (bracket query syntax), optional, explicit per-column filters
+          schema:
+            type: string
+        - name: analytics
+          in: query
+          required: false
+          description: boolean, optional, default false; true runs the RT dashboard aggregation (page 1 only)
+          schema:
+            type: string
+          example: "false"
+        - name: page
+          in: query
+          required: false
+          description: integer >= 1, optional, default 1
+          schema:
+            type: string
+          example: "1"
+        - name: page_size
+          in: query
+          required: false
+          description: integer 1-100, optional, default 20
+          schema:
+            type: string
+          example: "20"
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    data:
+                      - id: 9876
+                        thread_id: thread_abc
+                        updated_at: "2025-01-07T12:00:00.000Z"
+                    channel: 12345_6650f1c2a1b2c3d4e5f60789_101
+                Success_keyword_search:
+                  summary: Success (keyword search)
+                  value:
+                    success: true
+                    data:
+                      - id: 9876
+                        thread_id: thread_abc
+                        updated_at: "2025-01-07T12:00:00.000Z"
+                        message:
+                          - message_id: msg_1
+                            message: refund please
+                            created_at: "2025-01-07T11:59:00.000Z"
+                        sub_thread:
+                          - sub_thread_id: thread_abc
+                            display_name: thread_abc
+                            messages:
+                              - message_id: msg_1
+                                message: refund please
+        "500":
+          description: Failure
+          content:
+            application/json:
+              examples:
+                Failure:
+                  summary: Failure
+                  value:
+                    success: false
+                    message: Failed to fetch recent threads
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: range must be a valid format like '1h' or '24h'
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true

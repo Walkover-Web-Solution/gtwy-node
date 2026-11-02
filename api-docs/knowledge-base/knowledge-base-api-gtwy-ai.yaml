@@ -1,0 +1,128 @@
+openapi: 3.0.3
+info:
+  title: Knowledge Base
+  version: 1.0.0
+servers:
+  - url: https://api.gtwy.ai
+paths:
+  /rag/query:
+    post:
+      summary: Query Knowledge Base
+      description: |-
+        Runs a semantic search over a RAG knowledge base and returns the matching chunks plus their merged text. Search either a whole collection (collection_id + owner_id) or a single document/resource (doc_id or resource_id; its owner and collection are looked up automatically). Results below the score threshold are dropped. Errors: 422 if neither (collection_id and owner_id) nor doc_id/resource_id is given or top_k/score are out of range; 400 if the resource has no owner or the search fails (body success:false).
+
+        Accepted auth: Authorization (dashboard user JWT) OR proxy_auth_token (proxy / auth 2.0 user token) OR pauthkey (org auth key).
+
+        Body fields:
+        - query: string, required. Natural-language search text.
+        - top_k: integer >= 1, optional (default 2). Max chunks to return.
+        - score: number 0.1-1.0, optional (default 0.1). Minimum similarity score.
+        - collection_id: string, optional. Collection to search; requires owner_id.
+        - owner_id: string, optional. Owner of the collection; required with collection_id.
+        - doc_id: string, optional. Single document (resource) to search; alternative to collection_id+owner_id.
+        - resource_id: string, optional. Same as doc_id (doc_id wins if both sent).
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              query: What is the refund policy?
+              resource_id: 6650a1b2c3d4e5f6a7b8c9f3
+              top_k: 3
+              score: 0.3
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    text: Refunds are issued within 7 days...
+                    results:
+                      - id: chunk-1
+                        score: 0.82
+                        payload:
+                          content: Refunds are issued within 7 days...
+        "400":
+          description: Search failed
+          content:
+            application/json:
+              examples:
+                Search_failed:
+                  summary: Search failed
+                  value:
+                    success: false
+                    text: ""
+                    results: []
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    detail: Validation error
+                    errors:
+                      - type: value_error
+                        loc:
+                          - body
+                        msg: Value error, Either (collection_id and owner_id) or (doc_id / resource_id) must be provided.
+        "401":
+          description: Unauthorized (bad/revoked token or invalid pauthkey)
+          content:
+            application/json:
+              examples:
+                Unauthorized_bad_revoked_token_or_invalid_pauthkey:
+                  summary: Unauthorized (bad/revoked token or invalid pauthkey)
+                  value:
+                    detail: unauthorized user
+        "403":
+          description: Organization disabled
+          content:
+            application/json:
+              examples:
+                Organization_disabled:
+                  summary: Organization disabled
+                  value:
+                    detail: Organization is disabled
+        "404":
+          description: No auth header sent
+          content:
+            application/json:
+              examples:
+                No_auth_header_sent:
+                  summary: No auth header sent
+                  value:
+                    detail: unauthorized user
+      x-docstar-published: true

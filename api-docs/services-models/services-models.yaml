@@ -1,0 +1,645 @@
+openapi: 3.0.3
+info:
+  title: Services & Models
+  version: 1.0.0
+servers:
+  - url: https://db.gtwy.ai/api
+paths:
+  /service:
+    get:
+      summary: List Services
+      description: |-
+        Lists every active LLM provider service in the GTWY services registry with its default model, a display name and whether any of its models are supported by the auto-router. Use it to discover valid service names for agents, API keys and model configs. Returns 401 only if every auth method fails.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token) OR Authorization (chatbot token) OR Authorization (public chatbot/agent token) OR Authorization (chatbot JWT signed with orgAccessToken) OR Authorization (RAG embed JWT).
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: "Accepts any ONE of: (1) GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix. | (2) GTWY chatbot token signed with GTWY's CHATBOTSECRETKEY (issued by Login Chatbot User). Raw or 'Bearer <token>'. | (3) Public chatbot / public agent token signed with GTWY's PUBLIC_CHATBOT_TOKEN (issued by the runagents login endpoints). | (4) Chatbot JWT signed by the customer with the org's orgAccessToken (payload org_id, chatbot_id, user_id). | (5) RAG embed JWT signed by the customer with the org's auth_token (from Get Org Auth Token); payload org_id, folder_id, user_id."
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Get all service successfully
+                    services:
+                      openai:
+                        model: gpt-4o
+                        default_fallback_model: gpt-4o
+                        default_name: Openai
+                        autoRouterSupport: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+    post:
+      summary: Create Service
+      description: |-
+        Registers a new LLM provider service in the global services registry (internal GTWY staff only). Fields describe how the gateway talks to the provider (wire format, SDK client, capabilities, defaults). Returns 409 if service_name already exists, 403 'Access denied: ...' when the caller's email is missing or not allow-listed, and 400 on schema errors (unknown keys are rejected).
+
+        Accepted auth: Authorization (dashboard user JWT).
+
+        Internal only: the caller's email must be in INTERNAL_ALLOWED_EMAILS, so only a dashboard user JWT works (pauthkey / proxy_auth_token carry no email -> 403).
+
+        Body fields:
+        - service_name: string, required, unique service identifier
+        - base_url: string|null, optional, provider API base URL (default null)
+        - wire_format: string, required, e.g. openai_chat | openai_responses | anthropic | gemini | deepgram | typesafe
+        - client: string, required, e.g. openai_sdk | groq_sdk | grok_http | mistral_sdk | openai_completion_sdk | anthropic_sdk | gemini_sdk | deepgram_sdk | minimax_sdk | typesafe_http
+        - supports_streaming: boolean, optional, default false
+        - supports_tool_calls: boolean, optional, default false
+        - supports_stream_usage: boolean, optional, default false
+        - supports_reasoning: boolean, optional, default false
+        - reasoning_param_style: string|null, optional
+        - extra_body: object, optional, extra request body fields
+        - reasoning_extra_body: object, optional
+        - default_model: string|null, optional
+        - default_fallback_model: string|null, optional
+        - prompt_role: string, optional, default 'system'
+        - apikey_status_codes: object, optional
+        - validation_config: object, optional, used to validate API keys
+        - service_keys: object, optional
+        - status: number, optional, 0 | 1 (default 1)
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              service_name: newprovider
+              base_url: https://api.newprovider.ai/v1
+              wire_format: openai_chat
+              client: openai_sdk
+              supports_streaming: true
+              supports_tool_calls: true
+              supports_stream_usage: false
+              supports_reasoning: false
+              reasoning_param_style: null
+              extra_body: {}
+              reasoning_extra_body: {}
+              default_model: np-large
+              default_fallback_model: null
+              prompt_role: system
+              apikey_status_codes: {}
+              validation_config: {}
+              service_keys: {}
+              status: 1
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Service added successfully
+                    result:
+                      _id: 66aa...
+                      service_name: newprovider
+                      wire_format: openai_chat
+                      client: openai_sdk
+                      status: 1
+        "409":
+          description: Conflict
+          content:
+            application/json:
+              examples:
+                Conflict:
+                  summary: Conflict
+                  value:
+                    success: false
+                    message: Service 'newprovider' already exists
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              examples:
+                Forbidden:
+                  summary: Forbidden
+                  value:
+                    success: false
+                    message: "Access denied: you are not authorized for this action"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /service/graphql:
+    post:
+      summary: Query Models (GraphQL)
+      description: |-
+        GraphQL endpoint (graphql-yoga, mounted for all HTTP methods; GET with ?query= also works, GraphiQL disabled) for reading the model catalogue. Schema: Query.services(names:[String!]) returns Service{name, modelNames(types), models(types)}; Query.model(service, name) returns ServiceModel{name, type, configuration{model, additional_parameters}, validationConfig, outputConfig, org_id}. ModelType enum: chat, fine_tune, reasoning, image, embedding. Only models with status 1 are returned. Responses use standard GraphQL {data, errors} format, not the REST envelope.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token) OR Authorization (chatbot token) OR Authorization (public chatbot/agent token) OR Authorization (chatbot JWT signed with orgAccessToken) OR Authorization (RAG embed JWT).
+
+        Body fields:
+        - query: string, required, GraphQL query
+        - variables: object, optional, GraphQL variables
+        - operationName: string, optional
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: "Accepts any ONE of: (1) GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix. | (2) GTWY chatbot token signed with GTWY's CHATBOTSECRETKEY (issued by Login Chatbot User). Raw or 'Bearer <token>'. | (3) Public chatbot / public agent token signed with GTWY's PUBLIC_CHATBOT_TOKEN (issued by the runagents login endpoints). | (4) Chatbot JWT signed by the customer with the org's orgAccessToken (payload org_id, chatbot_id, user_id). | (5) RAG embed JWT signed by the customer with the org's auth_token (from Get Org Auth Token); payload org_id, folder_id, user_id."
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              query: query($names:[String!]){ services(names:$names){ name modelNames(types:[chat]) } }
+              variables:
+                names:
+                  - openai
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    data:
+                      services:
+                        - name: openai
+                          modelNames:
+                            - gpt-4o
+                            - gpt-4o-mini
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /service/{service}:
+    get:
+      summary: List Service Models
+      description: |-
+        Returns all enabled (status 1) models for one service, grouped by type (chat, fine-tune, reasoning, image, embedding). Each model has configuration.model, configuration.additional_parameters (all other configurable params), validationConfig, outputConfig, org_id and created_at. The service name is lower-cased; an unknown service returns 200 with an empty object {}.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token) OR Authorization (chatbot token) OR Authorization (public chatbot/agent token) OR Authorization (chatbot JWT signed with orgAccessToken) OR Authorization (RAG embed JWT).
+      parameters:
+        - name: service
+          in: path
+          required: true
+          description: Service name, e.g. openai (from List Services)
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: "Accepts any ONE of: (1) GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix. | (2) GTWY chatbot token signed with GTWY's CHATBOTSECRETKEY (issued by Login Chatbot User). Raw or 'Bearer <token>'. | (3) Public chatbot / public agent token signed with GTWY's PUBLIC_CHATBOT_TOKEN (issued by the runagents login endpoints). | (4) Chatbot JWT signed by the customer with the org's orgAccessToken (payload org_id, chatbot_id, user_id). | (5) RAG embed JWT signed by the customer with the org's auth_token (from Get Org Auth Token); payload org_id, folder_id, user_id."
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    chat:
+                      gpt-4o:
+                        configuration:
+                          model:
+                            field: drop
+                            default: gpt-4o
+                            level: 1
+                          additional_parameters:
+                            temperature:
+                              field: slider
+                              min: 0
+                              max: 2
+                              default: 1
+                        validationConfig:
+                          type: chat
+                          tools: true
+                        outputConfig: {}
+                        org_id: null
+                        created_at: "2025-01-01T00:00:00.000Z"
+                    fine-tune: {}
+                    reasoning: {}
+                    image: {}
+                    embedding: {}
+                Unknown_Service:
+                  summary: Unknown Service
+                  value: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /models:
+    post:
+      summary: Create Model Config
+      description: |-
+        Adds a model to the model catalogue for a service, defining its configurable parameters, response mapping and capabilities. The model is first checked live against the provider's model list; unsupported models return 400 "Model '<name>' is not supported by service '<service>'" and an existing service+model_name returns 400 '... already exists'. configuration.model.default must equal model_name and model_name cannot contain spaces. Model configs are stored by service + model_name without an org_id, so they are shared across all orgs.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Body fields:
+        - service: string, required, registered service name (see List Services)
+        - model_name: string, required, no spaces
+        - status: number, required, 0 (disabled) | 1 (enabled)
+        - configuration: object, required, parameter definitions; must contain model.default equal to model_name; other keys become additional_parameters
+        - outputConfig: object, required, how to read the provider response
+        - validationConfig: object, required, model capabilities (e.g. type chat|reasoning|image|embedding|fine-tune, tools, vision, files)
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              service: openai
+              model_name: gpt-4.1-nano
+              status: 1
+              configuration:
+                model:
+                  field: drop
+                  default: gpt-4.1-nano
+                  level: 1
+                temperature:
+                  field: slider
+                  min: 0
+                  max: 2
+                  step: 0.1
+                  default: 1
+                  level: 2
+              outputConfig:
+                usage:
+                  - prompt_tokens: usage.prompt_tokens
+                    completion_tokens: usage.completion_tokens
+                message: choices[0].message.content
+              validationConfig:
+                type: chat
+                tools: true
+                vision: false
+                files: false
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Model configuration saved successfully
+                    result:
+                      service: openai
+                      model_name: gpt-4.1-nano
+                      status: 1
+                      configuration:
+                        model:
+                          field: drop
+                          default: gpt-4.1-nano
+                          level: 1
+                        temperature:
+                          field: slider
+                          min: 0
+                          max: 2
+                          step: 0.1
+                          default: 1
+                          level: 2
+                      outputConfig:
+                        usage:
+                          - prompt_tokens: usage.prompt_tokens
+                            completion_tokens: usage.completion_tokens
+                        message: choices[0].message.content
+                      validationConfig:
+                        type: chat
+                        tools: true
+                        vision: false
+                        files: false
+                      id: 6658aa11bb22cc33dd44ee55
+        "400":
+          description: Unsupported
+          content:
+            application/json:
+              examples:
+                Unsupported:
+                  summary: Unsupported
+                  value:
+                    message: Model 'gpt-4.1-nano' is not supported by service 'openai'
+                    data: {}
+                Validation_Error:
+                  summary: Validation Error
+                  value:
+                    message: configuration.model.default must be the same as model_name
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+    put:
+      summary: Update Model Config
+      description: |-
+        Patches an existing model config identified by the model_name and service query params. Only keys under configuration.*, outputConfig.*, validationConfig.* and status are applied (configuration.model cannot be changed; disallowed keys are skipped). The model is re-checked against the provider first (400 if unsupported). Returns 400 {success:false,message:'keyError'} when no allowed keys are sent and {message:'documentNotFound'} when the model config does not exist; result is true when something changed. Model configs are stored by service + model_name without an org_id, so they are shared across all orgs.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Body fields:
+        - configuration: object, optional, nested parameter changes (configuration.model is blocked)
+        - outputConfig: object, optional
+        - validationConfig: object, optional
+        - status: number, optional, 0 | 1
+        - service / model_name: optional; validated but not applied (identifiers come from the query)
+      parameters:
+        - name: model_name
+          in: query
+          required: true
+          description: string, required, model to update
+          schema:
+            type: string
+          example: gpt-4.1-nano
+        - name: service
+          in: query
+          required: true
+          description: string, required, registered service name
+          schema:
+            type: string
+          example: openai
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              configuration:
+                temperature:
+                  default: 0.7
+              validationConfig:
+                vision: true
+              status: 1
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Model configuration updated successfully
+                    result: true
+        "400":
+          description: Not Found
+          content:
+            application/json:
+              examples:
+                Not_Found:
+                  summary: Not Found
+                  value:
+                    success: false
+                    message: documentNotFound
+                Validation_Error:
+                  summary: Validation Error
+                  value:
+                    message: model_name is required
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+    delete:
+      summary: Delete Model Config
+      description: |-
+        Disables (soft-deletes, sets status 0) a model config identified by model_name and service. Refused with 409 when any agent or version in the caller's org still uses the model (usageDetails lists them); 404 when no such model config exists. Model configs are stored by service + model_name without an org_id, so they are shared across all orgs.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: model_name
+          in: query
+          required: true
+          description: string, required, model to disable
+          schema:
+            type: string
+          example: gpt-4.1-nano
+        - name: service
+          in: query
+          required: true
+          description: string, required, registered service name
+          schema:
+            type: string
+          example: openai
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Model configuration 'gpt-4.1-nano' for service 'openai' disabled successfully.
+        "409":
+          description: In Use
+          content:
+            application/json:
+              examples:
+                In_Use:
+                  summary: In Use
+                  value:
+                    success: false
+                    error: Cannot delete model configuration as it is currently in use
+                    usageDetails:
+                      agents:
+                        - id: 6650aa11bb22cc33dd44ee55
+                          name: Support Bot
+                      versions: []
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              examples:
+                Not_Found:
+                  summary: Not Found
+                  value:
+                    success: false
+                    message: Model configuration not found.
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true

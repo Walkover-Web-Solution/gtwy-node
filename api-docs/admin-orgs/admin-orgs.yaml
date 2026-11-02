@@ -1,0 +1,686 @@
+openapi: 3.0.3
+info:
+  title: "Admin: Orgs"
+  version: 1.0.0
+servers:
+  - url: https://db.gtwy.ai/api
+paths:
+  /internal-orgs/access:
+    get:
+      summary: Check Internal Dashboard Access
+      description: |-
+        Lets the internal credits dashboard check whether the current token belongs to an allowlisted operator before showing anything. Returns allowed=true and the email; otherwise 403 (or 401 for a bad token).
+
+        Accepted auth: Authorization (dashboard user JWT).
+
+        Internal only: the caller's email must be in INTERNAL_ALLOWED_EMAILS, so only a dashboard user JWT works (pauthkey / proxy_auth_token carry no email -> 403).
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    data:
+                      allowed: true
+                      email: ops@gtwy.ai
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Forbidden (not an internal operator)
+          content:
+            application/json:
+              examples:
+                Forbidden_not_an_internal_operator:
+                  summary: Forbidden (not an internal operator)
+                  value:
+                    success: false
+                    message: "Access denied: you are not authorized for this action"
+      x-docstar-published: true
+  /internal-orgs:
+    get:
+      summary: List Internal Orgs
+      description: |-
+        Lists GTWY's own internal orgs with live credit info per org: plan, subscription fee, wallet balance, usage this period, spendable credits, the request gate's cached balance and wallet count. A Lago failure for one org is reported in that row's error field rather than failing the list. Internal operators only. Errors: 401; 403.
+
+        Accepted auth: Authorization (dashboard user JWT).
+
+        Internal only: the caller's email must be in INTERNAL_ALLOWED_EMAILS, so only a dashboard user JWT works (pauthkey / proxy_auth_token carry no email -> 403).
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    data:
+                      - org_id: "12345"
+                        name: GTWY Internal
+                        added_by: ops@gtwy.ai
+                        added_at: "2026-09-01T00:00:00.000Z"
+                        plan: paid
+                        plan_code: gtwy_paid
+                        fee_cents: 0
+                        has_wallet: true
+                        balance: 2440
+                        used_this_period: 240
+                        spendable: 2200
+                        gate_balance: 2200
+                        rate_amount: 0.01
+                        wallet_count: 1
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Forbidden (not an internal operator)
+          content:
+            application/json:
+              examples:
+                Forbidden_not_an_internal_operator:
+                  summary: Forbidden (not an internal operator)
+                  value:
+                    success: false
+                    message: "Access denied: you are not authorized for this action"
+      x-docstar-published: true
+    post:
+      summary: Add Internal Org
+      description: |-
+        Adds an org to the internal-orgs list so the dashboard can grant it credits. The org must exist in MSG91 and already have a Lago wallet. Adding an org already listed returns 200 with its row. Internal operators only. Errors: 404 org not found in MSG91; 400 org has no Lago wallet or invalid org_id; 401; 403.
+
+        Accepted auth: Authorization (dashboard user JWT).
+
+        Internal only: the caller's email must be in INTERNAL_ALLOWED_EMAILS, so only a dashboard user JWT works (pauthkey / proxy_auth_token carry no email -> 403).
+
+        Body fields:
+        - org_id: string (1-64 chars of A-Za-z0-9_-) or positive integer, required.
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: JSON request body
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              org_id: "12345"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              examples:
+                Created:
+                  summary: Created
+                  value:
+                    success: true
+                    message: org 12345 added
+                    data:
+                      org_id: "12345"
+                      name: GTWY Internal
+                      added_by: ops@gtwy.ai
+                      added_at: "2026-09-01T00:00:00.000Z"
+                      plan: paid
+                      plan_code: gtwy_paid
+                      fee_cents: 0
+                      has_wallet: true
+                      balance: 2440
+                      used_this_period: 240
+                      spendable: 2200
+                      gate_balance: 2200
+                      rate_amount: 0.01
+                      wallet_count: 1
+        "200":
+          description: Already listed
+          content:
+            application/json:
+              examples:
+                Already_listed:
+                  summary: Already listed
+                  value:
+                    success: true
+                    message: org 12345 is already internal
+                    data:
+                      org_id: "12345"
+                      name: GTWY Internal
+                      added_by: ops@gtwy.ai
+                      added_at: "2026-09-01T00:00:00.000Z"
+                      plan: paid
+                      plan_code: gtwy_paid
+                      fee_cents: 0
+                      has_wallet: true
+                      balance: 2440
+                      used_this_period: 240
+                      spendable: 2200
+                      gate_balance: 2200
+                      rate_amount: 0.01
+                      wallet_count: 1
+        "404":
+          description: Org not found
+          content:
+            application/json:
+              examples:
+                Org_not_found:
+                  summary: Org not found
+                  value:
+                    success: false
+                    message: org 12345 was not found in MSG91
+        "400":
+          description: No wallet
+          content:
+            application/json:
+              examples:
+                No_wallet:
+                  summary: No wallet
+                  value:
+                    success: false
+                    message: org 12345 has no Lago wallet — provision it first
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Forbidden (not an internal operator)
+          content:
+            application/json:
+              examples:
+                Forbidden_not_an_internal_operator:
+                  summary: Forbidden (not an internal operator)
+                  value:
+                    success: false
+                    message: "Access denied: you are not authorized for this action"
+      x-docstar-published: true
+  /internal-orgs/{org_id}:
+    delete:
+      summary: Remove Internal Org
+      description: |-
+        Removes an org from the internal-orgs list. Its wallet and plan are not changed. Internal operators only. Errors: 404 org not in the list; 400 invalid org_id; 401; 403.
+
+        Accepted auth: Authorization (dashboard user JWT).
+
+        Internal only: the caller's email must be in INTERNAL_ALLOWED_EMAILS, so only a dashboard user JWT works (pauthkey / proxy_auth_token carry no email -> 403).
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          description: string (1-64 chars of A-Za-z0-9_-) or positive integer, required. Org id from List Internal Orgs.
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: org 12345 removed from the internal list (wallet and plan untouched)
+        "404":
+          description: Not an internal org
+          content:
+            application/json:
+              examples:
+                Not_an_internal_org:
+                  summary: Not an internal org
+                  value:
+                    success: false
+                    message: org 12345 is not in the internal list
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Forbidden (not an internal operator)
+          content:
+            application/json:
+              examples:
+                Forbidden_not_an_internal_operator:
+                  summary: Forbidden (not an internal operator)
+                  value:
+                    success: false
+                    message: "Access denied: you are not authorized for this action"
+      x-docstar-published: true
+  /internal-orgs/{org_id}/transactions:
+    get:
+      summary: List Internal Org Wallet Transactions
+      description: |-
+        Lists recent Lago wallet transactions (credits in/out) for a listed internal org, newest first; empty array if it has no active wallet. Internal operators only. Errors: 404 org not in the internal list; 400 invalid org_id or limit; 401; 403.
+
+        Accepted auth: Authorization (dashboard user JWT).
+
+        Internal only: the caller's email must be in INTERNAL_ALLOWED_EMAILS, so only a dashboard user JWT works (pauthkey / proxy_auth_token carry no email -> 403).
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          description: string (1-64 chars of A-Za-z0-9_-) or positive integer, required. Org id from List Internal Orgs.
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          description: integer, optional (default 10, 1-50). Number of transactions.
+          schema:
+            type: string
+          example: "10"
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    data:
+                      - lago_id: "..."
+                        direction: inbound
+                        status: settled
+                        credits: "500.0"
+                        source: manual
+                        created_at: "2026-10-20T10:00:00Z"
+                        settled_at: "2026-10-20T10:00:01Z"
+                        metadata:
+                          source: internal-dashboard
+                          by: ops@gtwy.ai
+                          reason: load testing
+                          reference_id: grant-8f2a1c9d
+        "404":
+          description: Not an internal org
+          content:
+            application/json:
+              examples:
+                Not_an_internal_org:
+                  summary: Not an internal org
+                  value:
+                    success: false
+                    message: org 12345 is not in the internal list
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Forbidden (not an internal operator)
+          content:
+            application/json:
+              examples:
+                Forbidden_not_an_internal_operator:
+                  summary: Forbidden (not an internal operator)
+                  value:
+                    success: false
+                    message: "Access denied: you are not authorized for this action"
+      x-docstar-published: true
+  /internal-orgs/{org_id}/credits:
+    post:
+      summary: Grant Internal Org Credits
+      description: |-
+        Grants free credits to a listed internal org's Lago wallet and resyncs the request gate's Redis balance. Only orgs on the internal list can be topped up (never customers). reference_id makes it idempotent: a retry with the same id adds nothing (duplicate=true). Internal operators only. Errors: 400 validation (credits must be a whole number 1-1,000,000; reason and reference_id required); 404 org not in internal list; 401; 403.
+
+        Accepted auth: Authorization (dashboard user JWT).
+
+        Internal only: the caller's email must be in INTERNAL_ALLOWED_EMAILS, so only a dashboard user JWT works (pauthkey / proxy_auth_token carry no email -> 403).
+
+        Body fields:
+        - credits: integer, required, 1-1000000. Credits to add.
+        - reason: string, required, 1-200 chars. Audit reason stored on the transaction.
+        - reference_id: string, required, 8-100 chars. Client-generated idempotency key.
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          description: string (1-64 chars of A-Za-z0-9_-) or positive integer, required. Org id from List Internal Orgs.
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: JSON request body
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              credits: 5000
+              reason: load testing
+              reference_id: grant-8f2a1c9d
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: added 5000 credits
+                    data:
+                      org_id: "12345"
+                      credits_added: 5000
+                      duplicate: false
+                      synced_balance: 7200
+                      gate_balance: 7200
+                Duplicate:
+                  summary: Duplicate
+                  value:
+                    success: true
+                    message: already applied for this reference_id — nothing added
+                    data:
+                      org_id: "12345"
+                      credits_added: 0
+                      duplicate: true
+                      synced_balance: 7200
+                      gate_balance: 7200
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: at most 1000000 credits per grant
+                    data: {}
+        "404":
+          description: Not an internal org
+          content:
+            application/json:
+              examples:
+                Not_an_internal_org:
+                  summary: Not an internal org
+                  value:
+                    success: false
+                    message: org 12345 is not in the internal list
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Forbidden (not an internal operator)
+          content:
+            application/json:
+              examples:
+                Forbidden_not_an_internal_operator:
+                  summary: Forbidden (not an internal operator)
+                  value:
+                    success: false
+                    message: "Access denied: you are not authorized for this action"
+      x-docstar-published: true
+  /block_org:
+    post:
+      summary: Block Org
+      description: |-
+        Blocks an organization: upserts a blocked_orgs record (reason, blocked_by = caller's user id) and adds the org id to the Redis blocked-orgs set used to refuse its requests. Internal operators only. Errors: 400 missing org_id; 401; 403.
+
+        Accepted auth: Authorization (dashboard user JWT).
+
+        Internal only: the caller's email must be in INTERNAL_ALLOWED_EMAILS, so only a dashboard user JWT works (pauthkey / proxy_auth_token carry no email -> 403).
+
+        Body fields:
+        - org_id: string, required. Org to block.
+        - reason: string, optional, may be null or empty.
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: JSON request body
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              org_id: "12345"
+              reason: abuse
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Organization blocked successfully
+                    data:
+                      _id: "..."
+                      org_id: "12345"
+                      reason: abuse
+                      blocked_by: "678"
+                      createdAt: "2026-10-23T00:00:00.000Z"
+                      updatedAt: "2026-10-23T00:00:00.000Z"
+                      __v: 0
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: '"org_id" is required'
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Forbidden (not an internal operator)
+          content:
+            application/json:
+              examples:
+                Forbidden_not_an_internal_operator:
+                  summary: Forbidden (not an internal operator)
+                  value:
+                    success: false
+                    message: "Access denied: you are not authorized for this action"
+      x-docstar-published: true
+    get:
+      summary: List Blocked Orgs
+      description: |-
+        Lists all blocked organizations (every record, not filtered to the caller's org). Any authenticated caller can read it; the GTWY frontend uses it to show a blocked-org state. Errors: 401.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    data:
+                      - _id: "..."
+                        org_id: "12345"
+                        reason: abuse
+                        blocked_by: "678"
+                        createdAt: "2026-10-23T00:00:00.000Z"
+                        updatedAt: "2026-10-23T00:00:00.000Z"
+                        __v: 0
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /block_org/{org_id}:
+    delete:
+      summary: Unblock Org
+      description: |-
+        Unblocks an organization: deletes its blocked_orgs record and removes it from the Redis blocked-orgs set. Returns success even if the org was not blocked. Internal operators only. Errors: 401; 403.
+
+        Accepted auth: Authorization (dashboard user JWT).
+
+        Internal only: the caller's email must be in INTERNAL_ALLOWED_EMAILS, so only a dashboard user JWT works (pauthkey / proxy_auth_token carry no email -> 403).
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          description: string, required. Org to unblock, from List Blocked Orgs.
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Organization unblocked successfully
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Forbidden (not an internal operator)
+          content:
+            application/json:
+              examples:
+                Forbidden_not_an_internal_operator:
+                  summary: Forbidden (not an internal operator)
+                  value:
+                    success: false
+                    message: "Access denied: you are not authorized for this action"
+      x-docstar-published: true

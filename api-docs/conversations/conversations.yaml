@@ -1,0 +1,673 @@
+openapi: 3.0.3
+info:
+  title: Conversations
+  version: 1.0.0
+servers:
+  - url: https://db.gtwy.ai/api
+paths:
+  /v1/config/threads/{thread_id}/{sub_thread_id}/{bridge_id}:
+    post:
+      summary: Add Assistant Message To Thread
+      description: |-
+        Inserts a message into a thread's conversation log as an assistant message (e.g. to inject a human-agent or system reply into history). The sub_thread_id segment is optional: POST /api/v1/config/threads/:thread_id/:bridge_id also works and uses thread_id as the sub-thread. The agent's configured model is recorded with the message. Errors: 422 {success:false,error:[...]} if bridge_id is not a 24-hex ObjectId or the agent has no configuration.model; 400 validation (message required); 401.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Body fields:
+        - message: string, required; assistant message text to store
+      parameters:
+        - name: thread_id
+          in: path
+          required: true
+          description: Thread id
+          schema:
+            type: string
+        - name: sub_thread_id
+          in: path
+          required: true
+          description: Optional sub-thread id; omit the segment to use thread_id
+          schema:
+            type: string
+        - name: bridge_id
+          in: path
+          required: true
+          description: Agent _id (24-hex ObjectId) from List Agents
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              message: A support specialist will contact you shortly.
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    id: 1300
+                    org_id: "12345"
+                    llm_message: A support specialist will contact you shortly.
+                    thread_id: thread_abc
+                    sub_thread_id: thread_abc
+                    bridge_id: 665f1c2e8b3a4d0012ab34cd
+                    message_id: 0b7c4b0e-6f0e-4d3c-9b1f-1d2e3f4a5b6c
+                    model: gpt-5-nano
+                    status: false
+                    user_feedback: 0
+                    tools_call_data: []
+                    created_at: "2026-10-20T10:05:00.000Z"
+        "422":
+          description: Schema error
+          content:
+            application/json:
+              examples:
+                Schema_error:
+                  summary: Schema error
+                  value:
+                    success: false
+                    error:
+                      - message: '"model_name" is required'
+                        path:
+                          - model_name
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: '"message" is required'
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /v1/config/history/sub-thread/{thread_id}:
+    get:
+      summary: List Sub Threads
+      description: |-
+        Lists the sub-threads of a thread for an agent, with display names, ordered by most recent activity. Note: unless error=false is passed explicitly, only sub-threads containing errored messages are returned (error defaults to true in code), and the response then omits updated_at. Passing version_id also restricts to that version. Errors: 400 validation, 401.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: thread_id
+          in: path
+          required: true
+          description: Thread id
+          schema:
+            type: string
+        - name: bridge_id
+          in: query
+          required: false
+          description: ObjectId, optional but needed in practice; agent _id
+          schema:
+            type: string
+          example: 665f1c2e8b3a4d0012ab34cd
+        - name: error
+          in: query
+          required: false
+          description: string, optional; 'false' returns all sub-threads, any other value/absent returns only sub-threads with errors
+          schema:
+            type: string
+          example: "false"
+        - name: version_id
+          in: query
+          required: false
+          description: ObjectId, optional; restrict to one version
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success (error=false)
+          content:
+            application/json:
+              examples:
+                Success_error_false:
+                  summary: Success (error=false)
+                  value:
+                    threads:
+                      - thread_id: thread_abc
+                        sub_thread_id: thread_abc
+                        display_name: Password help
+                        updated_at: "2026-10-20T10:05:00.000Z"
+                    success: true
+                Success_errors_only:
+                  summary: Success (errors only)
+                  value:
+                    threads:
+                      - sub_thread_id: thread_abc
+                        display_name: Password help
+                    success: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /v1/config/getFineTuneData/{bridge_id}:
+    post:
+      summary: Download Fine Tune Data
+      description: |-
+        Builds an OpenAI fine-tuning dataset (JSONL, returned as text/plain) from the given threads of an agent: system prompt plus user/assistant (and tool call) turns, using edited assistant messages where present (weight 1). Caution: the route validation declares user_feedback as a string while the controller then requires an array of numbers (0, 1, 2), so as currently written requests appear to be rejected either way (400 for an array, 422 for a string or missing value). Errors: 400/422 validation, 401.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Body fields:
+        - thread_ids: string[], required; threads to include
+        - user_feedback: feedback filter; route validation expects a string, controller expects array of 0|1|2 (0 = none, 1 = thumbs up, 2 = thumbs down) - see description
+      parameters:
+        - name: bridge_id
+          in: path
+          required: true
+          description: Agent _id (24-hex ObjectId)
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              thread_ids:
+                - thread_abc
+                - thread_def
+              user_feedback:
+                - 0
+                - 1
+      responses:
+        "200":
+          description: Success (text/plain JSONL)
+          content:
+            application/json:
+              examples:
+                Success_text_plain_JSONL:
+                  summary: Success (text/plain JSONL)
+                  value: '{"messages":[{"role":"system","content":"You are..."},{"role":"user","content":"Hi"},{"role":"assistant","content":"Hello!"}]}'
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: '"user_feedback" must be a string'
+                    data: {}
+        "422":
+          description: Controller schema error
+          content:
+            application/json:
+              examples:
+                Controller_schema_error:
+                  summary: Controller schema error
+                  value:
+                    message: '"user_feedback" must be an array'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /v1/config/gethistory/{bridge_id}:
+    put:
+      summary: Edit Assistant Message
+      description: |-
+        Saves an edited version of an assistant reply (stored as updated_llm_message on the conversation log row) for an agent in the caller's org; edited replies are used in fine-tune exports. id is the numeric conversation log row id (the Id field from history). Errors: 400 {success:false,message:'No matching record found to update.'} or validation error, 401.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Body fields:
+        - id: number, required; conversation log row id
+        - message: string, required; corrected assistant message
+      parameters:
+        - name: bridge_id
+          in: path
+          required: true
+          description: Agent _id (24-hex ObjectId)
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              id: 1201
+              message: Open Settings > Security, then click 'Reset password'.
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    result:
+                      - id: 1201
+                        org_id: "12345"
+                        thread_id: thread_abc
+                        model_name: gpt-5-nano
+                        bridge_id: 665f1c2e8b3a4d0012ab34cd
+                        content: Go to Settings > Security and click Reset.
+                        role: user
+                        function: null
+                        updated_message: Open Settings > Security, then click 'Reset password'.
+                        type: null
+                        createdAt: "2026-10-20T10:00:00.000Z"
+                        updatedAt: "2026-10-21T08:00:00.000Z"
+        "400":
+          description: Not found
+          content:
+            application/json:
+              examples:
+                Not_found:
+                  summary: Not found
+                  value:
+                    success: false
+                    message: No matching record found to update.
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /v1/config/status/{status}:
+    put:
+      summary: Set Message Feedback
+      description: |-
+        Records end-user feedback on a chatbot reply by setting user_feedback on the message identified by message_id. status '2' (thumbs down) also sends a 'User reacted thumbs down on response' alert for agent_id. Returns success:true even if no row matched. Errors: 400 validation, 401/498 auth.
+
+        Accepted auth: Authorization (chatbot token).
+
+        Body fields:
+        - message_id: string, required; message id from history
+        - agent_id: ObjectId, optional; agent id, used for the thumbs-down alert
+      parameters:
+        - name: status
+          in: path
+          required: true
+          description: "Feedback value: '1' = thumbs up, '2' = thumbs down ('0' = none)"
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY chatbot token signed with GTWY's CHATBOTSECRETKEY (issued by Login Chatbot User). Raw or 'Bearer <token>'.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              message_id: b1c2d3
+              agent_id: 665f1c2e8b3a4d0012ab34cd
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    result:
+                      - id: 1201
+                        message_id: b1c2d3
+                        user_feedback: 2
+                No_match:
+                  summary: No match
+                  value:
+                    success: true
+                    message: No matching record found to update.
+        "498":
+          description: Missing token
+          content:
+            application/json:
+              examples:
+                Missing_token:
+                  summary: Missing token
+                  value:
+                    message: invalid token
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /v1/config/threads/{thread_id}/{bridge_id}:
+    get:
+      summary: Get Thread History
+      description: |-
+        Returns the paginated conversation history of a thread for an agent in the caller's org, formatted as alternating user and assistant messages (newest page first by created time). sub_thread_id defaults to thread_id. Intended for external API users (e.g. with pauthkey) to read their own chat history. On a database error the body contains success:false with status 200. Errors: 400 validation, 401.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: thread_id
+          in: path
+          required: true
+          description: Thread id used when chatting with the agent
+          schema:
+            type: string
+        - name: bridge_id
+          in: path
+          required: true
+          description: Agent _id (from List Agents); no slug resolution on this path
+          schema:
+            type: string
+        - name: pageNo
+          in: query
+          required: false
+          description: integer, optional, default 1
+          schema:
+            type: string
+          example: "1"
+        - name: limit
+          in: query
+          required: false
+          description: integer, optional, default 30; page size
+          schema:
+            type: string
+          example: "30"
+        - name: sub_thread_id
+          in: query
+          required: false
+          description: string, optional; sub-thread id, defaults to thread_id
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    data:
+                      - Id: 1201
+                        content: How do I reset my password?
+                        role: user
+                        createdAt: "2026-10-20T10:00:00.000Z"
+                        chatbot_message: null
+                        tools_call_data: null
+                        user_feedback: null
+                        sub_thread_id: thread_abc
+                        image_urls: []
+                        urls: null
+                        message_id: b1c2d3
+                        error: ""
+                      - Id: 1201_llm
+                        content: Go to Settings > Security and click Reset.
+                        role: assistant
+                        createdAt: "2026-10-20T10:00:00.000Z"
+                        chatbot_message: ""
+                        tools_call_data: null
+                        user_feedback: null
+                        sub_thread_id: thread_abc
+                        image_urls: null
+                        urls: null
+                        message_id: b1c2d3_llm
+                        fallback_model: ""
+                        plans: null
+                        error: ""
+                    totalPages: 1
+                    totalEnteries: 1
+                    starterQuestion: []
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /v1/config/get-message-history/{thread_id}/{bridge_id}:
+    get:
+      summary: Get Thread Messages
+      description: |-
+        Returns a thread's messages for an agent in the caller's org as a simple list of {content, role, createdAt, id, tools_call_data, image_urls}, oldest first. Without pageNo and limit all messages are returned. Errors: 422 if bridge_id is not a valid ObjectId, 400 validation, 401.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: thread_id
+          in: path
+          required: true
+          description: Thread id
+          schema:
+            type: string
+        - name: bridge_id
+          in: path
+          required: true
+          description: Agent _id (24-hex ObjectId)
+          schema:
+            type: string
+        - name: pageNo
+          in: query
+          required: false
+          description: integer, optional; page number (used only with limit)
+          schema:
+            type: string
+          example: "1"
+        - name: limit
+          in: query
+          required: false
+          description: integer, optional; page size
+          schema:
+            type: string
+          example: "50"
+        - name: sub_thread_id
+          in: query
+          required: false
+          description: string, optional; defaults to thread_id
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    data:
+                      - content: How do I reset my password?
+                        role: user
+                        createdAt: "2026-10-20T10:00:00.000Z"
+                        id: 1201
+                        is_reset: null
+                        tools_call_data: []
+                        image_urls: []
+        "422":
+          description: Invalid bridge_id
+          content:
+            application/json:
+              examples:
+                Invalid_bridge_id:
+                  summary: Invalid bridge_id
+                  value:
+                    message: '"bridge_id" with value "abc" fails to match the valid mongo id pattern'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true

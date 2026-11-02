@@ -1,0 +1,68 @@
+openapi: 3.0.3
+info:
+  title: Browser
+  version: 1.0.0
+servers:
+  - url: https://api.gtwy.ai
+paths:
+  /browser/live/{token}:
+    get:
+      summary: Open Browser Live View
+      description: |-
+        Permanent link to a conversation's GTWY browser tab (agent built-in browser tool). The token is a signed JWT (valid 30 days) embedded in browser_handoff events/chat history; the server resolves the conversation's current tab and redirects (302) to the live interactive view. Returns small HTML pages instead of JSON: 400 invalid token, 410 expired token, 404 no browser open for the conversation (tab closed after inactivity or browser restarted), 503 view unavailable.
+
+        Accepted auth: none (public).
+      parameters:
+        - name: token
+          in: path
+          required: true
+          description: Signed live-view token from a browser_handoff live_url (not created by callers).
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Redirect to live tab
+          content:
+            application/json:
+              examples:
+                Redirect_to_live_tab:
+                  summary: Redirect to live tab
+                  value:
+                    Location: <steel live view url with pageId>
+        "400":
+          description: Invalid link (HTML)
+          content:
+            application/json:
+              examples:
+                Invalid_link_HTML:
+                  summary: Invalid link (HTML)
+                  value:
+                    html: This link is not valid
+        "404":
+          description: No browser open (HTML)
+          content:
+            application/json:
+              examples:
+                No_browser_open_HTML:
+                  summary: No browser open (HTML)
+                  value:
+                    html: No browser is open for this conversation
+        "410":
+          description: Expired (HTML)
+          content:
+            application/json:
+              examples:
+                Expired_HTML:
+                  summary: Expired (HTML)
+                  value:
+                    html: This link has expired
+        "503":
+          description: Unavailable (HTML)
+          content:
+            application/json:
+              examples:
+                Unavailable_HTML:
+                  summary: Unavailable (HTML)
+                  value:
+                    html: The browser view is unavailable
+      x-docstar-published: true

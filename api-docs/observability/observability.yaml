@@ -1,0 +1,227 @@
+openapi: 3.0.3
+info:
+  title: Observability
+  version: 1.0.0
+servers:
+  - url: https://db.gtwy.ai/api
+paths:
+  /observability:
+    post:
+      summary: Create Observability Log
+      description: |-
+        Ingests one observability log entry (arbitrary JSON object or array) under a caller-chosen `log_id`, used by the SDK to record agent runs. Multiple entries can share a log_id. No authentication, so do not send secrets. 429 when the per-IP rate limit is exceeded (Retry-After header set); 500 on storage errors.
+
+        Accepted auth: none (public).
+
+        Body fields:
+        - log_id: string, required, non-empty, groups related entries
+        - data: object or array, required, the log payload (stored as JSONB)
+      parameters:
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              log_id: run_2025_01_01_abc
+              data:
+                step: tool_call
+                tool: search
+                latency_ms: 420
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              examples:
+                Created:
+                  summary: Created
+                  value:
+                    success: true
+                    unique_id: 3f6d2c1e-9a7b-4c1d-8e2f-1a2b3c4d5e6f
+                    log_id: run_2025_01_01_abc
+        "429":
+          description: Rate limited
+          content:
+            application/json:
+              examples:
+                Rate_limited:
+                  summary: Rate limited
+                  value:
+                    success: false
+                    error: Rate limit exceeded. Max 50 requests per 60 seconds per IP. Retry after 30s.
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: log_id is required
+                    data: {}
+      x-docstar-published: true
+    get:
+      summary: List Observability Logs
+      description: |-
+        Lists observability log entries across all log ids, newest first, paginated. Pass log_id for an exact log id match, or search for a case-insensitive substring match on log_id (search overrides log_id). No authentication: returns all stored logs. 500 on storage errors.
+
+        Accepted auth: none (public).
+      parameters:
+        - name: log_id
+          in: query
+          required: false
+          description: string, optional, exact log id filter
+          schema:
+            type: string
+          example: run_2025_01_01_abc
+        - name: search
+          in: query
+          required: false
+          description: string, optional, case-insensitive substring match on log_id (not validated)
+          schema:
+            type: string
+        - name: page
+          in: query
+          required: false
+          description: integer >= 1, optional, default 1
+          schema:
+            type: string
+          example: "1"
+        - name: pageSize
+          in: query
+          required: false
+          description: integer 1-100, optional, default 50
+          schema:
+            type: string
+          example: "50"
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    log_id: run_2025_01_01_abc
+                    page: 1
+                    pageSize: 50
+                    total: 1
+                    totalPages: 1
+                    count: 1
+                    logs:
+                      - unique_id: 3f6d2c1e-9a7b-4c1d-8e2f-1a2b3c4d5e6f
+                        log_id: run_2025_01_01_abc
+                        data:
+                          step: tool_call
+                          tool: search
+                          latency_ms: 420
+                        created_at: "2025-01-01T00:00:00.000Z"
+                        updated_at: "2025-01-01T00:00:00.000Z"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: pageSize cannot exceed 100
+                    data: {}
+      x-docstar-published: true
+  /observability/{log_id}:
+    get:
+      summary: Get Observability Logs By Log ID
+      description: |-
+        Returns the entries for one log_id, oldest first. With no search/page/pageSize it returns all entries unpaginated. Sending any of them switches to paginated mode. search as a string matches entries having a JSON key name containing that text (any depth, case-insensitive); search as a one-key object {key: value} (or JSON string of one) matches key with value, key only if value empty, or value only if key empty. 500 on storage errors.
+
+        Accepted auth: none (public).
+      parameters:
+        - name: log_id
+          in: path
+          required: true
+          description: the log id used when creating entries
+          schema:
+            type: string
+        - name: search
+          in: query
+          required: false
+          description: string (1-256) or one-key object / JSON string like {"tool":"search"}, optional
+          schema:
+            type: string
+          example: tool
+        - name: page
+          in: query
+          required: false
+          description: integer >= 1, optional (paginated mode default 1)
+          schema:
+            type: string
+          example: "1"
+        - name: pageSize
+          in: query
+          required: false
+          description: integer 1-100, optional (paginated mode default 50)
+          schema:
+            type: string
+          example: "50"
+      responses:
+        "200":
+          description: Success (unpaginated)
+          content:
+            application/json:
+              examples:
+                Success_unpaginated:
+                  summary: Success (unpaginated)
+                  value:
+                    success: true
+                    log_id: run_2025_01_01_abc
+                    count: 1
+                    logs:
+                      - unique_id: 3f6d2c1e-9a7b-4c1d-8e2f-1a2b3c4d5e6f
+                        log_id: run_2025_01_01_abc
+                        data:
+                          step: tool_call
+                          tool: search
+                          latency_ms: 420
+                        created_at: "2025-01-01T00:00:00.000Z"
+                        updated_at: "2025-01-01T00:00:00.000Z"
+                Success_paginated:
+                  summary: Success (paginated)
+                  value:
+                    success: true
+                    log_id: run_2025_01_01_abc
+                    search: tool
+                    page: 1
+                    pageSize: 50
+                    total: 1
+                    totalPages: 1
+                    count: 1
+                    logs:
+                      - unique_id: 3f6d2c1e-9a7b-4c1d-8e2f-1a2b3c4d5e6f
+                        log_id: run_2025_01_01_abc
+                        data:
+                          step: tool_call
+                          tool: search
+                          latency_ms: 420
+                        created_at: "2025-01-01T00:00:00.000Z"
+                        updated_at: "2025-01-01T00:00:00.000Z"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: search object must have exactly one key
+                    data: {}
+      x-docstar-published: true

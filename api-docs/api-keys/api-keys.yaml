@@ -1,0 +1,455 @@
+openapi: 3.0.3
+info:
+  title: API Keys
+  version: 1.0.0
+servers:
+  - url: https://db.gtwy.ai/api
+paths:
+  /apikeys:
+    post:
+      summary: Create API Key
+      description: |-
+        Stores an LLM provider API key (e.g. OpenAI, Anthropic) for the caller's org (scoped to the embed folder/user when called with an embed token). The key is first validated live against the provider with the service's default model; an invalid or expired key throws 400 'invalid apikey or apikey is expired'. The key is encrypted at rest and returned masked. Note: the route references a non-existent Joi schema name, so the body is not schema-validated; a duplicate name within the same org/folder fails the unique index and returns 400 with the Mongo error message. Users whose JWT role resolves to 'viewer' (permissions lack create_agent) get 403 {success:false, message:"You don't have access"}; pauthkey/proxy-token callers and embed users are not blocked.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Agent access check (checkAgentAccessMiddleware): restricts by the caller's role on the agent.
+
+        Body fields:
+        - name: string, required, display name (unique per org+folder)
+        - apikey: string, required, raw provider API key; validated against the provider before saving
+        - service: string, required, provider service name registered in the services registry (see List Services, e.g. openai, anthropic, groq, gemini)
+        - apikey_limit: number >= 0, optional, spend limit for the key (default 0 = no limit)
+        - apikey_limit_reset_period: string, optional, monthly | weekly | daily
+        - apikey_limit_start_date: date, optional, start of the limit window
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              name: OpenAI Prod
+              apikey: sk-...
+              service: openai
+              apikey_limit: 100
+              apikey_limit_reset_period: monthly
+              apikey_limit_start_date: "2026-10-01"
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    api:
+                      _id: 665f1c2e9b1d4a0012ab34cd
+                      org_id: "12345"
+                      name: OpenAI Prod
+                      service: openai
+                      apikey: sk-p****abcd
+                      folder_id: ""
+                      user_id: "678"
+                      bridge_ids: []
+                      version_ids: []
+                      apikey_limit: 100
+                      apikey_usage: 12.5
+                      apikey_usage_period: 2026-10
+                      apikey_limit_reset_period: monthly
+                      apikey_limit_start_date: "2026-10-01T00:00:00.000Z"
+                      last_used: null
+                      status: null
+                      __v: 0
+        "400":
+          description: Invalid Key
+          content:
+            application/json:
+              examples:
+                Invalid_Key:
+                  summary: Invalid Key
+                  value:
+                    message: invalid apikey or apikey is expired
+                    data: {}
+        "403":
+          description: Forbidden (viewer role)
+          content:
+            application/json:
+              examples:
+                Forbidden_viewer_role:
+                  summary: Forbidden (viewer role)
+                  value:
+                    success: false
+                    message: You don't have access
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+    get:
+      summary: List API Keys
+      description: |-
+        Lists the org's stored provider API keys with the key value masked. Without an embed folder it returns only keys that have no folder_id; with an embed token it returns keys of that folder (and, for embed users, only that user's keys). Each key includes apikey_usage for the current reset window (live counter from cache when available) and last_used when known. Returns 400 {success:false,error} on DB error.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    result:
+                      - _id: 665f1c2e9b1d4a0012ab34cd
+                        org_id: "12345"
+                        name: OpenAI Prod
+                        service: openai
+                        apikey: sk-p****abcd
+                        folder_id: ""
+                        user_id: "678"
+                        bridge_ids: []
+                        version_ids: []
+                        apikey_limit: 100
+                        apikey_usage: 12.5
+                        apikey_usage_period: 2026-10
+                        apikey_limit_reset_period: monthly
+                        apikey_limit_start_date: "2026-10-01T00:00:00.000Z"
+                        last_used:
+                          timestamp: "2026-10-20T10:00:00.000Z"
+                        status: null
+                        __v: 0
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+    delete:
+      summary: Delete API Key
+      description: |-
+        Deletes a stored API key from the org after checking it is not attached to any agent or agent version for the given service. If in use, returns 400 with isInUse:true and the first matching agent/version. Also removes the key reference from embed folders. service must be a registered service name, otherwise 400 'Invalid or missing service'; unknown id returns 400 'API key not found'. Users whose JWT role resolves to 'viewer' (permissions lack create_agent) get 403 {success:false, message:"You don't have access"}; pauthkey/proxy-token callers and embed users are not blocked.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Agent access check (checkAgentAccessMiddleware): restricts by the caller's role on the agent.
+
+        Body fields:
+        - apikey_object_id: string (24-hex ObjectId), required, _id of the key to delete
+        - service: string, required by the controller, the key's service name (used for the in-use check)
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              apikey_object_id: 665f1c2e9b1d4a0012ab34cd
+              service: openai
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Apikey deleted successfully
+        "400":
+          description: In Use
+          content:
+            application/json:
+              examples:
+                In_Use:
+                  summary: In Use
+                  value:
+                    success: false
+                    message: Cannot delete API key as it is currently in use
+                    isInUse: true
+                    usageDetails:
+                      agents:
+                        - id: 6650aa...
+                          name: Support Bot
+                          slugName: support_bot
+                      versions: []
+                Validation_Error:
+                  summary: Validation Error
+                  value:
+                    message: apikey_object_id must be a valid MongoDB ObjectId
+                    data: {}
+        "403":
+          description: Forbidden (viewer role)
+          content:
+            application/json:
+              examples:
+                Forbidden_viewer_role:
+                  summary: Forbidden (viewer role)
+                  value:
+                    success: false
+                    message: You don't have access
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /apikeys/{apikey_id}:
+    put:
+      summary: Update API Key
+      description: |-
+        Updates a stored API key's name, key value, service, spend limit, usage or reset period. If a new apikey is sent it is validated against the provider (400 'invalid apikey or apikey is expired' on failure) and stored encrypted. Sending apikey_usage: 0 resets the spend counter; sending apikey_limit_reset_period also restarts the window at the current time. Note: apikey_limit defaults to 0 when omitted, so an update without apikey_limit resets the limit to 0. Body is not schema-validated (route references a non-existent Joi schema). The update is looked up by id only (not by org). Returns 400 'No records updated or bridge not found' if the id does not exist. Users whose JWT role resolves to 'viewer' (permissions lack create_agent) get 403 {success:false, message:"You don't have access"}; pauthkey/proxy-token callers and embed users are not blocked.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Agent access check (checkAgentAccessMiddleware): restricts by the caller's role on the agent.
+
+        Body fields:
+        - name: string, optional, new display name
+        - apikey: string, optional, new raw provider key (validated with the given service)
+        - service: string, optional, provider service name; required in practice when apikey is sent so the key can be validated
+        - apikey_limit: number >= 0, optional, new spend limit (defaults to 0 when omitted)
+        - apikey_usage: number, optional, send 0 to reset the usage counter; other values are ignored
+        - apikey_limit_reset_period: string, optional, monthly | weekly | daily; also resets apikey_limit_start_date to now
+      parameters:
+        - name: apikey_id
+          in: path
+          required: true
+          description: MongoDB ObjectId of the API key (_id from List API Keys)
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              name: OpenAI Prod v2
+              apikey: sk-...
+              service: openai
+              apikey_limit: 200
+              apikey_usage: 0
+              apikey_limit_reset_period: weekly
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Apikey updated successfully
+                    apikey: sk-p****abcd
+        "400":
+          description: Not Found
+          content:
+            application/json:
+              examples:
+                Not_Found:
+                  summary: Not Found
+                  value:
+                    success: false
+                    message: No records updated or bridge not found
+        "403":
+          description: Forbidden (viewer role)
+          content:
+            application/json:
+              examples:
+                Forbidden_viewer_role:
+                  summary: Forbidden (viewer role)
+                  value:
+                    success: false
+                    message: You don't have access
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /apikeys/{agent_id}:
+    get:
+      summary: Get API Key Usage By Agent
+      description: |-
+        Returns, for every version of the given agent in the caller's org, which provider services have an API key attached (apikey_object_id keys) and the version's configured model. Use it to see which services an agent's versions need keys for. Returns 404 'Apikey not found for this agent' when the agent has no versions in the org.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: agent_id
+          in: path
+          required: true
+          description: Agent (bridge) id, from List Agents
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    data:
+                      agent_id: 6650aa11bb22cc33dd44ee55
+                      version_ids:
+                        6650aa11bb22cc33dd44ee56:
+                          services:
+                            - openai
+                          model: gpt-4o
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              examples:
+                Not_Found:
+                  summary: Not Found
+                  value:
+                    success: false
+                    message: Apikey not found for this agent
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true

@@ -1,0 +1,794 @@
+openapi: 3.0.3
+info:
+  title: Agents
+  version: 1.0.0
+servers:
+  - url: https://db.gtwy.ai/api
+paths:
+  /agent:
+    get:
+      summary: List Agents
+      description: |-
+        Returns every agent (bridge) in the caller's organization, including soft-deleted ones (they carry deletedAt), plus a separate default_agent (the 'chatbot_preview' agent, created automatically for non-embed users if missing). Embed users only see agents in their own folder that they created. The response also carries the caller's role (access) and several short-lived embed tokens used by the GTWY UI (viaSocket, alerting, trigger, history chatbot, Docstar). Use it to discover agent _id values for other endpoints. Errors: 401 unauthorized, 500 on server error.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Get all agents successfully
+                    agent:
+                      - _id: 665f1c2e8b3a4d0012ab34cd
+                        name: Support Bot
+                        slugName: support_bot
+                        service: openai
+                        bridgeType: api
+                        configuration:
+                          model: gpt-5-nano
+                          type: chat
+                        versions:
+                          - 665f1c2e8b3a4d0012ab34ce
+                        published_version_id: 665f1c2e8b3a4d0012ab34ce
+                        bridge_status: 1
+                    default_agent:
+                      _id: 665f1c2e8b3a4d0012ab0000
+                      slugName: chatbot_preview
+                    org_id: "12345"
+                    access: admin
+                    embed_token: <jwt>
+                    alerting_embed_token: <jwt>
+                    trigger_embed_token: <jwt>
+                    history_page_chatbot_token: <jwt>
+                    doctstar_embed_token: <jwt>
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "500":
+          description: Server error
+          content:
+            application/json:
+              examples:
+                Server_error:
+                  summary: Server error
+                  value:
+                    success: false
+                    message: <error message>
+      x-docstar-published: true
+    post:
+      summary: Create Agent
+      description: |-
+        Creates a new agent with an initial version. If purpose is given, GTWY calls an internal AI agent to generate the configuration (name, model, prompt, etc.) from that text; otherwise a default openai gpt-5-nano chat config is used (folder/template settings may override the prompt or service). By default (flag=false) the request returns 202 immediately and the created agent is delivered asynchronously over RTLayer channel org_<org_id>_<user_id> as {type:'agent_created'} or {type:'agent_create_failed'}. Send flag=true to wait and receive the created agent in the HTTP response. Name and slugName are made unique automatically if not supplied. Errors: 400 validation, 401, 403 for viewers.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Write access check (requireAdminRole): admins always pass; on routes with an agent/version id in the path, editors/viewers must be in the agent's users list. Only the dashboard JWT carries a role - pauthkey and proxy_auth_token callers get 403 on those id routes.
+
+        Body fields:
+        - purpose: string, optional; natural-language purpose used to AI-generate the configuration
+        - templateId: string (24-hex ObjectId), optional; template whose prompt is used (404-style failure 'Template not found' if missing)
+        - bridgeType: string, optional, default 'api' ('api' | 'chatbot'); 'api' agents default to stateless_conversation=true
+        - name: string, optional (extra field); agent name, auto-generated unique name if omitted
+        - slugName: string, optional (extra field); unique slug, auto-generated if omitted
+        - meta: object, optional (extra field); arbitrary metadata stored on the agent
+        - settings: object, optional (extra field); merged over defaults {maximum_iterations:3, publicUsers:[], editAccess:[], response_format:{type:'default'}, stateless_conversation}
+        - bridge_limit: number >= 0, optional; usage limit
+        - bridge_usage: number >= 0, optional; current usage
+        - bridge_limit_reset_period: string, optional ('monthly' | 'weekly' | 'daily')
+        - bridge_limit_start_date: date, optional
+        - folder_id: string or null, optional; folder to place the agent in (embed users' folder is taken from their token)
+        - flag: boolean, optional, default false; true = wait and return the agent in the response, false = return 202 and notify via RTLayer
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              purpose: A support agent that answers billing questions politely
+              bridgeType: api
+              name: Billing Helper
+              folder_id: null
+              flag: true
+      responses:
+        "202":
+          description: Accepted (flag=false)
+          content:
+            application/json:
+              examples:
+                Accepted_flag_false:
+                  summary: Accepted (flag=false)
+                  value:
+                    success: true
+                    accepted: true
+                    message: Agent creation started
+        "200":
+          description: Created (flag=true)
+          content:
+            application/json:
+              examples:
+                Created_flag_true:
+                  summary: Created (flag=true)
+                  value:
+                    success: true
+                    agent:
+                      _id: 665f1c2e8b3a4d0012ab34cd
+                      name: Support Bot
+                      slugName: support_bot
+                      org_id: "12345"
+                      service: openai
+                      bridgeType: api
+                      configuration:
+                        model: gpt-5-nano
+                        type: chat
+                        prompt:
+                          role: AI Bot
+                          goal: "..."
+                          instruction: "..."
+                      settings:
+                        maximum_iterations: 3
+                        response_format:
+                          type: default
+                        editAccess: []
+                      connected_tools: []
+                      apiCalls: {}
+                      versions:
+                        - 665f1c2e8b3a4d0012ab34ce
+                      published_version_id: 665f1c2e8b3a4d0012ab34ce
+                      bridge_status: 1
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: '"bridgeType" must be one of [api, chatbot]'
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Forbidden (viewer)
+          content:
+            application/json:
+              examples:
+                Forbidden_viewer:
+                  summary: Forbidden (viewer)
+                  value:
+                    success: false
+                    message: You don't have access to update this agent
+      x-docstar-published: true
+  /agent/{agent_id}:
+    get:
+      summary: Get Agent
+      description: |-
+        Returns the full configuration of one agent in the caller's organization, with its linked tool definitions (apiCalls) and all_varaibles (prompt {{variables}} plus variables_path keys; the field name is spelled this way in the response). Advanced model parameters in configuration are converted to the frontend format before sending. access contains the caller's role. Errors: 400 if agent_id is not a 24-hex ObjectId, 404 'Agent not found' if it does not exist in the org, 401 unauthorized.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: agent_id
+          in: path
+          required: true
+          description: Agent (bridge) _id, 24-char hex ObjectId, from List Agents
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: agent get successfully
+                    agent:
+                      _id: 665f1c2e8b3a4d0012ab34cd
+                      name: Support Bot
+                      slugName: support_bot
+                      org_id: "12345"
+                      service: openai
+                      bridgeType: api
+                      configuration:
+                        model: gpt-5-nano
+                        type: chat
+                        prompt:
+                          role: AI Bot
+                          goal: "..."
+                          instruction: "..."
+                      settings:
+                        maximum_iterations: 3
+                        response_format:
+                          type: default
+                        editAccess: []
+                      connected_tools: []
+                      apiCalls: {}
+                      versions:
+                        - 665f1c2e8b3a4d0012ab34ce
+                      published_version_id: 665f1c2e8b3a4d0012ab34ce
+                      bridge_status: 1
+                      all_varaibles:
+                        - customer_name
+                    access: admin
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: agent_id must be a valid MongoDB ObjectId
+                    data: {}
+        "404":
+          description: Not found
+          content:
+            application/json:
+              examples:
+                Not_found:
+                  summary: Not found
+                  value:
+                    success: false
+                    message: Agent not found
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+    put:
+      summary: Update Agent
+      description: |-
+        Updates agent-level (not version-level) fields such as name, slugName, meta, status, usage limits, folder, settings (shallow-merged into existing settings), agent_info (merged) and connected_tools. connected_tools replaces the whole list; alternatively send a single connected_tool with operation add/update/remove (or 1/2/0) to modify one entry (only one post_tool may exist; adding a new one replaces the old). Changes are logged to the user-update history for every version and the agent cache is purged. Unknown body fields are rejected. Errors: 400 validation or update failure, 404 'Agent not found', 401, 403 no write access.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Write access check (requireAdminRole): admins always pass; on routes with an agent/version id in the path, editors/viewers must be in the agent's users list. Only the dashboard JWT carries a role - pauthkey and proxy_auth_token callers get 403 on those id routes.
+
+        Body fields:
+        - name: string, optional
+        - slugName: string, optional
+        - meta: object, optional
+        - bridge_summary: string, optional (may be empty)
+        - bridge_status: number, optional (0 | 1)
+        - bridge_usage: number >= 0, optional
+        - bridge_limit: number >= 0, optional
+        - bridge_limit_reset_period: string, optional ('monthly' | 'weekly' | 'daily'); also resets bridge_limit_start_date to now
+        - bridge_limit_start_date: date, optional (accepted by validation)
+        - bridgeType: string, optional ('api' | 'chatbot' | 'trigger')
+        - page_config: object, optional (accepted by validation; not applied by the controller)
+        - folder_id: string or null, optional
+        - connected_agent_details: object, optional (accepted by validation; not applied by the controller)
+        - settings: object, optional; keys: responseStyle(object), tone(object), maximum_iterations(number >= 3), stateless_conversation(boolean), response_format(object), editAccess(number[] user ids), fall_back{is_enable,service,model}, guardrails(object), review_agent{reviewer_agent(ObjectId|null), reviewer_prompt, reviewer_tools[], reviewer_enabled}, publicAgentConfig(object), environment_config(object)
+        - connected_tools: array, optional; full replacement list of {type ('tools'|'agent'|'docs'|'pre_tool'|'post_tool'|'built_in_tools'), id (required except built_in_tools/pre_tool), built_in_tools[], pre_tool_type, prompt, formats, url, thread_id, version_id, collection_id, resource_id, name, description, args, ...}
+        - connected_tool: object, optional; single tool item (same shape) used with operation
+        - operation: string or number, optional ('add'|'update'|'remove' or 1|2|0)
+        - version_description: string, optional
+        - agent_info: object, optional; {prompt_total_tokens, description, agent_variables{fields,required}, thread_id(boolean), variables_state, ai_matching_custom_prompt}
+        - starterQuestion: string[], optional
+      parameters:
+        - name: agent_id
+          in: path
+          required: true
+          description: Agent (bridge) _id from List Agents
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              name: Billing Helper v2
+              bridge_status: 1
+              settings:
+                maximum_iterations: 5
+                fall_back:
+                  is_enable: true
+                  service: openai
+                  model: gpt-4o-mini
+              connected_tool:
+                type: tools
+                id: 665f1c2e8b3a4d0012ab9999
+              operation: add
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Agent Updated successfully
+                    agent:
+                      _id: 665f1c2e8b3a4d0012ab34cd
+                      name: Support Bot
+                      slugName: support_bot
+                      org_id: "12345"
+                      service: openai
+                      bridgeType: api
+                      configuration:
+                        model: gpt-5-nano
+                        type: chat
+                        prompt:
+                          role: AI Bot
+                          goal: "..."
+                          instruction: "..."
+                      settings:
+                        maximum_iterations: 3
+                        response_format:
+                          type: default
+                        editAccess: []
+                      connected_tools: []
+                      apiCalls: {}
+                      versions:
+                        - 665f1c2e8b3a4d0012ab34ce
+                      published_version_id: 665f1c2e8b3a4d0012ab34ce
+                      bridge_status: 1
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: '"settings.maximum_iterations" must be greater than or equal to 3'
+                    data: {}
+        "404":
+          description: Not found
+          content:
+            application/json:
+              examples:
+                Not_found:
+                  summary: Not found
+                  value:
+                    success: false
+                    message: Agent not found
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Forbidden (no write access)
+          content:
+            application/json:
+              examples:
+                Forbidden_no_write_access:
+                  summary: Forbidden (no write access)
+                  value:
+                    success: false
+                    message: You don't have access to update this agent
+      x-docstar-published: true
+    delete:
+      summary: Delete Or Restore Agent
+      description: |-
+        Soft-deletes an agent and all its versions (they are permanently removed after 30 days), or restores a soft-deleted agent when body.restore=true. Deletion is refused if another agent (or version) in the org has this agent in its connected_agents. Errors: 400 with {success:false,error} for 'Agent not found', 'Agent not found or not deleted', or 'Cannot delete agent. It is connected to the following agent(s): ...'; 400 validation; 401; 403 no write access.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Write access check (requireAdminRole): admins always pass; on routes with an agent/version id in the path, editors/viewers must be in the agent's users list. Only the dashboard JWT carries a role - pauthkey and proxy_auth_token callers get 403 on those id routes.
+
+        Body fields:
+        - restore: boolean, optional, default false; true restores a previously soft-deleted agent instead of deleting
+      parameters:
+        - name: agent_id
+          in: path
+          required: true
+          description: Agent (bridge) _id from List Agents
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              restore: false
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              examples:
+                Deleted:
+                  summary: Deleted
+                  value:
+                    success: true
+                    message: Agent "Support Bot" and 2 versions marked for deletion. They will be permanently deleted after 30 days.
+                Restored:
+                  summary: Restored
+                  value:
+                    success: true
+                    bridge:
+                      _id: 665f1c2e8b3a4d0012ab34cd
+                      name: Support Bot
+                      slugName: support_bot
+                      org_id: "12345"
+                      service: openai
+                      bridgeType: api
+                      configuration:
+                        model: gpt-5-nano
+                        type: chat
+                        prompt:
+                          role: AI Bot
+                          goal: "..."
+                          instruction: "..."
+                      settings:
+                        maximum_iterations: 3
+                        response_format:
+                          type: default
+                        editAccess: []
+                      connected_tools: []
+                      apiCalls: {}
+                      versions:
+                        - 665f1c2e8b3a4d0012ab34ce
+                      published_version_id: 665f1c2e8b3a4d0012ab34ce
+                      bridge_status: 1
+                    restoredVersionsCount: 2
+                    message: Agent and 2 versions restored successfully.
+        "400":
+          description: Connected to another agent
+          content:
+            application/json:
+              examples:
+                Connected_to_another_agent:
+                  summary: Connected to another agent
+                  value:
+                    success: false
+                    error: "Cannot delete agent. It is connected to the following agent: Router Agent"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Forbidden (no write access)
+          content:
+            application/json:
+              examples:
+                Forbidden_no_write_access:
+                  summary: Forbidden (no write access)
+                  value:
+                    success: false
+                    message: You don't have access to update this agent
+      x-docstar-published: true
+  /agent/clone:
+    post:
+      summary: Clone Agent To Organization
+      description: |-
+        Copies an agent, its versions, its tools and (recursively, up to depth 10) its connected sub-agents into another organization identified by to_shift_org_id. The source agent is looked up by _id only (the code does not check that it belongs to the caller's org). Errors: 400 validation (agent_id must be a 24-hex ObjectId, to_shift_org_id required), 500 'Agent not found' or other failures, 401, 403 for viewers.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Write access check (requireAdminRole): admins always pass; on routes with an agent/version id in the path, editors/viewers must be in the agent's users list. Only the dashboard JWT carries a role - pauthkey and proxy_auth_token callers get 403 on those id routes.
+
+        Body fields:
+        - agent_id: string (24-hex ObjectId), required; agent to clone
+        - to_shift_org_id: string or number, required; destination organization id
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              agent_id: 665f1c2e8b3a4d0012ab34cd
+              to_shift_org_id: "67890"
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Agent cloned successfully
+                    cloned_agent:
+                      _id: 6660aa118b3a4d0012ab0001
+                      name: Support Bot
+                      slugName: support_bot
+                      org_id: "67890"
+                      service: openai
+                      bridgeType: api
+                      configuration:
+                        model: gpt-5-nano
+                        type: chat
+                        prompt:
+                          role: AI Bot
+                          goal: "..."
+                          instruction: "..."
+                      settings:
+                        maximum_iterations: 3
+                        response_format:
+                          type: default
+                        editAccess: []
+                      connected_tools: []
+                      apiCalls: {}
+                      versions:
+                        - 665f1c2e8b3a4d0012ab34ce
+                      published_version_id: 665f1c2e8b3a4d0012ab34ce
+                      bridge_status: 1
+                    original_bridge_id: 665f1c2e8b3a4d0012ab34cd
+                    new_bridge_id: 6660aa118b3a4d0012ab0001
+                    cloned_versions:
+                      - 6660aa118b3a4d0012ab0002
+                    cloned_tools: []
+                    connected_agents: {}
+                    recursion_depth: 0
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: agent_id must be a valid MongoDB ObjectId
+                    data: {}
+        "500":
+          description: Server error
+          content:
+            application/json:
+              examples:
+                Server_error:
+                  summary: Server error
+                  value:
+                    success: false
+                    message: Agent not found
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /utils/agent/{agent_id}:
+    delete:
+      summary: Permanently Delete Agent
+      description: |-
+        Hard-deletes an agent and all of its versions (by parent_id and the agent's versions array), regardless of org. Refused (400) if any other agent or version references this agent in connected_agents; the response then lists those agents. 400 with {success:false,error:'Agent not found'} if it does not exist. Internal admin only.
+
+        Accepted auth: Authorization (dashboard user JWT).
+
+        Internal only: the caller's email must be in INTERNAL_ALLOWED_EMAILS, so only a dashboard user JWT works (pauthkey / proxy_auth_token carry no email -> 403).
+      parameters:
+        - name: agent_id
+          in: path
+          required: true
+          description: 24-char hex MongoDB ObjectId of the agent, from List Agents
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Agent "Support Bot" permanently deleted along with 3 version(s).
+                    deletedVersionsCount: 3
+        "400":
+          description: Connected elsewhere
+          content:
+            application/json:
+              examples:
+                Connected_elsewhere:
+                  summary: Connected elsewhere
+                  value:
+                    success: false
+                    error: "Cannot delete agent. It is connected to the following agent: Router Bot"
+                    connected_agents:
+                      - _id: 6650f1c2a1b2c3d4e5f60700
+                        name: Router Bot
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: agent_id must be a valid MongoDB ObjectId
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Forbidden (not an internal admin)
+          content:
+            application/json:
+              examples:
+                Forbidden_not_an_internal_admin:
+                  summary: Forbidden (not an internal admin)
+                  value:
+                    success: false
+                    message: "Access denied: you are not authorized for this action"
+      x-docstar-published: true

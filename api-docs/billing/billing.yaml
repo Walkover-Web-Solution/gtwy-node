@@ -1,0 +1,2572 @@
+openapi: 3.0.3
+info:
+  title: Billing
+  version: 1.0.0
+servers:
+  - url: https://db.gtwy.ai/api
+paths:
+  /lago/provision/admin:
+    post:
+      summary: Provision Org (Admin)
+      description: |-
+        Manually provisions Lago billing for one org: ensures a Lago customer, a subscription (default 'free' plan) and a credit wallet exist, skipping any that already exist. Idempotent and safe to re-run; it never re-posts a plan over an existing subscription. Internal operators only. Errors: 401 bad credentials, 403 not allowlisted, 400 missing org_id or a Lago API failure.
+
+        Accepted auth: Authorization (dashboard user JWT).
+
+        Internal only: the caller's email must be in INTERNAL_ALLOWED_EMAILS, so only a dashboard user JWT works (pauthkey / proxy_auth_token carry no email -> 403).
+
+        Body fields:
+        - org_id: string or number, required. Org to provision.
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: JSON request body
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              org_id: "12345"
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Customer, subscription and wallet provisioned
+                    data:
+                      customer:
+                        lago_id: "..."
+                        external_id: "12345"
+                      subscription:
+                        external_id: "12345"
+                        plan_code: gtwy_free
+                      wallet:
+                        lago_id: "..."
+                        credits_balance: "100.0"
+                      plan: free
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: org_id not found
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Forbidden (not an internal operator)
+          content:
+            application/json:
+              examples:
+                Forbidden_not_an_internal_operator:
+                  summary: Forbidden (not an internal operator)
+                  value:
+                    success: false
+                    message: "Access denied: you are not authorized for this action"
+      x-docstar-published: true
+  /lago/wallet:
+    get:
+      summary: Get My Wallet Balance
+      description: |-
+        Returns the credit wallet of the caller's own org (org taken from the token, never the URL). Served from a 60-second Redis cache, falling back to Lago on a miss. Credit figures are summed across all active wallets of the org. data is null with message 'no wallet provisioned yet' when the org has no wallet. Errors: 401 bad credentials; 403 if the org cannot be resolved from the token.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: wallet found
+                    data:
+                      credits_balance: "2440.0"
+                      balance_cents: 2440
+                      currency: USD
+                      rate_amount: "0.01"
+                      ongoing_balance_cents: 2200
+                      expiration_at: null
+                      credits_ongoing_balance: "2200.0"
+                      credits_ongoing_usage_balance: "240.0"
+                      active_wallet_count: 1
+                      wallet_ids:
+                        - lago-wallet-uuid
+                No_wallet:
+                  summary: No wallet
+                  value:
+                    success: true
+                    message: no wallet provisioned yet
+                    data: null
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Org not resolved
+          content:
+            application/json:
+              examples:
+                Org_not_resolved:
+                  summary: Org not resolved
+                  value:
+                    success: false
+                    message: org not resolved from token
+      x-docstar-published: true
+  /lago/wallet/topup:
+    post:
+      summary: Top Up Org Wallet
+      description: |-
+        Credits a number of credits to any org's Lago wallet and resyncs the Redis shadow balance used by the request gate. If reference_id is given and was already applied, nothing is added and duplicate=true is returned (idempotent retries). Internal operators only. Errors: 400 validation (org_id/credits missing, credits not > 0) or Lago failure; 401; 403.
+
+        Accepted auth: Authorization (dashboard user JWT).
+
+        Internal only: the caller's email must be in INTERNAL_ALLOWED_EMAILS, so only a dashboard user JWT works (pauthkey / proxy_auth_token carry no email -> 403).
+
+        Body fields:
+        - org_id: string or number, required. Target org.
+        - credits: number, required, > 0. Credits to add.
+        - reference_id: string, optional. Idempotency key; a repeat with the same value adds nothing.
+        - metadata: object, optional. Extra key/values stored on the Lago wallet transaction.
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: JSON request body
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              org_id: "12345"
+              credits: 500
+              reference_id: topup-2026-10-23-001
+              metadata:
+                note: manual top-up
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: wallet topped up successfully
+                    data:
+                      org_id: "12345"
+                      credits_added: "500"
+                      credits_balance: "2940.0"
+                      duplicate: false
+                      transaction:
+                        lago_id: "..."
+                Duplicate_reference:
+                  summary: Duplicate reference
+                  value:
+                    success: true
+                    message: top-up already applied for this reference_id
+                    data:
+                      org_id: "12345"
+                      credits_added: "0"
+                      credits_balance: "2940.0"
+                      duplicate: true
+                      transaction: null
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: credits must be greater than 0
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Forbidden (not an internal operator)
+          content:
+            application/json:
+              examples:
+                Forbidden_not_an_internal_operator:
+                  summary: Forbidden (not an internal operator)
+                  value:
+                    success: false
+                    message: "Access denied: you are not authorized for this action"
+      x-docstar-published: true
+  /lago/debits/replay:
+    post:
+      summary: Replay Failed Debits
+      description: |-
+        Re-posts usage debits that previously failed against Lago (oldest first, from the failed_billing_debits collection). Each successful re-post is marked replayed; failures increment attempts and keep the error. The body is not validated; limit defaults to 100 and is capped at 500. Internal operators only.
+
+        Accepted auth: Authorization (dashboard user JWT).
+
+        Internal only: the caller's email must be in INTERNAL_ALLOWED_EMAILS, so only a dashboard user JWT works (pauthkey / proxy_auth_token carry no email -> 403).
+
+        Body fields:
+        - limit: number, optional (default 100, max 500). How many failed debits to retry.
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: JSON request body
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              limit: 100
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: replay finished
+                    data:
+                      replayed: 12
+                      failed: 1
+                      skipped_ambiguous: 0
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Forbidden (not an internal operator)
+          content:
+            application/json:
+              examples:
+                Forbidden_not_an_internal_operator:
+                  summary: Forbidden (not an internal operator)
+                  value:
+                    success: false
+                    message: "Access denied: you are not authorized for this action"
+      x-docstar-published: true
+  /lago/plan:
+    post:
+      summary: Set Org Plan
+      description: |-
+        Moves an org between billing plans in Lago (the only admin route that does so), bypassing the self-serve Stripe flow, e.g. for comped orgs or support fixes. Updates the Redis plan cache and also resets the org's billing status record (paid -> status active; free -> status none). The caller's email and reason are logged. Errors: 400 invalid plan slug, org has no active Lago subscription (provision first), a plan change already in progress, or Lago did not activate the plan; 401; 403.
+
+        Accepted auth: Authorization (dashboard user JWT).
+
+        Internal only: the caller's email must be in INTERNAL_ALLOWED_EMAILS, so only a dashboard user JWT works (pauthkey / proxy_auth_token carry no email -> 403).
+
+        Body fields:
+        - org_id: string or number, required. Target org.
+        - plan: string, required. Plan slug: 'free' or 'paid'.
+        - reason: string, optional, max 500 chars. Audit note.
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: JSON request body
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              org_id: "12345"
+              plan: paid
+              reason: comped for partner pilot
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: org moved to 'paid'
+                    data:
+                      org_id: "12345"
+                      changed: true
+                      deferred: false
+                      plan: paid
+                      previous_plan: free
+                      plan_code: gtwy_paid
+                Already_on_plan:
+                  summary: Already on plan
+                  value:
+                    success: true
+                    message: org already on 'paid'
+                    data:
+                      org_id: "12345"
+                      changed: false
+                      deferred: false
+                      plan: paid
+                      previous_plan: paid
+                      plan_code: gtwy_paid
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: plan must be one of free, paid
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Forbidden (not an internal operator)
+          content:
+            application/json:
+              examples:
+                Forbidden_not_an_internal_operator:
+                  summary: Forbidden (not an internal operator)
+                  value:
+                    success: false
+                    message: "Access denied: you are not authorized for this action"
+      x-docstar-published: true
+  /lago/plan/org/me:
+    get:
+      summary: Get My Plan
+      description: |-
+        Returns the caller's own org plan as Lago enforces it, plus its display label and the allowed services/models from the billing plan definition. Falls back to 'free' if Lago cannot be reached or the org has no subscription; services is '*' when the plan has no definition. Errors: 401.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    data:
+                      plan: paid
+                      label: Pro
+                      services: "*"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /lago/plan/{org_id}:
+    get:
+      summary: Check Org Plan Drift
+      description: |-
+        Read-only drift check comparing an org's plan in Lago with the plan cached in Redis. drift is true only when a Redis value exists and differs from Lago. Internal operators only. Errors: 401; 403.
+
+        Accepted auth: Authorization (dashboard user JWT).
+
+        Internal only: the caller's email must be in INTERNAL_ALLOWED_EMAILS, so only a dashboard user JWT works (pauthkey / proxy_auth_token carry no email -> 403).
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          description: string, required. Org to check.
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: In sync
+          content:
+            application/json:
+              examples:
+                In_sync:
+                  summary: In sync
+                  value:
+                    success: true
+                    message: in sync
+                    data:
+                      org_id: "12345"
+                      lago_plan_code: gtwy_paid
+                      lago_plan: paid
+                      redis_plan: paid
+                      pending: null
+                      drift: false
+                Drift:
+                  summary: Drift
+                  value:
+                    success: true
+                    message: PLAN DRIFT — Lago and Redis disagree
+                    data:
+                      org_id: "12345"
+                      lago_plan_code: gtwy_paid
+                      lago_plan: paid
+                      redis_plan: free
+                      pending: null
+                      drift: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Forbidden (not an internal operator)
+          content:
+            application/json:
+              examples:
+                Forbidden_not_an_internal_operator:
+                  summary: Forbidden (not an internal operator)
+                  value:
+                    success: false
+                    message: "Access denied: you are not authorized for this action"
+      x-docstar-published: true
+  /lago/webhook:
+    post:
+      summary: Lago Webhook
+      description: |-
+        Receives Lago billing webhooks. The raw body (max 1 MB) is signature-verified, parsed, recorded once per X-Lago-Unique-Key, and dispatched: invoice.payment_status_updated, invoice.payment_failure, payment.requires_action, customer.payment_provider_created, customer.payment_provider_error, subscription.started and subscription.terminated are handled (grant credits, mark past_due/downgrade, record card/3DS state); other types are recorded or ignored. Responds directly, not via the standard envelope. 200 = processed, ignored, duplicate, in progress, or permanent failure; 500 = transient failure (Lago retries); 400 = bad/missing signature, non-HMAC algorithm, unparseable body, or missing X-Lago-Unique-Key; 503 = billing disabled on this environment.
+
+        Accepted auth: none (public).
+
+        Body fields:
+        - webhook_type: string. Lago event type.
+        - object_type: string. Name of the key that holds the payload object (e.g. invoice, subscription, customer).
+        - <object_type>: object. The Lago object; a flat 'object' key is also accepted.
+      parameters:
+        - name: X-Lago-Signature
+          in: header
+          required: false
+          description: Required. base64 HMAC-SHA256 of the raw request body.
+          schema:
+            type: string
+        - name: X-Lago-Signature-Algorithm
+          in: header
+          required: false
+          description: Optional; defaults to hmac. Any other value is rejected with 400.
+          schema:
+            type: string
+          example: hmac
+        - name: X-Lago-Unique-Key
+          in: header
+          required: false
+          description: Required. Lago's unique webhook id, used for idempotency.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: JSON request body
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              webhook_type: invoice.payment_status_updated
+              object_type: invoice
+              invoice:
+                lago_id: lago-invoice-uuid
+                invoice_type: subscription
+                payment_status: succeeded
+                customer:
+                  external_id: "12345"
+      responses:
+        "200":
+          description: Processed
+          content:
+            application/json:
+              examples:
+                Processed:
+                  summary: Processed
+                  value:
+                    received: true
+                    status: processed
+                Duplicate:
+                  summary: Duplicate
+                  value:
+                    received: true
+                    status: duplicate
+        "500":
+          description: Transient failure
+          content:
+            application/json:
+              examples:
+                Transient_failure:
+                  summary: Transient failure
+                  value:
+                    received: true
+                    status: failed
+        "400":
+          description: Bad signature
+          content:
+            application/json:
+              examples:
+                Bad_signature:
+                  summary: Bad signature
+                  value:
+                    received: false
+                Missing_unique_key:
+                  summary: Missing unique key
+                  value:
+                    received: false
+                    message: missing X-Lago-Unique-Key
+        "503":
+          description: Billing disabled
+          content:
+            application/json:
+              examples:
+                Billing_disabled:
+                  summary: Billing disabled
+                  value:
+                    received: false
+                    message: billing disabled
+      x-docstar-published: true
+  /billing-plans/org/public:
+    get:
+      summary: List Public Billing Plans
+      description: |-
+        Lists active billing plans (status 1) with only end-user-safe fields: plan_code, display_name, credit_grant, monthly_credits, credit_packs, plus the price taken from the Lago plan. The internal model allowlist (services) and hit fees are not included. price is null if Lago cannot be reached or the plan code is unknown. For the plans/pricing page. Errors: 401.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    data:
+                      - _id: "..."
+                        plan_code: free
+                        display_name: Free
+                        credit_grant: 100
+                        monthly_credits: 0
+                        price:
+                          amount_cents: 0
+                          currency: USD
+                          interval: monthly
+                      - _id: "..."
+                        plan_code: paid
+                        display_name: Pro
+                        credit_grant: 0
+                        monthly_credits: 8000
+                        credit_packs:
+                          - 10
+                          - 20
+                          - 50
+                        price:
+                          amount_cents: 2000
+                          currency: USD
+                          interval: monthly
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /billing-plans:
+    put:
+      summary: Create Or Update Billing Plan
+      description: |-
+        Upserts the definition of a billing plan (what it includes): allowed services/models, signup grant, monthly credits, per-hit fees and credit packs. gtwy-ai reads this collection live, so changes apply without a deploy. Sending hit_fees or credit_packs replaces the stored value; omitting monthly_credits, hit_fees or credit_packs leaves them unchanged. Moving an org between plans is POST /api/lago/plan, not this route. Errors: 400 validation (plan_code not free/paid, bad services shape, fee > $10, pack > $1000 or repeated, more than 10 packs); 401; 403.
+
+        Accepted auth: Authorization (dashboard user JWT).
+
+        Internal only: the caller's email must be in INTERNAL_ALLOWED_EMAILS, so only a dashboard user JWT works (pauthkey / proxy_auth_token carry no email -> 403).
+
+        Body fields:
+        - plan_code: string, required. 'free' or 'paid' only.
+        - display_name: string, required, non-empty. Name shown to users.
+        - services: required. '*' (everything) or an object mapping a service name to '*' or a non-empty array of model names.
+        - credit_grant: number, optional (default 0), >= 0. Credits granted on signup/wallet creation.
+        - status: number, optional (default 1). 1 active, 0 inactive.
+        - monthly_credits: integer, optional, >= 0. Balance a paid subscription invoice tops the wallet up to.
+        - hit_fees: object, optional. Per-hit USD fees: api, chatbot, embed (each 0-10, default 0). Replaces stored map.
+        - credit_packs: array of numbers, optional. USD pack amounts (each > 0 and <= 1000, unique, max 10). Replaces stored list; [] offers no packs.
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: JSON request body
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              plan_code: paid
+              display_name: Pro
+              services:
+                openai:
+                  - gpt-4o
+                  - gpt-4o-mini
+                anthropic: "*"
+              credit_grant: 0
+              status: 1
+              monthly_credits: 8000
+              hit_fees:
+                api: 0
+                chatbot: 0.001
+                embed: 0
+              credit_packs:
+                - 10
+                - 20
+                - 50
+                - 100
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: billing plan saved
+                    data:
+                      _id: "..."
+                      plan_code: paid
+                      display_name: Pro
+                      services:
+                        openai:
+                          - gpt-4o
+                          - gpt-4o-mini
+                        anthropic: "*"
+                      credit_grant: 0
+                      monthly_credits: 8000
+                      hit_fees:
+                        api: 0
+                        chatbot: 0.001
+                        embed: 0
+                      credit_packs:
+                        - 10
+                        - 20
+                        - 50
+                      status: 1
+                      updated_by: ops@gtwy.ai
+                      created_at: "2026-01-01T00:00:00.000Z"
+                      updated_at: "2026-10-01T00:00:00.000Z"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: plan_code must be "free" or "paid" — adding a plan requires a coordinated Python release first
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Forbidden (not an internal operator)
+          content:
+            application/json:
+              examples:
+                Forbidden_not_an_internal_operator:
+                  summary: Forbidden (not an internal operator)
+                  value:
+                    success: false
+                    message: "Access denied: you are not authorized for this action"
+      x-docstar-published: true
+    get:
+      summary: List Billing Plans
+      description: |-
+        Lists every billing plan definition with all fields (including services allowlist and hit fees), sorted by plan_code. Internal operators only. Errors: 401; 403.
+
+        Accepted auth: Authorization (dashboard user JWT).
+
+        Internal only: the caller's email must be in INTERNAL_ALLOWED_EMAILS, so only a dashboard user JWT works (pauthkey / proxy_auth_token carry no email -> 403).
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    data:
+                      - _id: "..."
+                        plan_code: paid
+                        display_name: Pro
+                        services:
+                          openai:
+                            - gpt-4o
+                            - gpt-4o-mini
+                          anthropic: "*"
+                        credit_grant: 0
+                        monthly_credits: 8000
+                        hit_fees:
+                          api: 0
+                          chatbot: 0.001
+                          embed: 0
+                        credit_packs:
+                          - 10
+                          - 20
+                          - 50
+                        status: 1
+                        updated_by: ops@gtwy.ai
+                        created_at: "2026-01-01T00:00:00.000Z"
+                        updated_at: "2026-10-01T00:00:00.000Z"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Forbidden (not an internal operator)
+          content:
+            application/json:
+              examples:
+                Forbidden_not_an_internal_operator:
+                  summary: Forbidden (not an internal operator)
+                  value:
+                    success: false
+                    message: "Access denied: you are not authorized for this action"
+      x-docstar-published: true
+    delete:
+      summary: Delete Billing Plan
+      description: |-
+        Deletes a billing plan definition by code (sent in the body). Orgs still on that plan fall back to the most restrictive plan. Returns 200 with 'no such billing plan' if nothing was stored. Internal operators only. Errors: 400 invalid plan_code; 401; 403.
+
+        Accepted auth: Authorization (dashboard user JWT).
+
+        Internal only: the caller's email must be in INTERNAL_ALLOWED_EMAILS, so only a dashboard user JWT works (pauthkey / proxy_auth_token carry no email -> 403).
+
+        Body fields:
+        - plan_code: string, required. 'free' or 'paid'.
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: JSON request body
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              plan_code: free
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: billing plan removed — any org still on 'free' now falls back to the most restrictive plan
+                Not_stored:
+                  summary: Not stored
+                  value:
+                    success: true
+                    message: no such billing plan
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: plan_code required
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Forbidden (not an internal operator)
+          content:
+            application/json:
+              examples:
+                Forbidden_not_an_internal_operator:
+                  summary: Forbidden (not an internal operator)
+                  value:
+                    success: false
+                    message: "Access denied: you are not authorized for this action"
+      x-docstar-published: true
+  /billing-plans/{plan_code}:
+    get:
+      summary: Get Billing Plan
+      description: |-
+        Returns one full billing plan definition by code. Internal operators only. Errors: 400 if plan_code is not 'free' or 'paid'; 404 if no definition is stored; 401; 403.
+
+        Accepted auth: Authorization (dashboard user JWT).
+
+        Internal only: the caller's email must be in INTERNAL_ALLOWED_EMAILS, so only a dashboard user JWT works (pauthkey / proxy_auth_token carry no email -> 403).
+      parameters:
+        - name: plan_code
+          in: path
+          required: true
+          description: string, required. 'free' or 'paid'.
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    data:
+                      _id: "..."
+                      plan_code: paid
+                      display_name: Pro
+                      services:
+                        openai:
+                          - gpt-4o
+                          - gpt-4o-mini
+                        anthropic: "*"
+                      credit_grant: 0
+                      monthly_credits: 8000
+                      hit_fees:
+                        api: 0
+                        chatbot: 0.001
+                        embed: 0
+                      credit_packs:
+                        - 10
+                        - 20
+                        - 50
+                      status: 1
+                      updated_by: ops@gtwy.ai
+                      created_at: "2026-01-01T00:00:00.000Z"
+                      updated_at: "2026-10-01T00:00:00.000Z"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              examples:
+                Not_found:
+                  summary: Not found
+                  value:
+                    success: false
+                    message: no billing plan 'free'
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: plan_code must be "free" or "paid" — adding a plan requires a coordinated Python release first
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Forbidden (not an internal operator)
+          content:
+            application/json:
+              examples:
+                Forbidden_not_an_internal_operator:
+                  summary: Forbidden (not an internal operator)
+                  value:
+                    success: false
+                    message: "Access denied: you are not authorized for this action"
+      x-docstar-published: true
+  /billing/checkout:
+    post:
+      summary: Start Card Checkout
+      description: |-
+        Step 1 of upgrading to Pro (also used to change the saved card): provisions the org in Lago if needed, attaches the Stripe payment provider, and returns Lago's hosted Stripe Checkout URL (setup mode) where the user saves a card. Nothing is charged. No body. Sets the billing status to awaiting_card unless already active/past_due. Errors: 409 a checkout is already being created or the first payment is still processing; 502 Lago returned no URL or a Lago error; 500 paid plan misconfigured. The org comes from the token, never the body. Embed tokens are refused (403).
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: checkout session created
+                    data:
+                      url: https://checkout.stripe.com/c/pay/...
+        "409":
+          description: Conflict
+          content:
+            application/json:
+              examples:
+                Conflict:
+                  summary: Conflict
+                  value:
+                    success: false
+                    message: a checkout for this org is already being created
+        "502":
+          description: Billing provider error
+          content:
+            application/json:
+              examples:
+                Billing_provider_error:
+                  summary: Billing provider error
+                  value:
+                    success: false
+                    message: billing provider error, please try again
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Embed user
+          content:
+            application/json:
+              examples:
+                Embed_user:
+                  summary: Embed user
+                  value:
+                    success: false
+                    message: embed users cannot manage billing
+        "503":
+          description: Billing disabled
+          content:
+            application/json:
+              examples:
+                Billing_disabled:
+                  summary: Billing disabled
+                  value:
+                    success: false
+                    message: billing is not enabled on this environment
+      x-docstar-published: true
+  /billing/subscribe:
+    post:
+      summary: Subscribe To Pro
+      description: |-
+        Step 2 of upgrading: after a card is saved via checkout, moves the org to the 'paid' plan immediately with anniversary billing; Lago invoices the subscription fee at once and the outcome arrives by webhook (success grants credits and sets active; failure downgrades). Returns status pending_first_payment. No body. Errors: 409 no card saved yet, first payment still processing, already on paid, or cancelling (use resume); 502 Lago error. The org comes from the token, never the body. Embed tokens are refused (403).
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: subscription started; first payment in progress
+                    data:
+                      plan: paid
+                      status: pending_first_payment
+        "409":
+          description: Conflict
+          content:
+            application/json:
+              examples:
+                Conflict:
+                  summary: Conflict
+                  value:
+                    success: false
+                    message: start a checkout and save a card before subscribing
+        "502":
+          description: Billing provider error
+          content:
+            application/json:
+              examples:
+                Billing_provider_error:
+                  summary: Billing provider error
+                  value:
+                    success: false
+                    message: billing provider error, please try again
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Embed user
+          content:
+            application/json:
+              examples:
+                Embed_user:
+                  summary: Embed user
+                  value:
+                    success: false
+                    message: embed users cannot manage billing
+        "503":
+          description: Billing disabled
+          content:
+            application/json:
+              examples:
+                Billing_disabled:
+                  summary: Billing disabled
+                  value:
+                    success: false
+                    message: billing is not enabled on this environment
+      x-docstar-published: true
+  /billing/cancel:
+    post:
+      summary: Cancel Subscription
+      description: |-
+        Cancels the Pro subscription at the end of the current period (Lago schedules a downgrade to free; credits and paid access remain until then). If Lago applies it immediately, the org is moved to free now (deferred=false). Repeat calls while already cancelling return already=true. No body. Errors: 409 org is not on the paid plan; 502 Lago error. The org comes from the token, never the body. Embed tokens are refused (403).
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: subscription will end at the close of the current period
+                    data:
+                      deferred: true
+                      ends_at: "2026-11-15T00:00:00.000Z"
+        "409":
+          description: Not on paid plan
+          content:
+            application/json:
+              examples:
+                Not_on_paid_plan:
+                  summary: Not on paid plan
+                  value:
+                    success: false
+                    message: this org is not on the paid plan
+        "502":
+          description: Billing provider error
+          content:
+            application/json:
+              examples:
+                Billing_provider_error:
+                  summary: Billing provider error
+                  value:
+                    success: false
+                    message: billing provider error, please try again
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Embed user
+          content:
+            application/json:
+              examples:
+                Embed_user:
+                  summary: Embed user
+                  value:
+                    success: false
+                    message: embed users cannot manage billing
+        "503":
+          description: Billing disabled
+          content:
+            application/json:
+              examples:
+                Billing_disabled:
+                  summary: Billing disabled
+                  value:
+                    success: false
+                    message: billing is not enabled on this environment
+      x-docstar-published: true
+  /billing/resume:
+    post:
+      summary: Resume Subscription
+      description: |-
+        Withdraws a pending cancellation so the Pro subscription continues renewing. No body. Errors: 409 nothing to resume (no cancellation pending); 502 Lago error. The org comes from the token, never the body. Embed tokens are refused (403).
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: cancellation withdrawn
+                    data:
+                      resumed: true
+        "409":
+          description: Nothing to resume
+          content:
+            application/json:
+              examples:
+                Nothing_to_resume:
+                  summary: Nothing to resume
+                  value:
+                    success: false
+                    message: "nothing to resume: no cancellation is pending"
+        "502":
+          description: Billing provider error
+          content:
+            application/json:
+              examples:
+                Billing_provider_error:
+                  summary: Billing provider error
+                  value:
+                    success: false
+                    message: billing provider error, please try again
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Embed user
+          content:
+            application/json:
+              examples:
+                Embed_user:
+                  summary: Embed user
+                  value:
+                    success: false
+                    message: embed users cannot manage billing
+        "503":
+          description: Billing disabled
+          content:
+            application/json:
+              examples:
+                Billing_disabled:
+                  summary: Billing disabled
+                  value:
+                    success: false
+                    message: billing is not enabled on this environment
+      x-docstar-published: true
+  /billing/retry:
+    post:
+      summary: Retry Payment
+      description: |-
+        Retries payment of the org's open (unpaid) invoice now, e.g. after updating the card, instead of waiting for the daily retry. If the invoice was paid meanwhile, returns status already_paid. No body. Errors: 404 no unpaid invoice to retry; 502 Lago error. The org comes from the token, never the body. Embed tokens are refused (403).
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: payment retry requested
+                    data:
+                      invoice_id: lago-invoice-uuid
+                      status: retry_requested
+        "404":
+          description: No open invoice
+          content:
+            application/json:
+              examples:
+                No_open_invoice:
+                  summary: No open invoice
+                  value:
+                    success: false
+                    message: no unpaid invoice to retry
+        "502":
+          description: Billing provider error
+          content:
+            application/json:
+              examples:
+                Billing_provider_error:
+                  summary: Billing provider error
+                  value:
+                    success: false
+                    message: billing provider error, please try again
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Embed user
+          content:
+            application/json:
+              examples:
+                Embed_user:
+                  summary: Embed user
+                  value:
+                    success: false
+                    message: embed users cannot manage billing
+        "503":
+          description: Billing disabled
+          content:
+            application/json:
+              examples:
+                Billing_disabled:
+                  summary: Billing disabled
+                  value:
+                    success: false
+                    message: billing is not enabled on this environment
+      x-docstar-published: true
+  /billing/portal:
+    post:
+      summary: Open Billing Portal
+      description: |-
+        Returns a URL to Lago's hosted customer portal (invoices, usage, credits) for the caller's org. No body. Errors: 404 org has no billing account yet (never started a checkout); 502 Lago returned no URL or a Lago error. The org comes from the token, never the body. Embed tokens are refused (403).
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    data:
+                      url: https://billing.example.com/customer-portal/...
+        "404":
+          description: No billing account
+          content:
+            application/json:
+              examples:
+                No_billing_account:
+                  summary: No billing account
+                  value:
+                    success: false
+                    message: org has no billing account yet
+        "502":
+          description: Billing provider error
+          content:
+            application/json:
+              examples:
+                Billing_provider_error:
+                  summary: Billing provider error
+                  value:
+                    success: false
+                    message: billing provider error, please try again
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Embed user
+          content:
+            application/json:
+              examples:
+                Embed_user:
+                  summary: Embed user
+                  value:
+                    success: false
+                    message: embed users cannot manage billing
+        "503":
+          description: Billing disabled
+          content:
+            application/json:
+              examples:
+                Billing_disabled:
+                  summary: Billing disabled
+                  value:
+                    success: false
+                    message: billing is not enabled on this environment
+      x-docstar-published: true
+  /billing/subscription:
+    get:
+      summary: Get My Subscription
+      description: |-
+        Returns the caller's org plan as Lago enforces it, the paid plan's name/price/monthly credits, the billing state (status: none, awaiting_card, pending_first_payment, active, past_due, canceled, card_failed; period end, grace, last error, 3DS URL) and booleans for which actions the UI should offer. Used for the plan banner. Errors: 502 Lago error. The org comes from the token, never the body. Embed tokens are refused (403).
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    data:
+                      plan: paid
+                      paid_plan:
+                        code: paid
+                        display_name: Pro
+                        monthly_credits: 8000
+                        price:
+                          amount_cents: 2000
+                          currency: USD
+                          interval: monthly
+                      billing:
+                        status: active
+                        current_period_end: "2026-11-15T00:00:00.000Z"
+                        cancel_at_period_end: false
+                        grace_until: null
+                        last_payment_error: null
+                        requires_action_url: null
+                        monthly_credits: 8000
+                        has_payment_method: true
+                      can_checkout: true
+                      can_subscribe: false
+                      can_cancel: true
+                      can_resume: false
+                      can_retry: false
+                      can_manage: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Embed user
+          content:
+            application/json:
+              examples:
+                Embed_user:
+                  summary: Embed user
+                  value:
+                    success: false
+                    message: embed users cannot manage billing
+        "503":
+          description: Billing disabled
+          content:
+            application/json:
+              examples:
+                Billing_disabled:
+                  summary: Billing disabled
+                  value:
+                    success: false
+                    message: billing is not enabled on this environment
+      x-docstar-published: true
+  /billing/invoices:
+    get:
+      summary: List My Invoices
+      description: |-
+        Returns up to 10 recent non-zero, non-draft, non-voided invoices for the caller's org in a slim UI shape (status label Paid/Pending/Failed). Errors: 502 Lago error. The org comes from the token, never the body. Embed tokens are refused (403).
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    data:
+                      - id: lago-invoice-uuid
+                        date: "2026-10-15"
+                        description: Pro · subscription
+                        status: Paid
+                        amount_cents: 2000
+                        currency: USD
+        "502":
+          description: Billing provider error
+          content:
+            application/json:
+              examples:
+                Billing_provider_error:
+                  summary: Billing provider error
+                  value:
+                    success: false
+                    message: billing provider error, please try again
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Embed user
+          content:
+            application/json:
+              examples:
+                Embed_user:
+                  summary: Embed user
+                  value:
+                    success: false
+                    message: embed users cannot manage billing
+        "503":
+          description: Billing disabled
+          content:
+            application/json:
+              examples:
+                Billing_disabled:
+                  summary: Billing disabled
+                  value:
+                    success: false
+                    message: billing is not enabled on this environment
+      x-docstar-published: true
+  /billing/credit-packs:
+    get:
+      summary: Get Credit Packs
+      description: |-
+        Lists the extra-credit packs the caller's org can buy on its current plan, each with its USD price and credits (USD divided by the org's credit rate), plus current spendable balance, purchased balance, pending purchases, last purchase and any 3DS URL or payment error. Defaults to $10/$20/$50/$100 packs when the plan defines none. Errors: 500 credit rate not configured; 502 Lago error. The org comes from the token, never the body. Embed tokens are refused (403).
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    data:
+                      plan: paid
+                      packs:
+                        - usd: 10
+                          credits: 1000
+                        - usd: 20
+                          credits: 2000
+                      currency: USD
+                      rate_per_credit: "0.01"
+                      balance: "2200"
+                      purchased_balance: 0
+                      can_buy: true
+                      has_payment_method: true
+                      pending_purchases: {}
+                      last_purchase: null
+                      requires_action_url: null
+                      last_payment_error: null
+        "502":
+          description: Billing provider error
+          content:
+            application/json:
+              examples:
+                Billing_provider_error:
+                  summary: Billing provider error
+                  value:
+                    success: false
+                    message: billing provider error, please try again
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Embed user
+          content:
+            application/json:
+              examples:
+                Embed_user:
+                  summary: Embed user
+                  value:
+                    success: false
+                    message: embed users cannot manage billing
+        "503":
+          description: Billing disabled
+          content:
+            application/json:
+              examples:
+                Billing_disabled:
+                  summary: Billing disabled
+                  value:
+                    success: false
+                    message: billing is not enabled on this environment
+      x-docstar-published: true
+  /billing/credits:
+    post:
+      summary: Buy Credit Pack
+      description: |-
+        Starts the purchase of one extra-credit pack. usd must match a pack offered on the org's plan; credits are derived server-side. Creates a one-off Lago invoice and returns a hosted Stripe payment page URL (status payment_required); credits are added after the payment succeeds. If the same pack already has an open page (within 24h) it is reused; if it was already paid, status is paid and nothing is charged again. Errors: 400 validation or amount not an offered pack; 409 a purchase is already being created; 502 no payment page or Lago error. The org comes from the token, never the body. Embed tokens are refused (403).
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Body fields:
+        - usd: number, required, > 0. USD amount of one of the packs from Get Credit Packs.
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: JSON request body
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              usd: 20
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: open the payment page to pay $20; 2000 credits are added once the payment goes through
+                    data:
+                      status: payment_required
+                      url: https://checkout.stripe.com/...
+                      usd: 20
+                      credits: 2000
+                      rate_per_credit: "0.01"
+                      invoice_id: lago-invoice-uuid
+                      reused: false
+                      note: pay on this page and the credits arrive
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: usd required — the amount of the credit pack to buy
+                    data: {}
+                Not_an_offered_pack:
+                  summary: Not an offered pack
+                  value:
+                    success: false
+                    message: 15 is not a credit pack offered on the 'paid' plan ($10, $20, $50, $100)
+        "502":
+          description: Billing provider error
+          content:
+            application/json:
+              examples:
+                Billing_provider_error:
+                  summary: Billing provider error
+                  value:
+                    success: false
+                    message: billing provider error, please try again
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Embed user
+          content:
+            application/json:
+              examples:
+                Embed_user:
+                  summary: Embed user
+                  value:
+                    success: false
+                    message: embed users cannot manage billing
+        "503":
+          description: Billing disabled
+          content:
+            application/json:
+              examples:
+                Billing_disabled:
+                  summary: Billing disabled
+                  value:
+                    success: false
+                    message: billing is not enabled on this environment
+      x-docstar-published: true
+  /billing/admin/reconcile:
+    get:
+      summary: Preview Billing Reconcile
+      description: |-
+        Runs the billing reconcile job: credits paid subscription/credit-pack invoices never processed, retries open invoices of orgs in grace, downgrades orgs whose grace expired, settles stuck first payments, voids abandoned pack invoices, fixes Lago-vs-Redis plan drift and replays retryable failed events. This GET always forces a dry run (reports what would change, changes nothing) with the default 45-day lookback. Internal operators only. Errors: 401; 403; 503 billing disabled; 502 Lago error.
+
+        Accepted auth: Authorization (dashboard user JWT).
+
+        Internal only: the caller's email must be in INTERNAL_ALLOWED_EMAILS, so only a dashboard user JWT works (pauthkey / proxy_auth_token carry no email -> 403).
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: dry run — nothing changed
+                    data:
+                      dry_run: true
+                      checked: 42
+                      credited:
+                        - org_id: "12345"
+                          invoice: lago-invoice-uuid
+                          number: INV-0001
+                      retried: []
+                      downgraded: []
+                      voided: []
+                      cache_fixed: []
+                      replayed: 0
+                      errors: []
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Forbidden (not an internal operator)
+          content:
+            application/json:
+              examples:
+                Forbidden_not_an_internal_operator:
+                  summary: Forbidden (not an internal operator)
+                  value:
+                    success: false
+                    message: "Access denied: you are not authorized for this action"
+        "503":
+          description: Billing disabled
+          content:
+            application/json:
+              examples:
+                Billing_disabled:
+                  summary: Billing disabled
+                  value:
+                    success: false
+                    message: billing is not enabled on this environment
+      x-docstar-published: true
+    post:
+      summary: Run Billing Reconcile
+      description: |-
+        Runs the billing reconcile job: credits paid subscription/credit-pack invoices never processed, retries open invoices of orgs in grace, downgrades orgs whose grace expired, settles stuck first payments, voids abandoned pack invoices, fixes Lago-vs-Redis plan drift and replays retryable failed events. Defaults to a dry run; send dry_run=false to apply changes. Internal operators only. Errors: 400 validation; 401; 403; 503 billing disabled; 502 Lago error.
+
+        Accepted auth: Authorization (dashboard user JWT).
+
+        Internal only: the caller's email must be in INTERNAL_ALLOWED_EMAILS, so only a dashboard user JWT works (pauthkey / proxy_auth_token carry no email -> 403).
+
+        Body fields:
+        - dry_run: boolean, optional (default true). false applies changes.
+        - lookback_days: integer, optional (default 45, 1-365). How far back to look for missed paid invoices.
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: JSON request body
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              dry_run: false
+              lookback_days: 45
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: reconcile finished
+                    data:
+                      dry_run: false
+                      checked: 42
+                      credited:
+                        - org_id: "12345"
+                          invoice: lago-invoice-uuid
+                          number: INV-0001
+                      retried: []
+                      downgraded: []
+                      voided: []
+                      cache_fixed: []
+                      replayed: 0
+                      errors: []
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: lookback_days must be less than or equal to 365
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Forbidden (not an internal operator)
+          content:
+            application/json:
+              examples:
+                Forbidden_not_an_internal_operator:
+                  summary: Forbidden (not an internal operator)
+                  value:
+                    success: false
+                    message: "Access denied: you are not authorized for this action"
+        "503":
+          description: Billing disabled
+          content:
+            application/json:
+              examples:
+                Billing_disabled:
+                  summary: Billing disabled
+                  value:
+                    success: false
+                    message: billing is not enabled on this environment
+      x-docstar-published: true
+  /billing/admin/events/{unique_key}/replay:
+    post:
+      summary: Replay Billing Event
+      description: |-
+        Re-processes a stored Lago billing event by its unique key (re-fetching the invoice from Lago when applicable). Permanently failed or ignored events are reset to retryable first. success reflects whether processing returned HTTP 200. No body. Internal operators only. Errors: 400 invalid key format; 404 no stored event; 401; 403; 503 billing disabled.
+
+        Accepted auth: Authorization (dashboard user JWT).
+
+        Internal only: the caller's email must be in INTERNAL_ALLOWED_EMAILS, so only a dashboard user JWT works (pauthkey / proxy_auth_token carry no email -> 403).
+      parameters:
+        - name: unique_key
+          in: path
+          required: true
+          description: string, required, 1-200 chars of [A-Za-z0-9:_-]. A Lago webhook id or 'reconcile:<invoice lago_id>', from List Org Billing Events.
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: replay processed
+                    data:
+                      status: processed
+                      http: 200
+                      note: credit pack +2000
+        "404":
+          description: Not found
+          content:
+            application/json:
+              examples:
+                Not_found:
+                  summary: Not found
+                  value:
+                    success: false
+                    message: no stored event abc123
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: unique_key must be a Lago webhook id or a reconcile:<invoice_id> key
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Forbidden (not an internal operator)
+          content:
+            application/json:
+              examples:
+                Forbidden_not_an_internal_operator:
+                  summary: Forbidden (not an internal operator)
+                  value:
+                    success: false
+                    message: "Access denied: you are not authorized for this action"
+        "503":
+          description: Billing disabled
+          content:
+            application/json:
+              examples:
+                Billing_disabled:
+                  summary: Billing disabled
+                  value:
+                    success: false
+                    message: billing is not enabled on this environment
+      x-docstar-published: true
+  /billing/admin/{org_id}/events:
+    get:
+      summary: List Org Billing Events
+      description: |-
+        Lists the latest 100 stored Lago billing events (webhook ledger) for an org, newest first, including status, attempts, error, steps and payload snapshot. Internal operators only. Errors: 401; 403.
+
+        Accepted auth: Authorization (dashboard user JWT).
+
+        Internal only: the caller's email must be in INTERNAL_ALLOWED_EMAILS, so only a dashboard user JWT works (pauthkey / proxy_auth_token carry no email -> 403).
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          description: string, required. Org id.
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    data:
+                      - _id: "..."
+                        unique_key: lago-webhook-uuid
+                        webhook_type: invoice.payment_status_updated
+                        object_type: invoice
+                        object_id: lago-invoice-uuid
+                        org_id: "12345"
+                        invoice_id: lago-invoice-uuid
+                        subscription_external_id: null
+                        payment_status: succeeded
+                        status: processed
+                        permanent: false
+                        attempts: 1
+                        error: ""
+                        steps: {}
+                        snapshot: {}
+                        credit_claim: true
+                        synthetic: false
+                        processing_started_at: null
+                        created_at: "2026-10-15T10:00:00.000Z"
+                        updated_at: "2026-10-15T10:00:01.000Z"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Forbidden (not an internal operator)
+          content:
+            application/json:
+              examples:
+                Forbidden_not_an_internal_operator:
+                  summary: Forbidden (not an internal operator)
+                  value:
+                    success: false
+                    message: "Access denied: you are not authorized for this action"
+      x-docstar-published: true
+  /billing/admin/{org_id}:
+    get:
+      summary: Get Org Billing Record
+      description: |-
+        Returns the stored OrgBilling record for an org (subscription status, Lago/Stripe ids, period dates, open invoice, grace, purchased credits, pending purchases, last payment error). Internal operators only. Errors: 404 no billing record; 401; 403.
+
+        Accepted auth: Authorization (dashboard user JWT).
+
+        Internal only: the caller's email must be in INTERNAL_ALLOWED_EMAILS, so only a dashboard user JWT works (pauthkey / proxy_auth_token carry no email -> 403).
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          description: string, required. Org id.
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    data:
+                      _id: "..."
+                      org_id: "12345"
+                      status: active
+                      lago_customer_id: "..."
+                      stripe_customer_id: cus_...
+                      payment_provider_code: stripe_prod
+                      has_payment_method: true
+                      subscription_external_id: "12345"
+                      current_period_start: "2026-10-15T00:00:00.000Z"
+                      current_period_end: "2026-11-15T00:00:00.000Z"
+                      cancel_at_period_end: false
+                      open_invoice_id: null
+                      grace_until: null
+                      retry_count: 0
+                      last_paid_invoice_id: lago-invoice-uuid
+                      credits_purchased_balance: 0
+                      pending_credit_purchases: {}
+                      last_payment_error: null
+                      requires_action_url: null
+                      initiated_by: jane@acme.com
+        "404":
+          description: Not found
+          content:
+            application/json:
+              examples:
+                Not_found:
+                  summary: Not found
+                  value:
+                    success: false
+                    message: no billing record for org 12345
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Forbidden (not an internal operator)
+          content:
+            application/json:
+              examples:
+                Forbidden_not_an_internal_operator:
+                  summary: Forbidden (not an internal operator)
+                  value:
+                    success: false
+                    message: "Access denied: you are not authorized for this action"
+      x-docstar-published: true
+  /lago/provision:
+    post:
+      summary: Provision Org Webhook
+      description: |-
+        MSG91 signup webhook that provisions Lago billing for a newly created org: creates the Lago customer, a subscription on the default 'free' plan, and a credit wallet, each skipped if it already exists (idempotent; never downgrades an existing paid subscription). Only events 'create_company' and 'register_company_and_user' are handled; the org id is read from data.company.id. Unknown body keys are allowed. Errors: 403 invalid webhook token; 400 unsupported event, missing org id, or validation failure; Lago failures surface as 400 via the error handler.
+
+        Accepted auth: none (public).
+
+        Body fields:
+        - event: string, required. Only 'create_company' or 'register_company_and_user' are processed; others return 400.
+        - data: object, required, any shape. data.company.id (string|number) is the org id to provision.
+        - *: Any additional keys are accepted and ignored.
+      parameters:
+        - name: x-webhook-token
+          in: header
+          required: false
+          description: Shared secret; required only when LAGO_PROVISION_WEBHOOK_TOKEN is configured.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: JSON request body
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              event: create_company
+              data:
+                company:
+                  id: 12345
+                  name: Acme Inc
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Customer, subscription and wallet provisioned
+                    data:
+                      customer:
+                        skipped: true
+                        reason: customer already exists
+                      subscription:
+                        skipped: true
+                        reason: subscription already exists
+                        plan_code: gtwy_free
+                        plan_slug: free
+                      wallet:
+                        skipped: true
+                        reason: active wallet already exists
+                      plan: free
+        "403":
+          description: Invalid webhook token
+          content:
+            application/json:
+              examples:
+                Invalid_webhook_token:
+                  summary: Invalid webhook token
+                  value:
+                    success: false
+                    message: invalid webhook token
+        "400":
+          description: Unsupported event
+          content:
+            application/json:
+              examples:
+                Unsupported_event:
+                  summary: Unsupported event
+                  value:
+                    success: false
+                    message: unsupported event
+                Missing_org_id:
+                  summary: Missing org id
+                  value:
+                    success: false
+                    message: org_id not found
+      x-docstar-published: true
+  /lago/wallet/{org_id}/sync:
+    post:
+      summary: Sync Wallet Balance To Redis
+      description: |-
+        Re-reads an org's wallet from Lago, drops the cached wallet, and overwrites the Redis shadow credit balance (credits_ongoing_balance, else credits_balance) that the request gate uses. credits_balance is null when the org has no wallet. No body. Internal operators only. Errors: 401; 403; 400 on Lago failure.
+
+        Accepted auth: Authorization (dashboard user JWT).
+
+        Internal only: the caller's email must be in INTERNAL_ALLOWED_EMAILS, so only a dashboard user JWT works (pauthkey / proxy_auth_token carry no email -> 403).
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          description: string, required. Org whose balance to resync.
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: balance synced to redis
+                    data:
+                      org_id: "12345"
+                      credits_balance: "2200.0"
+                No_wallet:
+                  summary: No wallet
+                  value:
+                    success: true
+                    message: no wallet provisioned yet
+                    data:
+                      org_id: "12345"
+                      credits_balance: null
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Forbidden (not an internal operator)
+          content:
+            application/json:
+              examples:
+                Forbidden_not_an_internal_operator:
+                  summary: Forbidden (not an internal operator)
+                  value:
+                    success: false
+                    message: "Access denied: you are not authorized for this action"
+      x-docstar-published: true

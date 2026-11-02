@@ -1,0 +1,114 @@
+openapi: 3.0.3
+info:
+  title: "Admin: Reports"
+  version: 1.0.0
+servers:
+  - url: https://db.gtwy.ai/api
+paths:
+  /report/monthly:
+    post:
+      summary: Generate Monthly Latency Report
+      description: |-
+        Internal/cron job: for every organization, computes the previous calendar month's average GTWY overhead latency per agent (overall time minus model and function time), POSTs the combined report to an internal viaSocket webhook, and returns it. Takes no input (body is ignored). This route has no authentication. Errors: 400 on unexpected failure.
+
+        Accepted auth: none (public).
+      parameters:
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    data:
+                      - "12345":
+                          report_period:
+                            start_date: "2026-09-01"
+                            end_date: "2026-09-30"
+                          bridge_latency_report:
+                            - bridge_id: 665f1c2e8b3a4d0012ab34cd
+                              bridge_name: Support Bot
+                              avg_latency: "0.42"
+                              total_requests: 812
+                    success: true
+      x-docstar-published: true
+  /report/message-data:
+    post:
+      summary: Get Message Data
+      description: |-
+        Internal: returns the full conversation log row for a message_id (any org). This route has no authentication. Returns data:null if the message does not exist. Errors: 400 validation (message_id required).
+
+        Accepted auth: none (public).
+
+        Body fields:
+        - message_id: string, required; message id from conversation history
+      parameters:
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              message_id: b1c2d3
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    data:
+                      id: 1201
+                      org_id: "12345"
+                      thread_id: thread_abc
+                      sub_thread_id: thread_abc
+                      bridge_id: 665f1c2e8b3a4d0012ab34cd
+                      version_id: 665f1c2e8b3a4d0012ab34ce
+                      message_id: b1c2d3
+                      user: How do I reset my password?
+                      llm_message: Go to Settings > Security.
+                      updated_llm_message: null
+                      chatbot_message: null
+                      model: gpt-5-nano
+                      service: openai
+                      tools_call_data: []
+                      user_feedback: 0
+                      error: null
+                      tokens:
+                        input_tokens: 120
+                        output_tokens: 30
+                      latency:
+                        over_all_time: 1.4
+                      variables: {}
+                      created_at: "2026-10-20T10:00:00.000Z"
+                      updated_at: "2026-10-20T10:00:01.000Z"
+                    success: true
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: '"message_id" is required'
+                    data: {}
+      x-docstar-published: true
