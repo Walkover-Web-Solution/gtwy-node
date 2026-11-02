@@ -1,0 +1,170 @@
+openapi: 3.0.3
+info:
+  title: Metrics
+  version: 1.0.0
+servers:
+  - url: https://db.gtwy.ai/api
+paths:
+  /metrics:
+    post:
+      summary: Get Metrics Data
+      description: |-
+        Returns aggregated usage metrics (cost, average latency, success count, total tokens) for the caller's org over time, grouped by a factor such as bridge_id, apikey_id or model, optionally filtered by agent, version, API key, thread, service or model. range selects the window: 1=1h, 2=3h, 3=6h, 4=12h, 5=1 day (15-minute buckets); 6=2 days, 7=7 days, 8=14 days, 9=30 days (daily buckets, plus the last 2 days of 15-minute data appended); 10=custom start_date..end_date. Values are interpolated into SQL, so pass only plain ids/names. Errors: 400 validation (range and factor required), 401.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Body fields:
+        - range: integer, required; time window code 1-10 (see description)
+        - factor: string, required; column to group by: 'bridge_id' | 'apikey_id' | 'model'
+        - bridge_id: string or integer, optional; filter by agent _id
+        - version_id: string or integer, optional; filter by version _id
+        - apikey_id: string or integer, optional; filter by API key _id
+        - thread_id: string or integer, optional; filter by thread
+        - service: string, optional; filter by AI service (e.g. 'openai')
+        - model: string, optional; filter by model name
+        - start_date: date, optional; used only when range=10
+        - end_date: date, optional; used only when range=10
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              range: 7
+              factor: bridge_id
+              bridge_id: 665f1c2e8b3a4d0012ab34cd
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    statusCode: 200
+                    data:
+                      - bridge_id: 665f1c2e8b3a4d0012ab34cd
+                        created_at: "2026-10-19T00:00:00.000Z"
+                        cost_sum: 0.84
+                        latency_sum: 1.21
+                        success_count: "340"
+                        total_token_count: "182000"
+                    message: Successfully get request data
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: range is required
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /metrics/agent:
+    post:
+      summary: Get Agent Usage Summary
+      description: |-
+        Returns per-agent totals (tokens, cost, last used time) for the caller's org. With start_date and end_date the totals cover that range (from daily data, or 15-minute data if start_date is within the last 24h); without them, the last 24 hours. No body validation is applied. Errors: 401.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Body fields:
+        - start_date: date string, optional; range start (needs end_date)
+        - end_date: date string, optional; range end (needs start_date)
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              start_date: "2026-10-01T00:00:00.000Z"
+              end_date: "2026-10-22T23:59:59.000Z"
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    statusCode: 200
+                    data:
+                      - bridge_id: 665f1c2e8b3a4d0012ab34cd
+                        total_tokens: "182000"
+                        total_cost: 0.84
+                        last_used_time: "2026-10-22T18:10:00.000Z"
+                    message: Successfully retrieved bridge metrics
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true

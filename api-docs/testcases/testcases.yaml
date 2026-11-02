@@ -1,0 +1,530 @@
+openapi: 3.0.3
+info:
+  title: Testcases
+  version: 1.0.0
+servers:
+  - url: https://db.gtwy.ai/api
+paths:
+  /testcases/create:
+    post:
+      summary: Create Testcase
+      description: |-
+        Creates a testcase for an agent: an input conversation plus the expected response or function call and how to compare it (exact, ai or cosine). If message_id refers to a logged message with an AiConfig, the conversation is rebuilt from that message's user/assistant turns (overriding body.conversation). Testcases are looked up by id or agent id only; the code does not check that they belong to the caller's org. Errors: 400 validation (bridge_id, type, expected, matching_type required; Mongo also enforces type in function|response and matching_type in exact|ai|cosine), 401.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Body fields:
+        - bridge_id: string, required; agent _id
+        - name: string, optional (may be empty)
+        - conversation: array, optional; [{role:'user'|'assistant', content}]
+        - message_id: string, optional; build conversation from this logged message
+        - service: string, optional (extra field); service used to normalize the logged AiConfig
+        - type: string, required; 'response' or 'function'
+        - expected: object, required; e.g. {response:'...'} or expected tool call
+        - matching_type: string, required; 'exact' | 'ai' | 'cosine'
+        - variables: object, optional; prompt variables for the run
+        - user_urls: array, optional; image/file URLs for the user turn
+        - tools_response: object, optional; map of tool name -> {recordings:[{args, response, recorded_at}]} for mocked tool outputs
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              bridge_id: 665f1c2e8b3a4d0012ab34cd
+              name: Refund policy
+              conversation:
+                - role: user
+                  content: Can I get a refund?
+              type: response
+              expected:
+                response: Yes, within 30 days.
+              matching_type: ai
+              variables:
+                company: Acme
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    data:
+                      _id: 6661bb228b3a4d0012ac0001
+                      message: Testcase created successfully
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: bridge_id is required
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /testcases:
+    delete:
+      summary: Bulk Delete Testcases
+      description: |-
+        Deletes several testcases by their _ids (sent in the request body). Testcases are looked up by id or agent id only; the code does not check that they belong to the caller's org. Errors: 404 'Testcase(s) not found' if none were deleted, 400 validation (testCaseIds must be a non-empty array), 401.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Body fields:
+        - testCaseIds: string[], required, min 1; testcase _ids to delete
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              testCaseIds:
+                - 6661bb228b3a4d0012ac0001
+                - 6661bb228b3a4d0012ac0002
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: 2 testcase(s) deleted successfully
+                    deletedCount: 2
+        "404":
+          description: Not found
+          content:
+            application/json:
+              examples:
+                Not_found:
+                  summary: Not found
+                  value:
+                    success: false
+                    error: Testcase(s) not found
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: testCaseIds array must contain at least one testcase id
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /testcases/agent/{agent_id}:
+    delete:
+      summary: Delete All Agent Testcases
+      description: |-
+        Deletes every testcase belonging to an agent. Testcases are looked up by id or agent id only; the code does not check that they belong to the caller's org. Errors: 404 'No testcases found for this agent', 401.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: agent_id
+          in: path
+          required: true
+          description: Agent _id whose testcases should be deleted
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: 5 testcase(s) deleted successfully
+                    deletedCount: 5
+        "404":
+          description: Not found
+          content:
+            application/json:
+              examples:
+                Not_found:
+                  summary: Not found
+                  value:
+                    success: false
+                    error: No testcases found for this agent
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /testcases/{testcase_id}:
+    delete:
+      summary: Delete Testcase
+      description: |-
+        Deletes one testcase by _id. Testcases are looked up by id or agent id only; the code does not check that they belong to the caller's org. Errors: 404 'Testcase(s) not found', 401. The success response has no deletedCount for single deletes.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: testcase_id
+          in: path
+          required: true
+          description: Testcase _id, from List Agent Testcases
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Deleted successfully
+        "404":
+          description: Not found
+          content:
+            application/json:
+              examples:
+                Not_found:
+                  summary: Not found
+                  value:
+                    success: false
+                    error: Testcase(s) not found
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+    put:
+      summary: Update Testcase
+      description: |-
+        Updates a testcase. type, expected and matching_type are required on every update; name, conversation, variables, user_urls, tools_response and agent_id are set from the body (fields omitted are left unchanged). Testcases are looked up by id or agent id only; the code does not check that they belong to the caller's org. Returns result:null with 200 if the id does not exist. Errors: 400 validation, 401.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Body fields:
+        - name: string, optional (may be empty)
+        - conversation: array, optional; [{role, content}]
+        - type: string, required; 'response' | 'function'
+        - expected: object, required
+        - matching_type: string, required; 'exact' | 'ai' | 'cosine'
+        - variables: object, optional (extra field)
+        - user_urls: array, optional (extra field)
+        - agent_id: string, optional (extra field); stored as agent_id
+        - tools_response: object, optional; tool name -> {recordings:[{args, response, recorded_at}]}
+      parameters:
+        - name: testcase_id
+          in: path
+          required: true
+          description: Testcase _id, from List Agent Testcases
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              name: Refund policy (updated)
+              conversation:
+                - role: user
+                  content: Can I get a refund after 40 days?
+              type: response
+              expected:
+                response: No, refunds are limited to 30 days.
+              matching_type: ai
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    result:
+                      _id: 6661bb228b3a4d0012ac0001
+                      bridge_id: 665f1c2e8b3a4d0012ab34cd
+                      name: Refund policy (updated)
+                      conversation:
+                        - role: user
+                          content: Can I get a refund?
+                      type: response
+                      expected:
+                        response: Yes, within 30 days.
+                      matching_type: ai
+                      variables: {}
+                      user_urls: []
+                      tools_response: {}
+                      execution:
+                        lastExecutedAt: null
+                      updatedAt: "2026-10-20T10:00:00.000Z"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: type is required
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /testcases/{agent_id}:
+    get:
+      summary: List Agent Testcases
+      description: |-
+        Lists an agent's testcases, newest first, with optional keyword search over name and conversation content (case-insensitive). Each testcase includes history: the conversation log rows of its past runs (newest first). Testcases are looked up by id or agent id only; the code does not check that they belong to the caller's org. Errors: 400 validation, 401.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: agent_id
+          in: path
+          required: true
+          description: Agent _id from List Agents
+          schema:
+            type: string
+        - name: page
+          in: query
+          required: false
+          description: integer >= 1, optional, default 1
+          schema:
+            type: string
+          example: "1"
+        - name: limit
+          in: query
+          required: false
+          description: integer 1-100, optional, default 30
+          schema:
+            type: string
+          example: "30"
+        - name: keyword
+          in: query
+          required: false
+          description: string, optional; search term
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    data:
+                      - _id: 6661bb228b3a4d0012ac0001
+                        bridge_id: 665f1c2e8b3a4d0012ab34cd
+                        name: Refund policy
+                        conversation:
+                          - role: user
+                            content: Can I get a refund?
+                        type: response
+                        expected:
+                          response: Yes, within 30 days.
+                        matching_type: ai
+                        variables: {}
+                        user_urls: []
+                        tools_response: {}
+                        execution:
+                          lastExecutedAt: null
+                        updatedAt: "2026-10-20T10:00:00.000Z"
+                        history: []
+                    total: 1
+                    page: 1
+                    limit: 30
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: limit must be at most 100
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true

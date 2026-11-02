@@ -1,0 +1,883 @@
+openapi: 3.0.3
+info:
+  title: Chat Completion
+  version: 1.0.0
+servers:
+  - url: https://api.gtwy.ai
+paths:
+  /api/v2/model/chat/completion:
+    post:
+      summary: Run Agent Chat Completion
+      description: |-
+        Sends a user message to a GTWY agent (bridge) and returns the model's answer. The agent's saved prompt, model, tools, RAG, memory and API keys are loaded by agent_id/bridge_id (or version_id); any configuration/service/apikey/variables in the body override them for this call only. Delivery depends on settings.response_format: 'default' returns {success, response:{data, usage}} synchronously; RTLayer/webhook queue the job and return {success, message_id, message} immediately; configuration.stream=true (or stream=true) returns a Server-Sent Events stream. configuration.type 'embedding' or 'image' routes to the embedding/image generators. Errors: 400 for unknown agent, model/service mismatch, missing user message, or insufficient credits (detail holds the reason); 400 with {success:false,error,message_id} when the provider call fails; 422 for schema errors; 429 when the per-agent (100/min) or per-thread (20/min) limit is hit; 500 if queueing fails.
+
+        Accepted auth: Authorization (dashboard user JWT) OR proxy_auth_token (proxy / auth 2.0 user token) OR pauthkey (org auth key).
+
+        Body fields:
+        - agent_id: string, required unless version_id is given. ID of the agent (bridge) to run, from List Agents. Alias: bridge_id (either key is accepted). Rate limited to 100 requests/min per agent.
+        - bridge_id: string, optional alias of agent_id (legacy name). Send one of agent_id / bridge_id.
+        - version_id: string, optional. Run a specific agent version instead of the agent's published version. If only version_id is sent the agent is resolved from it.
+        - user: string, required unless images, image/audio user_urls, batch, or a rerun (message_ids / thread_id+sub_thread_id) are provided. The end user's message for this turn. Missing -> 400 'User message is compulsory'.
+        - thread_id: string, optional. Conversation id; messages sharing a thread_id share history/memory. If omitted a new thread is created. Rate limited to 20 requests/min per thread_id.
+        - sub_thread_id: string, optional. Sub-conversation inside a thread; defaults to thread_id.
+        - variables: object, optional. Key/value pairs substituted into {{variable}} placeholders in the agent prompt (and mapped into tool args). Missing required variables trigger a variable alert but do not fail the call.
+        - variables_path: object, optional. Mapping that tells the agent where to pull tool argument values from the variables object.
+        - configuration: object, optional. Overrides merged on top of the agent's saved model configuration for this call only. Unknown keys are allowed. Common keys: model (string, non-empty), type (chat | embedding | fine-tune | reasoning | image; embedding and image route to dedicated handlers), prompt, temperature, max_tokens, top_p, frequency_penalty, presence_penalty, stop, tools, tool_choice, parallel_tool_calls, reasoning, response_type (e.g. {"type":"json_object"} or a json_schema object - this is the field that actually controls structured output), stream (true -> Server-Sent Events), conversation (array of prior messages to use as history), size/quality/style (images). configuration.response_format, if sent, is moved to settings.response_format.
+        - service: string, optional. Override the AI provider. Allowed: openai, gemini, anthropic, grok, deepseek, groq, open_router, mistral, deepgram, openai_completion, neev_cloud, moonshot, minimax, typesafe. The service+model pair must exist (and be visible to your org) or the call fails 400 'model or service does not exist!'.
+        - apikey: string, optional. Provider API key to use for this call instead of the key saved on the agent.
+        - settings: object, optional. Request-level settings. settings.response_format = {type, cred} controls delivery: type 'default' (or omitted) returns the answer in the HTTP response; any other type ('RTLayer' with cred {channel, ttl, apikey}, or 'webhook' with cred {url, headers?}) queues the request and returns immediately with a message_id, the answer being delivered to the channel/webhook. webhook cred.url must be an http(s) URL.
+        - stream: boolean, optional. Shortcut that sets configuration.stream. When true the response is text/event-stream (SSE) with JSON events: start, delta, reasoning, tool_call, tool_result, fallback, done (usage, message_id, finish_reason), error.
+        - is_stream: boolean, optional. Accepted by the schema; not read by the completion pipeline (use stream).
+        - response_type: any, optional. Accepted by the schema but the pipeline reads configuration.response_type, not this top-level field. Put {"type":"json_object"} inside configuration to force JSON output.
+        - images: array of image URL strings, optional. Images sent with the user message (vision models).
+        - files: array of file URL strings, optional. Files (e.g. PDFs, typically from Upload File) attached to the message.
+        - user_urls: array, optional. Attachments as objects {type: image|audio|video|file|pdf, url: http(s) URL, source?: string}. image/audio entries count as a user message when 'user' is empty.
+        - template_id: string, optional. System prompt template to apply.
+        - extra_tools: array, optional. Extra tool definitions available only for this call. Each tool may carry headers and toolAndVariablePath (or tool_and_variable_path) mapping tool input fields to values in variables, so those fields are hidden from the model.
+        - built_in_tools: array, optional. Built-in tools to enable for this call, e.g. ["web_search"]. Overrides the agent's setting.
+        - web_search_filters: array of domain strings or object, optional. Domain allowlist for the built-in web search.
+        - guardrails: object, optional. Content guardrails config, e.g. {is_enabled: true, ...}; when enabled the input is checked first and a blocked response is returned if it fails.
+        - orchestrator_flag: boolean, optional. For multi-agent (connected agents) runs: store agent-to-agent transfers as one orchestrator history entry.
+        - environment: string, optional. Environment name (e.g. 'production'); when version_id is absent the version mapped to this environment in the agent's environment_config is run.
+        - wrapper_id: string, optional. Caller-defined wrapper id stored with the conversation history.
+        - auto_model_select: object, optional. Auto model routing config; overrides the agent's saved auto_model_select.
+        - cache_on: boolean, optional. Enable response caching for this call (cached answers return usage 0 and is_cached true); overrides the agent setting.
+        - is_playground: boolean, optional. Used by the GTWY dashboard playground; when true and streaming is off the answer is pushed to an RTLayer channel {org_id}_{agent_id}[_{version_id}]_{user_id} and the HTTP call returns a queued acknowledgement. Do not set from external integrations.
+        - message_ids: array, optional. Only meaningful for Rerun Messages.
+        - batch: array, optional. Only meaningful for Batch Chat Completion.
+        - webhook: string, optional. Only meaningful for Batch Chat Completion.
+        - batch_variables: array of objects, optional. Only meaningful for Batch Chat Completion.
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              agent_id: 6650a1b2c3d4e5f6a7b8c9d0
+              user: "What is the status of order #1234?"
+              thread_id: customer-42
+              sub_thread_id: customer-42
+              variables:
+                customer_name: Asha
+                order_id: "1234"
+              version_id: 6650a1b2c3d4e5f6a7b8c9d1
+              configuration:
+                temperature: 0.3
+                response_type:
+                  type: json_object
+              settings:
+                response_format:
+                  type: default
+              user_urls:
+                - type: image
+                  url: https://example.com/receipt.png
+      responses:
+        "200":
+          description: Success (synchronous, response_format default)
+          content:
+            application/json:
+              examples:
+                Success_synchronous_response_format_default:
+                  summary: Success (synchronous, response_format default)
+                  value:
+                    success: true
+                    response:
+                      data:
+                        id: chatcmpl-abc123
+                        content: Hello! How can I help you today?
+                        model: gpt-4o
+                        role: assistant
+                        finish_reason: stop
+                        tools_data: {}
+                        images: null
+                        annotations: null
+                        fallback: false
+                        firstAttemptError: ""
+                        message_id: 7f9c2a10-6f1e-11f0-9a2b-0242ac120002
+                      usage:
+                        input_tokens: 120
+                        output_tokens: 18
+                        total_tokens: 138
+                        cached_tokens: 0
+                        cost: 0.00042
+                Queued_RTLayer_webhook_response_format:
+                  summary: Queued (RTLayer/webhook response_format)
+                  value:
+                    success: true
+                    message_id: 7f9c2a10-6f1e-11f0-9a2b-0242ac120002
+                    message: Your response will be sent through configured means.
+                Streaming_stream_true_-_text_event-stream_lines:
+                  summary: Streaming (stream=true) - text/event-stream lines
+                  value:
+                    event: delta
+                    content: Hello
+        "400":
+          description: Configuration / input error
+          content:
+            application/json:
+              examples:
+                Configuration_input_error:
+                  summary: Configuration / input error
+                  value:
+                    detail:
+                      success: false
+                      error: model or service does not exist!
+                Provider_execution_error:
+                  summary: Provider / execution error
+                  value:
+                    success: false
+                    error: "Error code: 401 - Incorrect API key provided (Type: AuthenticationError). For more support contact us at support@gtwy.ai"
+                    message_id: 7f9c2a10-6f1e-11f0-9a2b-0242ac120002
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    detail: Validation error
+                    errors:
+                      - type: value_error
+                        loc: []
+                        msg: Value error, Either agent_id, bridge_id, or version_id must be provided
+                        input: {}
+        "429":
+          description: Rate limited
+          content:
+            application/json:
+              examples:
+                Rate_limited:
+                  summary: Rate limited
+                  value:
+                    detail: Too many requests for 6650a1b2c3d4e5f6a7b8c9d0
+        "401":
+          description: Unauthorized (bad/revoked token or invalid pauthkey)
+          content:
+            application/json:
+              examples:
+                Unauthorized_bad_revoked_token_or_invalid_pauthkey:
+                  summary: Unauthorized (bad/revoked token or invalid pauthkey)
+                  value:
+                    detail: unauthorized user
+        "403":
+          description: Organization disabled
+          content:
+            application/json:
+              examples:
+                Organization_disabled:
+                  summary: Organization disabled
+                  value:
+                    detail: Organization is disabled
+        "404":
+          description: No auth header sent
+          content:
+            application/json:
+              examples:
+                No_auth_header_sent:
+                  summary: No auth header sent
+                  value:
+                    detail: unauthorized user
+        "500":
+          description: Queue publish failed
+          content:
+            application/json:
+              examples:
+                Queue_publish_failed:
+                  summary: Queue publish failed
+                  value:
+                    detail: Failed to publish message.
+      x-docstar-published: true
+  /api/v2/model/openai/responses:
+    post:
+      summary: Create OpenAI-Compatible Response
+      description: |-
+        OpenAI Responses API-compatible endpoint so the OpenAI SDK (base_url pointed at GTWY) can call a GTWY agent. The input text is extracted from 'input' (string, message object, or array of messages / input_text parts), mapped onto a normal agent chat completion, and the result is returned in OpenAI Responses format (object 'response', output blocks, output_text, usage). Only synchronous output is returned. Errors: 401 if the Authorization header is not 'Bearer <pauthkey>' or the key is invalid; 400 if agent_id is missing, no user text is found, or the agent call fails; 429 rate limits (100/min per agent, 20/min per thread).
+
+        Accepted auth: Authorization: Bearer <pauthkey>.
+
+        Body fields:
+        - agent_id: string, required. GTWY agent to run (from List Agents). Missing -> 400 (an absent key raises before the check).
+        - input: string | object | array, required. OpenAI-style input; text parts of type 'text'/'input_text' are joined into the user message. No text -> 400 'No user message found in payload.'
+        - model: string, optional. Sets configuration.model if configuration.model is not already given.
+        - configuration: object, optional. Model configuration overrides (as in Run Agent Chat Completion).
+        - conversation_id: string, optional. Used as thread_id (thread_id is also accepted).
+        - thread_id: string, optional. Alternative to conversation_id.
+        - sub_thread_id: string, optional.
+        - variables: object, optional. Prompt variables.
+        - apikey: string, optional. Provider key override.
+        - service: string, optional. Provider override.
+        - user_urls: array, optional. Attachments {type, url}.
+        - auto_model_select: object, optional.
+        - cache_on: boolean, optional.
+        - messages: array, optional. Passed through as 'messages' (not used as history by the pipeline - unclear effect).
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: "'Bearer <GTWY pauthkey>' (OpenAI SDK style api_key); converted to the pauthkey header internally."
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              agent_id: 6650a1b2c3d4e5f6a7b8c9d0
+              model: gpt-4o
+              input:
+                - role: user
+                  content:
+                    - type: input_text
+                      text: Hi, what can you do?
+              conversation_id: customer-42
+              variables:
+                customer_name: Asha
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    id: resp_3f2a9c...
+                    object: response
+                    created_at: 1761200000
+                    status: completed
+                    model: gpt-4o
+                    output:
+                      - id: rs_8b1...
+                        type: reasoning
+                        summary: []
+                      - id: msg_9c2...
+                        type: message
+                        status: completed
+                        role: assistant
+                        content:
+                          - type: output_text
+                            text: I can answer questions about your orders.
+                    usage:
+                      input_tokens: 120
+                      input_tokens_details:
+                        cached_tokens: 0
+                      output_tokens: 12
+                      output_tokens_details:
+                        reasoning_tokens: null
+                      total_tokens: 132
+                    user: null
+                    output_text: I can answer questions about your orders.
+                    finish_reason: stop
+        "401":
+          description: Missing Bearer token
+          content:
+            application/json:
+              examples:
+                Missing_Bearer_token:
+                  summary: Missing Bearer token
+                  value:
+                    detail: Authorization header with Bearer <pauthkey> is required.
+        "400":
+          description: No user message
+          content:
+            application/json:
+              examples:
+                No_user_message:
+                  summary: No user message
+                  value:
+                    detail: No user message found in payload.
+        "429":
+          description: Rate limited
+          content:
+            application/json:
+              examples:
+                Rate_limited:
+                  summary: Rate limited
+                  value:
+                    detail: Too many requests for 6650a1b2c3d4e5f6a7b8c9d0
+      x-docstar-published: true
+  /api/v2/model/batch/chat/completion:
+    post:
+      summary: Run Batch Chat Completion
+      description: |-
+        Submits many user messages to an agent as one asynchronous provider batch job (OpenAI, Anthropic, Groq, Mistral, Gemini). The agent's prompt is rendered per message with batch_variables, the batch is created at the provider, and the response returns the batch id and per-message message_ids; final answers are delivered to the webhook URL. Errors: 422 for missing/empty batch, missing webhook or bad webhook URL, or batch_variables length mismatch; 400 for unknown agent/model, unsupported batch service, insufficient credits, or provider errors; 429 rate limits.
+
+        Accepted auth: Authorization (dashboard user JWT) OR proxy_auth_token (proxy / auth 2.0 user token) OR pauthkey (org auth key).
+
+        Body fields:
+        - agent_id: string, required unless version_id is given. ID of the agent (bridge) to run, from List Agents. Alias: bridge_id (either key is accepted). Rate limited to 100 requests/min per agent.
+        - bridge_id: string, optional alias of agent_id (legacy name). Send one of agent_id / bridge_id.
+        - version_id: string, optional. Run a specific agent version instead of the agent's published version. If only version_id is sent the agent is resolved from it.
+        - batch: array of strings, required, min 1. Each string is one user message processed as a separate request in the provider's batch API.
+        - webhook: object, required. {url: http(s) URL (required), headers?: object of string values}. Batch results are POSTed here when the provider finishes.
+        - batch_variables: array of objects, optional. Per-message prompt variables; length must equal batch length (422 otherwise). Unfilled placeholders stay in the prompt.
+        - configuration: object, optional. Overrides merged on top of the agent's saved model configuration for this call only. Unknown keys are allowed. Common keys: model (string, non-empty), type (chat | embedding | fine-tune | reasoning | image; embedding and image route to dedicated handlers), prompt, temperature, max_tokens, top_p, frequency_penalty, presence_penalty, stop, tools, tool_choice, parallel_tool_calls, reasoning, response_type (e.g. {"type":"json_object"} or a json_schema object - this is the field that actually controls structured output), stream (true -> Server-Sent Events), conversation (array of prior messages to use as history), size/quality/style (images). configuration.response_format, if sent, is moved to settings.response_format.
+        - service: string, optional. Provider override. Batch is supported for openai, anthropic, groq, mistral, gemini.
+        - apikey: string, optional. Provider API key to use for this call instead of the key saved on the agent.
+        - variables: object, optional. Key/value pairs substituted into {{variable}} placeholders in the agent prompt (and mapped into tool args). Missing required variables trigger a variable alert but do not fail the call.
+        - thread_id: string, optional. Conversation id; messages sharing a thread_id share history/memory. If omitted a new thread is created. Rate limited to 20 requests/min per thread_id.
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              agent_id: 6650a1b2c3d4e5f6a7b8c9d0
+              batch:
+                - Summarise ticket 101
+                - Summarise ticket 102
+              batch_variables:
+                - ticket_id: "101"
+                - ticket_id: "102"
+              webhook:
+                url: https://example.com/gtwy/batch-callback
+                headers:
+                  x-secret: ""
+      responses:
+        "200":
+          description: Batch created
+          content:
+            application/json:
+              examples:
+                Batch_created:
+                  summary: Batch created
+                  value:
+                    success: true
+                    response: Response will be successfully sent to the webhook within 24 hrs.
+                    batch_id: batch_abc123
+                    messages:
+                      - message: Summarise ticket 101
+                        message_id: a1b2...
+                        variables:
+                          ticket_id: "101"
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    detail: Validation error
+                    errors:
+                      - type: value_error
+                        loc: []
+                        msg: Value error, batch_variables length (1) must match batch length (2)
+                        input: {}
+        "400":
+          description: Configuration / input error
+          content:
+            application/json:
+              examples:
+                Configuration_input_error:
+                  summary: Configuration / input error
+                  value:
+                    detail:
+                      success: false
+                      error: model or service does not exist!
+        "429":
+          description: Rate limited
+          content:
+            application/json:
+              examples:
+                Rate_limited:
+                  summary: Rate limited
+                  value:
+                    detail: Too many requests for 6650a1b2c3d4e5f6a7b8c9d0
+        "401":
+          description: Unauthorized (bad/revoked token or invalid pauthkey)
+          content:
+            application/json:
+              examples:
+                Unauthorized_bad_revoked_token_or_invalid_pauthkey:
+                  summary: Unauthorized (bad/revoked token or invalid pauthkey)
+                  value:
+                    detail: unauthorized user
+        "403":
+          description: Organization disabled
+          content:
+            application/json:
+              examples:
+                Organization_disabled:
+                  summary: Organization disabled
+                  value:
+                    detail: Organization is disabled
+        "404":
+          description: No auth header sent
+          content:
+            application/json:
+              examples:
+                No_auth_header_sent:
+                  summary: No auth header sent
+                  value:
+                    detail: unauthorized user
+      x-docstar-published: true
+  /api/v2/model/testcases:
+    post:
+      summary: Run Agent Testcases
+      description: |-
+        Runs an agent's saved testcases (or one testcase supplied inline) against one or more agent versions and, optionally, extra model/service pairs, scoring each answer against the expected output. Returns immediately with an RTLayer channel id ({org_id}_{bridge_id}_{user_id}); progress is streamed there as events run_started, testcase_result, version_completed, run_completed (or run_failed). Used by the GTWY dashboard testcase runner. Errors: 400 if bridge_id is missing; validation problems (e.g. missing version_ids, malformed models, missing testcase_data fields) arrive as a run_failed event, not as an HTTP error; 'no testcases found' arrives as run_completed with empty results.
+
+        Accepted auth: Authorization (dashboard user JWT) OR proxy_auth_token (proxy / auth 2.0 user token) OR pauthkey (org auth key).
+
+        Body fields:
+        - bridge_id: string, required. Agent whose testcases are run.
+        - version_ids: string or array of strings, required. Agent versions to test.
+        - testcase_id: string, optional. Run a single saved testcase.
+        - testcase_ids: array of strings, optional. Run several saved testcases. If neither testcase_id(s) nor inline data is given, all testcases of the agent are run.
+        - testcases: boolean, optional. Set true together with testcase_data to run an inline testcase instead of saved ones.
+        - testcase_data: object, optional (with testcases=true). {conversation: array of messages (last item's content is the user input), expected: object (expected response/tool call), matching_type: string, user_urls?: array, tools_response?: object}. conversation, expected and matching_type are required.
+        - variables: object, optional. Prompt variables used for every run.
+        - matching_type: string, optional. Overrides each testcase's scoring method (default 'cosine'; other values as configured in GTWY, e.g. exact / ai).
+        - model: string, optional. Override model for the run.
+        - service: string, optional. Override service for the run.
+        - models: array, optional. [{model, service}] pairs; every version is run across every listed model. Each entry needs both keys.
+        - include_default: boolean, optional. Sent by the dashboard to also include the version's own model when models is given (backend default true; exact handling not verified).
+        - agent_info: object, optional. {ai_matching_custom_prompt: string} custom prompt for AI-based matching.
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              bridge_id: 6650a1b2c3d4e5f6a7b8c9d0
+              version_ids:
+                - 6650a1b2c3d4e5f6a7b8c9d1
+              testcase_ids:
+                - 6650a1b2c3d4e5f6a7b8c9e2
+              variables:
+                customer_name: Asha
+              matching_type: cosine
+              models:
+                - model: gpt-4o-mini
+                  service: openai
+      responses:
+        "200":
+          description: Run started
+          content:
+            application/json:
+              examples:
+                Run_started:
+                  summary: Run started
+                  value:
+                    success: true
+                    channel_id: 1234_6650a1b2c3d4e5f6a7b8c9d0_5678
+                    message: Your response will be sent through configured means.
+        "400":
+          description: bridge_id missing
+          content:
+            application/json:
+              examples:
+                bridge_id_missing:
+                  summary: bridge_id missing
+                  value:
+                    detail:
+                      success: false
+                      error: bridge_id is required for RTLayer-based testcase runs
+        "429":
+          description: Rate limited
+          content:
+            application/json:
+              examples:
+                Rate_limited:
+                  summary: Rate limited
+                  value:
+                    detail: Too many requests for 6650a1b2c3d4e5f6a7b8c9d0
+        "401":
+          description: Unauthorized (bad/revoked token or invalid pauthkey)
+          content:
+            application/json:
+              examples:
+                Unauthorized_bad_revoked_token_or_invalid_pauthkey:
+                  summary: Unauthorized (bad/revoked token or invalid pauthkey)
+                  value:
+                    detail: unauthorized user
+        "403":
+          description: Organization disabled
+          content:
+            application/json:
+              examples:
+                Organization_disabled:
+                  summary: Organization disabled
+                  value:
+                    detail: Organization is disabled
+        "404":
+          description: No auth header sent
+          content:
+            application/json:
+              examples:
+                No_auth_header_sent:
+                  summary: No auth header sent
+                  value:
+                    detail: unauthorized user
+      x-docstar-published: true
+  /api/v2/model/rerun:
+    post:
+      summary: Rerun Messages
+      description: |-
+        Re-runs earlier conversation messages against the agent's current configuration. Either pass message_ids (each logged message is re-queued) or thread_id + sub_thread_id (the most recent message in that thread is re-queued with the last few conversations as history). Work is asynchronous: each rerun is pushed to the queue and results are saved to history / delivered through the agent's configured channel. Errors: 400 if neither message_ids nor thread_id+sub_thread_id is provided, or the agent/model cannot be resolved; 404 if no matching conversation is found; 500 on unexpected errors.
+
+        Accepted auth: Authorization (dashboard user JWT) OR proxy_auth_token (proxy / auth 2.0 user token) OR pauthkey (org auth key).
+
+        Body fields:
+        - agent_id: string, required (alias bridge_id). Agent whose current config is used.
+        - bridge_id: string, alias of agent_id.
+        - message_ids: array of strings, required unless thread_id+sub_thread_id are given. Message ids from conversation history.
+        - thread_id: string, optional. With sub_thread_id (and no message_ids) reruns the last message of that thread.
+        - sub_thread_id: string, optional. Required together with thread_id for thread mode.
+        - version_id: string, optional. Version whose configuration should be used.
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              agent_id: 6650a1b2c3d4e5f6a7b8c9d0
+              message_ids:
+                - 7f9c2a10-6f1e-11f0-9a2b-0242ac120002
+      responses:
+        "200":
+          description: Queued
+          content:
+            application/json:
+              examples:
+                Queued:
+                  summary: Queued
+                  value:
+                    success: true
+                    message: 1 message(s) queued for rerun.
+                    queued:
+                      - 7f9c2a10-6f1e-11f0-9a2b-0242ac120002
+                    not_found: []
+        "400":
+          description: Missing identifiers
+          content:
+            application/json:
+              examples:
+                Missing_identifiers:
+                  summary: Missing identifiers
+                  value:
+                    detail:
+                      success: false
+                      error: Provide either message_ids array or both thread_id and sub_thread_id
+        "404":
+          description: Nothing found
+          content:
+            application/json:
+              examples:
+                Nothing_found:
+                  summary: Nothing found
+                  value:
+                    detail:
+                      success: false
+                      error: No conversation found for the given parameters
+                No_auth_header_sent:
+                  summary: No auth header sent
+                  value:
+                    detail: unauthorized user
+        "429":
+          description: Rate limited
+          content:
+            application/json:
+              examples:
+                Rate_limited:
+                  summary: Rate limited
+                  value:
+                    detail: Too many requests for 6650a1b2c3d4e5f6a7b8c9d0
+        "401":
+          description: Unauthorized (bad/revoked token or invalid pauthkey)
+          content:
+            application/json:
+              examples:
+                Unauthorized_bad_revoked_token_or_invalid_pauthkey:
+                  summary: Unauthorized (bad/revoked token or invalid pauthkey)
+                  value:
+                    detail: unauthorized user
+        "403":
+          description: Organization disabled
+          content:
+            application/json:
+              examples:
+                Organization_disabled:
+                  summary: Organization disabled
+                  value:
+                    detail: Organization is disabled
+      x-docstar-published: true
+  /api/v2/model/ai/completion:
+    post:
+      summary: Run Direct AI Completion
+      description: |-
+        Runs a completion without a user-created agent: the whole configuration (service, model, prompt, parameters) comes in the body. GTWY runs it on a hidden per-org 'direct' agent that is created on first use, so history, billing and threads work the same as Run Agent Chat Completion and the response shapes are identical (synchronous, queued, or SSE stream). Rate limited to 100 requests/min per org and 20/min per thread_id. Errors: 422 if agent_id/bridge_id/version_id is sent or service / configuration.model is missing; 400 for unknown model/service, missing user message, insufficient credits or provider failure; 429 rate limit.
+
+        Accepted auth: Authorization (dashboard user JWT) OR proxy_auth_token (proxy / auth 2.0 user token) OR pauthkey (org auth key).
+
+        Body fields:
+        - user: string, required unless images, image/audio user_urls, batch, or a rerun (message_ids / thread_id+sub_thread_id) are provided. The end user's message for this turn. Missing -> 400 'User message is compulsory'.
+        - thread_id: string, optional. Conversation id; messages sharing a thread_id share history/memory. If omitted a new thread is created. Rate limited to 20 requests/min per thread_id.
+        - sub_thread_id: string, optional. Sub-conversation inside a thread; defaults to thread_id.
+        - variables: object, optional. Key/value pairs substituted into {{variable}} placeholders in the agent prompt (and mapped into tool args). Missing required variables trigger a variable alert but do not fail the call.
+        - variables_path: object, optional. Mapping that tells the agent where to pull tool argument values from the variables object.
+        - configuration: object, REQUIRED. Full model configuration; configuration.model (string) is required. Any parameter of the model not supplied is set to 'default' (resolved to the model's default value, e.g. max_tokens for Anthropic). Other keys as in Run Agent Chat Completion (prompt, temperature, response_type, stream, tools ...).
+        - service: string, REQUIRED. AI provider: openai, gemini, anthropic, grok, deepseek, groq, open_router, mistral, deepgram, openai_completion, neev_cloud, moonshot, minimax, typesafe.
+        - apikey: string, optional. Provider API key to use for this call instead of the key saved on the agent.
+        - settings: object, optional. Agent-style settings merged into the hidden direct agent for this call (e.g. response_format {type, cred}, fall_back, guardrails, maximum_iterations). response_format defaults to {type:'default'} (synchronous).
+        - stream: boolean, optional. Shortcut that sets configuration.stream. When true the response is text/event-stream (SSE) with JSON events: start, delta, reasoning, tool_call, tool_result, fallback, done (usage, message_id, finish_reason), error.
+        - is_stream: boolean, optional. Accepted by the schema; not read by the completion pipeline (use stream).
+        - response_type: any, optional. Accepted by the schema but the pipeline reads configuration.response_type, not this top-level field. Put {"type":"json_object"} inside configuration to force JSON output.
+        - images: array of image URL strings, optional. Images sent with the user message (vision models).
+        - files: array of file URL strings, optional. Files (e.g. PDFs, typically from Upload File) attached to the message.
+        - user_urls: array, optional. Attachments as objects {type: image|audio|video|file|pdf, url: http(s) URL, source?: string}. image/audio entries count as a user message when 'user' is empty.
+        - template_id: string, optional. System prompt template to apply.
+        - extra_tools: array, optional. Extra tool definitions available only for this call. Each tool may carry headers and toolAndVariablePath (or tool_and_variable_path) mapping tool input fields to values in variables, so those fields are hidden from the model.
+        - built_in_tools: array, optional. Built-in tools to enable for this call, e.g. ["web_search"]. Overrides the agent's setting.
+        - web_search_filters: array of domain strings or object, optional. Domain allowlist for the built-in web search.
+        - guardrails: object, optional. Content guardrails config, e.g. {is_enabled: true, ...}; when enabled the input is checked first and a blocked response is returned if it fails.
+        - orchestrator_flag: boolean, optional. For multi-agent (connected agents) runs: store agent-to-agent transfers as one orchestrator history entry.
+        - wrapper_id: string, optional. Caller-defined wrapper id stored with the conversation history.
+        - auto_model_select: object, optional. Auto model routing config; overrides the agent's saved auto_model_select.
+        - cache_on: boolean, optional. Enable response caching for this call (cached answers return usage 0 and is_cached true); overrides the agent setting.
+        - agent_id / bridge_id / version_id: NOT allowed - sending any of them fails validation (422).
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              service: openai
+              configuration:
+                model: gpt-4o-mini
+                prompt: You are a concise assistant.
+                temperature: 0.2
+              user: Summarise the benefits of unit tests in two lines.
+              thread_id: direct-thread-1
+              variables: {}
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    response:
+                      data:
+                        id: chatcmpl-abc123
+                        content: Hello! How can I help you today?
+                        model: gpt-4o
+                        role: assistant
+                        finish_reason: stop
+                        tools_data: {}
+                        images: null
+                        annotations: null
+                        fallback: false
+                        firstAttemptError: ""
+                        message_id: 7f9c2a10-6f1e-11f0-9a2b-0242ac120002
+                      usage:
+                        input_tokens: 120
+                        output_tokens: 18
+                        total_tokens: 138
+                        cached_tokens: 0
+                        cost: 0.00042
+        "400":
+          description: Configuration / input error
+          content:
+            application/json:
+              examples:
+                Configuration_input_error:
+                  summary: Configuration / input error
+                  value:
+                    detail:
+                      success: false
+                      error: model or service does not exist!
+        "422":
+          description: Validation error (agent id sent / service missing)
+          content:
+            application/json:
+              examples:
+                Validation_error_agent_id_sent_service_missing:
+                  summary: Validation error (agent id sent / service missing)
+                  value:
+                    detail: Validation error
+                    errors:
+                      - type: value_error
+                        loc: []
+                        msg: Value error, agent_id, bridge_id and version_id are not allowed here; use /chat/completion
+                        input: {}
+        "429":
+          description: Rate limited
+          content:
+            application/json:
+              examples:
+                Rate_limited:
+                  summary: Rate limited
+                  value:
+                    detail: Too many requests for 6650a1b2c3d4e5f6a7b8c9d0
+        "401":
+          description: Unauthorized (bad/revoked token or invalid pauthkey)
+          content:
+            application/json:
+              examples:
+                Unauthorized_bad_revoked_token_or_invalid_pauthkey:
+                  summary: Unauthorized (bad/revoked token or invalid pauthkey)
+                  value:
+                    detail: unauthorized user
+        "403":
+          description: Organization disabled
+          content:
+            application/json:
+              examples:
+                Organization_disabled:
+                  summary: Organization disabled
+                  value:
+                    detail: Organization is disabled
+        "404":
+          description: No auth header sent
+          content:
+            application/json:
+              examples:
+                No_auth_header_sent:
+                  summary: No auth header sent
+                  value:
+                    detail: unauthorized user
+      x-docstar-published: true

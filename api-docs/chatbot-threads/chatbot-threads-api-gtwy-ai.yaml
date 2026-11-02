@@ -1,0 +1,157 @@
+openapi: 3.0.3
+info:
+  title: Chatbot Threads
+  version: 1.0.0
+servers:
+  - url: https://api.gtwy.ai
+paths:
+  /chatbot/{botId}/sendMessage:
+    post:
+      summary: Send Chatbot Message
+      description: |-
+        Sends an end-user message from an embedded GTWY chatbot to the agent identified by slugName in the token's org. The server builds a normal chat completion (thread_id from threadId, variables merged from body + token) and returns either the answer (flag=true) or a queued acknowledgement with the answer delivered over RTLayer (flag=false). Rate limits: 100/min per slugName and 20/min per threadId (chatbot token), or 10/min per user for public-agent tokens. Errors: 498 when no token is sent; 401 invalid/expired token; 400 'Invalid bridge Id' if the slug is not found; 403 if the org is disabled; 422 if neither message nor images is given.
+
+        Accepted auth: Authorization (chatbot token) OR Authorization (public chatbot/agent token).
+
+        Body fields:
+        - slugName: string, required. Slug of the chatbot agent to talk to. For public agents (token with ispublic) may be '<orgId>::<slugName>'.
+        - message: string, required unless images is non-empty. The user's message.
+        - threadId: string, optional. Conversation id (ignored for public-agent tokens, which use the token's user id). Rate limited to 20/min per threadId.
+        - subThreadId: string, optional. Sub-conversation id.
+        - images: array of image URL strings, optional (default []).
+        - flag: boolean, optional (default false). true = return the answer synchronously in the HTTP response; false = answer is pushed to the RTLayer channel {botId}{threadId|userId}{subThreadId|userId} and the call returns a queued acknowledgement.
+        - variables: object, optional. Prompt variables; merged with interfaceContextData and variables embedded in the token (token values win).
+        - interfaceContextData: object, optional. Extra context variables from the embedding page.
+        - configuration: object, optional. Only configuration.settings is used (merged into request settings; response_format is always set by the server).
+      parameters:
+        - name: botId
+          in: path
+          required: true
+          description: Chatbot id from List Chatbots, or 'Public_Agents' for GTWY public agents. Also used to build the RTLayer channel name.
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: "Accepts any ONE of: (1) GTWY chatbot token signed with GTWY's CHATBOTSECRETKEY (issued by Login Chatbot User). Raw or 'Bearer <token>'. | (2) Public chatbot / public agent token signed with GTWY's PUBLIC_CHATBOT_TOKEN (issued by the runagents login endpoints)."
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              slugName: support-bot
+              message: Where is my order?
+              threadId: visitor-981
+              subThreadId: visitor-981
+              images: []
+              flag: false
+              variables:
+                customer_name: Asha
+              interfaceContextData:
+                page: /orders
+      responses:
+        "200":
+          description: Queued (flag=false, answer via RTLayer)
+          content:
+            application/json:
+              examples:
+                Queued_flag_false_answer_via_RTLayer:
+                  summary: Queued (flag=false, answer via RTLayer)
+                  value:
+                    success: true
+                    message_id: 7f9c2a10-6f1e-11f0-9a2b-0242ac120002
+                    message: Your response will be sent through configured means.
+                Synchronous_flag_true:
+                  summary: Synchronous (flag=true)
+                  value:
+                    success: true
+                    response:
+                      data:
+                        id: chatcmpl-abc123
+                        content: Hello! How can I help you today?
+                        model: gpt-4o
+                        role: assistant
+                        finish_reason: stop
+                        tools_data: {}
+                        images: null
+                        annotations: null
+                        fallback: false
+                        firstAttemptError: ""
+                        message_id: 7f9c2a10-6f1e-11f0-9a2b-0242ac120002
+                      usage:
+                        input_tokens: 120
+                        output_tokens: 18
+                        total_tokens: 138
+                        cached_tokens: 0
+                        cost: 0.00042
+        "400":
+          description: Unknown slug
+          content:
+            application/json:
+              examples:
+                Unknown_slug:
+                  summary: Unknown slug
+                  value:
+                    detail: Invalid bridge Id
+        "401":
+          description: Invalid / expired token
+          content:
+            application/json:
+              examples:
+                Invalid_expired_token:
+                  summary: Invalid / expired token
+                  value:
+                    detail: "unauthorized user: token expired"
+        "403":
+          description: Org disabled
+          content:
+            application/json:
+              examples:
+                Org_disabled:
+                  summary: Org disabled
+                  value:
+                    detail: Organization is disabled
+        "498":
+          description: Token missing
+          content:
+            application/json:
+              examples:
+                Token_missing:
+                  summary: Token missing
+                  value:
+                    detail: invalid token
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    detail: Validation error
+                    errors:
+                      - type: value_error
+                        loc:
+                          - body
+                        msg: Value error, Either message or images must be provided
+                        input: {}
+        "429":
+          description: Rate limited
+          content:
+            application/json:
+              examples:
+                Rate_limited:
+                  summary: Rate limited
+                  value:
+                    detail: Too many requests for 6650a1b2c3d4e5f6a7b8c9d0
+      x-docstar-published: true

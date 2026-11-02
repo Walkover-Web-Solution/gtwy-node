@@ -1,0 +1,448 @@
+openapi: 3.0.3
+info:
+  title: Auth
+  version: 1.0.0
+servers:
+  - url: https://db.gtwy.ai/api
+paths:
+  /auth/auth_token:
+    get:
+      summary: Get Org Auth Token
+      description: |-
+        Returns the org's auth_token (a 14-character secret stored in org meta), creating it on first call. Customers use this secret to sign RAG/knowledge-base embed JWTs (verified by the RAG embed login). Also served at the same path under /api/org (alias mount of the same router).
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    auth_token: aB3dE5gH7jK9mN
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /auth:
+    post:
+      summary: Create Auth Client
+      description: |-
+        Registers the org as an OAuth-style client for 'Login with GTWY' and returns its client_id. Each org has at most one client: if one exists, the existing client (isNew:false) is returned unchanged and the new name/redirection_url are ignored. Returns 201. Also served at the same path under /api/org (alias mount of the same router).
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Body fields:
+        - name: string, required, client display name
+        - redirection_url: string (URI), required, where users are redirected after authorizing
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              name: My App
+              redirection_url: https://myapp.com/auth/callback
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              examples:
+                Created:
+                  summary: Created
+                  value:
+                    success: true
+                    message: Auth token saved successfully
+                    result:
+                      isNew: true
+                      client_id: 9f86d081884c7d659a2feaa0c55ad015
+                      redirection_url: https://myapp.com/auth/callback
+                      name: My App
+        "400":
+          description: Validation Error
+          content:
+            application/json:
+              examples:
+                Validation_Error:
+                  summary: Validation Error
+                  value:
+                    message: redirection_url must be a valid URI
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+    get:
+      summary: Get Auth Client
+      description: |-
+        Returns the org's registered auth client (name, client_id, redirection_url) or result:null when none exists. Also served at the same path under /api/org (alias mount of the same router).
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Auth token found successfully
+                    result:
+                      _id: 6655...
+                      name: My App
+                      client_id: 9f86d081884c7d659a2feaa0c55ad015
+                      redirection_url: https://myapp.com/auth/callback
+                      org_id: "12345"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /auth/verify:
+    post:
+      summary: Authorize Auth Client
+      description: |-
+        Completes the 'Login with GTWY' flow for the logged-in user: creates a proxy access token and a refresh token (JWT with company_id and user_id) and responds with a 301 redirect to '<redirection_url>?access_token=...&refresh_token=...&state=...'. Note: the client_id/redirection_url lookup result is not enforced, so the redirect happens even if they do not match a registered client. Also served at the same path under /api/org (alias mount of the same router).
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Body fields:
+        - client_id: string, required, from Get Client Info
+        - redirection_url: string (URI), required, redirect target
+        - state: string, required, opaque value echoed back in the redirect
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              client_id: 9f86d081884c7d659a2feaa0c55ad015
+              redirection_url: https://myapp.com/auth/callback
+              state: xyz123
+      responses:
+        "301":
+          description: Redirect
+          content:
+            application/json:
+              examples:
+                Redirect:
+                  summary: Redirect
+                  value:
+                    Location: https://myapp.com/auth/callback?access_token=<proxy token>&refresh_token=<jwt>&state=xyz123
+        "400":
+          description: Validation Error
+          content:
+            application/json:
+              examples:
+                Validation_Error:
+                  summary: Validation Error
+                  value:
+                    message: state is required
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /auth/client_info:
+    get:
+      summary: Get Auth Client Info
+      description: |-
+        Returns the public info (name, client_id) of an auth client so the consent screen can show which app is requesting access. Returns 400 'Failed to find auth by client_id: ...' when not found. Also served at the same path under /api/org (alias mount of the same router).
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: client_id
+          in: query
+          required: true
+          description: string, required, client id of the requesting app
+          schema:
+            type: string
+          example: 9f86d081884c7d659a2feaa0c55ad015
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Client info found successfully
+                    result:
+                      _id: 6655...
+                      name: My App
+                      client_id: 9f86d081884c7d659a2feaa0c55ad015
+        "400":
+          description: Not Found
+          content:
+            application/json:
+              examples:
+                Not_Found:
+                  summary: Not Found
+                  value:
+                    message: "Failed to find auth by client_id: Auth with client_id x not found"
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /auth/generate-token:
+    post:
+      summary: Generate Automation Token
+      description: |-
+        Internal endpoint for automated testing: returns a GTWY JWT and a proxy_auth_token for a fixed internal test user/org in the chosen environment. Returns 401 when the automation-token header is missing or wrong, 400 when env is not 'dev' or 'prod'. Also served at the same path under /api/org (alias mount of the same router).
+
+        Accepted auth: none (public).
+
+        Body fields:
+        - env: string, required, dev | prod
+      parameters:
+        - name: automation-token
+          in: header
+          required: false
+          description: Shared automation secret (AUTOMATION_TOKEN).
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              env: dev
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    token: <jwt>
+                    proxy_auth_token: <proxy token>
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    success: false
+                    message: Unauthorized
+        "400":
+          description: Bad Env
+          content:
+            application/json:
+              examples:
+                Bad_Env:
+                  summary: Bad Env
+                  value:
+                    success: false
+                    message: env must be 'dev' or 'prod'
+      x-docstar-published: true
+  /internal/info:
+    get:
+      summary: Verify Credentials
+      description: |-
+        Checks that the supplied credentials are valid and returns the org and user they resolve to. Used by the viaSocket plug to verify a GTWY connection, but works for any caller holding a JWT, pauthkey or proxy_auth_token. The response is sent directly (not via the standard success/data envelope). user_* fields are empty strings when the credential has no user (e.g. pauthkey has no email/role). Returns 401 if the credential is missing or invalid.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Sucessfully authenticated
+                    org_id: "12345"
+                    organization_name: Acme Inc
+                    user_id: "678"
+                    user_name: Jane Doe
+                    user_email: jane@acme.com
+                    user_role: ""
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true

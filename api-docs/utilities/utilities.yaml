@@ -1,0 +1,124 @@
+openapi: 3.0.3
+info:
+  title: Utilities
+  version: 1.0.0
+servers:
+  - url: https://db.gtwy.ai/api
+paths:
+  /utils/call-gtwy:
+    post:
+      summary: Run GTWY AI Helper
+      description: |-
+        Runs one of GTWY's built-in AI helper operations selected by `type`, using GTWY's internal helper agents (the org's customised prebuilt prompt is used where one exists). Types: structured_output (generate a JSON schema from `query`/`json_schema`), gpt_memory (read the stored memory for a bridge/thread/sub-thread - no AI call), improve_prompt (improve a prompt from `variables`), optimize_prompt (optimise the prompt of agent `bridge_id`/`version_id`), generate_test_cases (generate 10 test cases for `bridge_id` and save them as testcases), generate_summary (summarise version `version_id`'s prompt and tools), generate_json (generate JSON from `example_json`), rich_ui_template (generate a rich UI template from the body). Fields not allowed for the chosen type are rejected with 400. Unhandled errors return 400 with {message}.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Body fields:
+        - type: string, required, one of structured_output | gpt_memory | improve_prompt | optimize_prompt | generate_test_cases | generate_summary | generate_json | rich_ui_template
+        - json_schema: object or string, optional, only for type=structured_output
+        - query: string; required for structured_output, optional for optimize_prompt (instruction for the optimiser); forbidden otherwise
+        - thread_id: string; required for gpt_memory; optional for structured_output, optimize_prompt, rich_ui_template; forbidden otherwise
+        - bridge_id: string (agent id); required for gpt_memory, optimize_prompt, generate_test_cases; forbidden otherwise
+        - sub_thread_id: string; required for gpt_memory only
+        - version_id: string; optional for gpt_memory, optimize_prompt, generate_test_cases, generate_summary (generate_summary effectively needs it to find the version)
+        - variables: object; required for optimize_prompt (may contain variable_key to optimise only that prompt field) and improve_prompt (passed as the helper's variables)
+        - example_json: string or object; required for generate_json only
+        - (other keys): allowed; for rich_ui_template the whole body is passed as variables to the helper agent
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              type: optimize_prompt
+              bridge_id: 6650f1c2a1b2c3d4e5f60789
+              version_id: 6650f1c2a1b2c3d4e5f60790
+              variables:
+                variable_key: role
+              query: Make it more concise
+      responses:
+        "200":
+          description: Success (AI operations)
+          content:
+            application/json:
+              examples:
+                Success_AI_operations:
+                  summary: Success (AI operations)
+                  value:
+                    success: true
+                    message: Prompt optimized successfully
+                    result: <AI output>
+                Success_generate_test_cases:
+                  summary: Success (generate_test_cases)
+                  value:
+                    success: true
+                    message: Test cases generated and 10 saved successfully
+                    result: <AI output>
+                    saved_testcase_ids:
+                      - "..."
+                Success_gpt_memory:
+                  summary: Success (gpt_memory)
+                  value:
+                    bridge_id: 6650f1c2a1b2c3d4e5f60789
+                    thread_id: t1
+                    sub_thread_id: t1
+                    version_id: null
+                    memory_id: "..."
+                    found: true
+                    memory: "..."
+                Success_rich_ui_template:
+                  summary: Success (rich_ui_template)
+                  value:
+                    success: true
+                    message: Rich UI template generated successfully
+                    result: {}
+                    ui: {}
+                    variables: {}
+                    template_format: {}
+                    json_schema: {}
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: '"bridge_id" is required'
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true

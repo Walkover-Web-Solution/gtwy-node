@@ -1,0 +1,639 @@
+openapi: 3.0.3
+info:
+  title: Chatbots
+  version: 1.0.0
+servers:
+  - url: https://db.gtwy.ai/api
+paths:
+  /chatbot/subscribe:
+    post:
+      summary: Get Chatbot Agent Mode
+      description: |-
+        Used by the embedded chatbot widget to learn how to render an agent: resolves the agent by slugName (optionally a specific versionId) in the token's org and returns the UI modes it supports (files, vision, stream, widget, image_model) plus the services that have API keys configured. For public chatbot tokens, slugName may be '<org_id>::<slugName>' to select the org. Returns 404 {error:'Agent not found'} when the slug does not resolve; 498 when no token is sent; 401 for an invalid chatbot token.
+
+        Accepted auth: Authorization (public chatbot/agent token) OR Authorization (chatbot token).
+
+        Body fields:
+        - slugName: string, required, agent slug name (public tokens may use '<org_id>::<slug>')
+        - versionId: string, optional, specific agent version id; empty for the published version
+        - helloId: string, optional, accepted but unused by the controller
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: "Accepts any ONE of: (1) Public chatbot / public agent token signed with GTWY's PUBLIC_CHATBOT_TOKEN (issued by the runagents login endpoints). | (2) GTWY chatbot token signed with GTWY's CHATBOTSECRETKEY (issued by Login Chatbot User). Raw or 'Bearer <token>'."
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              slugName: support_bot
+              versionId: ""
+              helloId: ""
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    mode:
+                      - files
+                      - vision
+                      - stream
+                    supportedServices:
+                      - openai
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              examples:
+                Not_Found:
+                  summary: Not Found
+                  value:
+                    error: Agent not found
+        "498":
+          description: Missing Token
+          content:
+            application/json:
+              examples:
+                Missing_Token:
+                  summary: Missing Token
+                  value:
+                    message: invalid token
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /chatbot:
+    get:
+      summary: List Chatbots
+      description: |-
+        Lists the org's chatbots (excluding the internal 'default' chatbot) with their linked agent names, and returns a chatbot_token for preview. On first call for an org it creates a hidden 'Default Chatbot' and a 'chatbot1', and creates the org's orgAccessToken if missing. The chatbot_token is a JWT for the default chatbot signed with the org's orgAccessToken (payload org_id, chatbot_id, user_id).
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    result:
+                      chatbots:
+                        - _id: 6651bb11cc22dd33ee44ff55
+                          config:
+                            buttonName: ""
+                            height: "100"
+                            heightUnit: "%"
+                            width: "50"
+                            widthUnit: "%"
+                            type: popup
+                            themeColor: "#000000"
+                            chatbotTitle: Chatbot
+                            chatbotSubtitle: Chatbot subtitle
+                            iconUrl: ""
+                          orgId: "12345"
+                          title: chatbot1
+                          createdBy: "678"
+                          type: chatbot
+                          updatedBy: "678"
+                          bridge:
+                            - _id: 6650aa11bb22cc33dd44ee55
+                              name: Support Bot
+                          __v: 0
+                    chatbot_token: <jwt>
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /chatbot/{botId}:
+    get:
+      summary: Get Chatbot
+      description: |-
+        Returns one chatbot by id with its linked agents (bridge) fully populated. Note: the lookup is by id only and is not restricted to the caller's org. Returns 404 'Chatbot not found' when missing and 400 when botId is not a valid ObjectId.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: botId
+          in: path
+          required: true
+          description: Chatbot ObjectId, from List Chatbots
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    chatbot:
+                      _id: 6651bb11cc22dd33ee44ff55
+                      config:
+                        buttonName: ""
+                        height: "100"
+                        heightUnit: "%"
+                        width: "50"
+                        widthUnit: "%"
+                        type: popup
+                        themeColor: "#000000"
+                        chatbotTitle: Chatbot
+                        chatbotSubtitle: Chatbot subtitle
+                        iconUrl: ""
+                      orgId: "12345"
+                      title: chatbot1
+                      createdBy: "678"
+                      type: chatbot
+                      updatedBy: "678"
+                      bridge: []
+                      __v: 0
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              examples:
+                Not_Found:
+                  summary: Not Found
+                  value:
+                    success: false
+                    message: Chatbot not found
+        "400":
+          description: Validation Error
+          content:
+            application/json:
+              examples:
+                Validation_Error:
+                  summary: Validation Error
+                  value:
+                    message: botId must be a valid ObjectId
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /chatbot/loginuser:
+    post:
+      summary: Login Chatbot User
+      description: |-
+        Exchanges a customer-signed chatbot embed token for a GTWY chatbot session. For org tokens it loads the chatbot config, checks the chatbot belongs to the token's org_id, and returns the config plus a 48h 'Bearer <token>' chatbot token (signed with CHATBOTSECRETKEY) carrying user_id, org_id and variables. For public chatbot tokens it returns a default popup config, chatbot_id 'Public_Agents' and a public token. Returns 404 'Chatbot not found', 401 'chat bot id is not valid' when the chatbot belongs to another org, and 401 'unauthorized user' when the token cannot be verified. The body is ignored.
+
+        Accepted auth: Authorization (public chatbot/agent token) OR Authorization (chatbot JWT signed with orgAccessToken).
+
+        Body fields:
+        - (any): No fields required; all data comes from the token
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: "Accepts any ONE of: (1) Public chatbot / public agent token signed with GTWY's PUBLIC_CHATBOT_TOKEN (issued by the runagents login endpoints). | (2) Chatbot JWT signed by the customer with the org's orgAccessToken (payload org_id, chatbot_id, user_id)."
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    data:
+                      config:
+                        buttonName: ""
+                        height: "100"
+                        heightUnit: "%"
+                        width: "50"
+                        widthUnit: "%"
+                        type: popup
+                        themeColor: "#000000"
+                        chatbotTitle: Chatbot
+                        chatbotSubtitle: Chatbot subtitle
+                        iconUrl: ""
+                      userId: customer-user-1
+                      token: Bearer <jwt>
+                      chatbot_id: 6651bb11cc22dd33ee44ff55
+                    success: true
+        "401":
+          description: Wrong Org
+          content:
+            application/json:
+              examples:
+                Wrong_Org:
+                  summary: Wrong Org
+                  value:
+                    success: false
+                    message: chat bot id is not valid
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              examples:
+                Not_Found:
+                  summary: Not Found
+                  value:
+                    success: false
+                    message: Chatbot not found
+      x-docstar-published: true
+  /chatbot/{botId}/updateconfig:
+    post:
+      summary: Update Chatbot Config
+      description: |-
+        Replaces a chatbot's display config (button, size, theme, titles, icon, etc.) with the given object and returns the updated chatbot document. The config object is stored as-is (whole replace, not merge). Note: lookup is by id only, not restricted to the caller's org. Returns 404 'Chatbot not found' and 400 when config is missing.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Body fields:
+        - config: object, required, full chatbot display config to store (keys seen in defaults: buttonName, height, heightUnit, width, widthUnit, type, themeColor, chatbotTitle, chatbotSubtitle, iconUrl)
+      parameters:
+        - name: botId
+          in: path
+          required: true
+          description: Chatbot id, from List Chatbots
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              config:
+                buttonName: Chat
+                height: "100"
+                heightUnit: "%"
+                width: "50"
+                widthUnit: "%"
+                type: popup
+                themeColor: "#1a73e8"
+                chatbotTitle: Support
+                chatbotSubtitle: Ask us anything
+                iconUrl: ""
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    _id: 6651bb11cc22dd33ee44ff55
+                    config:
+                      buttonName: ""
+                      height: "100"
+                      heightUnit: "%"
+                      width: "50"
+                      widthUnit: "%"
+                      type: popup
+                      themeColor: "#000000"
+                      chatbotTitle: Chatbot
+                      chatbotSubtitle: Chatbot subtitle
+                      iconUrl: ""
+                    orgId: "12345"
+                    title: chatbot1
+                    createdBy: "678"
+                    type: chatbot
+                    updatedBy: "678"
+                    bridge: []
+                    __v: 0
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              examples:
+                Not_Found:
+                  summary: Not Found
+                  value:
+                    success: false
+                    message: Chatbot not found
+        "400":
+          description: Validation Error
+          content:
+            application/json:
+              examples:
+                Validation_Error:
+                  summary: Validation Error
+                  value:
+                    message: config is mandatory
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /chatbot/agent:
+    put:
+      summary: Add Or Remove Agent In Chatbot
+      description: |-
+        Intended to link (action 'add') or unlink (action 'remove') an agent to/from a chatbot and return the updated chatbot. Caution: the userOrgAccessCheck middleware looks for bridge_id/botId/orgId in the URL path params, and this route has none (botId is in the body), so as written every request is rejected with 403 'Sorry, Either the field is missing or You are not authorized to access this flow!' before the controller runs. If it did run: 404 'Chatbot not found', 500 'Failed to update bridge association'.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Org check (userOrgAccessCheck): if the target belongs to another org the user is a member of, a proxy_auth_token (or proxy-auth-token) header is also required to switch org.
+
+        Body fields:
+        - botId: string (ObjectId), required, chatbot id
+        - agentId: string (ObjectId), required, agent id
+        - action: string, required, add | remove
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              botId: 6651bb11cc22dd33ee44ff55
+              agentId: 6650aa11bb22cc33dd44ee55
+              action: add
+      responses:
+        "403":
+          description: Forbidden (current behaviour)
+          content:
+            application/json:
+              examples:
+                Forbidden_current_behaviour:
+                  summary: Forbidden (current behaviour)
+                  value: Sorry, Either the field is missing or You are not authorized to access this flow!
+        "200":
+          description: Success (if reached)
+          content:
+            application/json:
+              examples:
+                Success_if_reached:
+                  summary: Success (if reached)
+                  value:
+                    success: true
+                    message: Bridge added to chatbot successfully
+                    chatbot:
+                      _id: 6651bb11cc22dd33ee44ff55
+                      config:
+                        buttonName: ""
+                        height: "100"
+                        heightUnit: "%"
+                        width: "50"
+                        widthUnit: "%"
+                        type: popup
+                        themeColor: "#000000"
+                        chatbotTitle: Chatbot
+                        chatbotSubtitle: Chatbot subtitle
+                        iconUrl: ""
+                      orgId: "12345"
+                      title: chatbot1
+                      createdBy: "678"
+                      type: chatbot
+                      updatedBy: "678"
+                      bridge: []
+                      __v: 0
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /chatbot/agent/{agentId}/action:
+    post:
+      summary: Create Or Remove Agent Action
+      description: |-
+        Adds/updates or removes a chatbot action (e.g. send data to frontend, reply) on an agent version. With query type=add it sets actions.<actionId> = actionJson on the version (actionId is generated if not given) and marks it drafted; with any other or missing type it removes actions.<actionId>. Returns the updated version document. Note: no org check is applied to agentId/version_id. Responds directly (not via the envelope middleware).
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Body fields:
+        - actionJson: object, required, the action definition to store (shape defined by the frontend; typically includes type sendDataToFrontend|reply, description, variable)
+        - version_id: string (ObjectId), required, agent version to modify
+        - actionId: string, optional, existing action id to update/remove; generated (12 chars) on add if omitted
+        - type: string, optional, sendDataToFrontend | reply (validated but not used by the controller)
+      parameters:
+        - name: agentId
+          in: path
+          required: true
+          description: Agent ObjectId, from List Agents
+          schema:
+            type: string
+        - name: type
+          in: query
+          required: false
+          description: string, optional, add | remove; anything other than 'add' removes the action
+          schema:
+            type: string
+          example: add
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              actionJson:
+                type: sendDataToFrontend
+                description: Open the order page
+                variable: order_id
+              version_id: 6650aa11bb22cc33dd44ee56
+              actionId: a1b2c3d4e5f6
+              type: sendDataToFrontend
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    data:
+                      _id: 6650aa11bb22cc33dd44ee56
+                      parent_id: 6650aa11bb22cc33dd44ee55
+                      actions:
+                        a1b2c3d4e5f6:
+                          type: sendDataToFrontend
+                          description: Open the order page
+                          variable: order_id
+                      is_drafted: true
+        "400":
+          description: Validation Error
+          content:
+            application/json:
+              examples:
+                Validation_Error:
+                  summary: Validation Error
+                  value:
+                    message: version_id is mandatory
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true

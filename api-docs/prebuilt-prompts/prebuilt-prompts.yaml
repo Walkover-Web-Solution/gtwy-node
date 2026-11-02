@@ -1,0 +1,283 @@
+openapi: 3.0.3
+info:
+  title: Prebuilt Prompts
+  version: 1.0.0
+servers:
+  - url: https://db.gtwy.ai/api
+paths:
+  /prebuilt_prompt:
+    get:
+      summary: List Prebuilt Prompts
+      description: |-
+        Returns the system prompts of GTWY's built-in helper agents for the caller's org: the org's customised prompt where one is saved, otherwise the default prompt fetched live from the helper agent. Each item is a single-key object {prompt_id: prompt_text}.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Prebuilt prompts retrieved successfully
+                    data:
+                      - optimze_prompt: You are a prompt optimiser...
+                      - gpt_memory: "..."
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+    put:
+      summary: Update Prebuilt Prompt
+      description: |-
+        Saves the org's custom prompt for one built-in helper agent. The body must contain exactly one key, the prompt id, whose value is the new prompt text. The custom prompt is then used by Run GTWY AI Helper for this org. 400 if the body is empty, has more than one key, or the key is not a valid prompt id.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Body fields:
+        - <prompt_id>: string, required, exactly one key; key must be one of optimze_prompt | gpt_memory | structured_output_optimizer | chatbot_suggestions | generate_summary | generate_test_cases (note the spelling 'optimze_prompt'); value is the new prompt text
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              optimze_prompt: You are an expert prompt engineer. Rewrite the prompt to be clear and concise.
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Prebuilt prompt updated successfully
+                    data:
+                      optimze_prompt: You are an expert prompt engineer...
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: Request body must contain exactly one prompt_id
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /prebuilt_prompt/reset:
+    post:
+      summary: Reset Prebuilt Prompt
+      description: |-
+        Resets the org's custom prompt for one helper agent back to the helper agent's current default prompt (stores the default as the org's value). 404 if the default prompt cannot be fetched from the helper agent.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Body fields:
+        - prompt_id: string, required, one of optimze_prompt | gpt_memory | structured_output_optimizer | chatbot_suggestions | generate_summary | generate_test_cases
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              prompt_id: optimze_prompt
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Successfully reset optimze_prompt to original value
+                    data:
+                      optimze_prompt: <default prompt>
+        "404":
+          description: Default not found
+          content:
+            application/json:
+              examples:
+                Default_not_found:
+                  summary: Default not found
+                  value:
+                    success: false
+                    message: Failed to fetch original prompt from bridge configuration
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: prompt_id is required in request body
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /prebuilt_prompt/{prompt_key}:
+    get:
+      summary: Get Prebuilt Prompt
+      description: |-
+        Returns the org's saved custom prompt for one helper agent. `data` is null if the org has not customised this prompt (the default is not returned here; use List Prebuilt Prompts for that).
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: prompt_key
+          in: path
+          required: true
+          description: one of optimze_prompt | gpt_memory | structured_output_optimizer | chatbot_suggestions | generate_summary | generate_test_cases
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Retrieved prompt 'gpt_memory' successfully
+                    data:
+                      gpt_memory: "..."
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: "Invalid prompt_key. Must be one of: optimze_prompt, gpt_memory, structured_output_optimizer, chatbot_suggestions, generate_summary, generate_test_cases"
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true

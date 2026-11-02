@@ -1,0 +1,220 @@
+openapi: 3.0.3
+info:
+  title: Public Agents
+  version: 1.0.0
+servers:
+  - url: https://db.gtwy.ai/api
+paths:
+  /runagents/public/login:
+    post:
+      summary: Login Public User
+      description: |-
+        Issues an anonymous public-agent token (JWT with userId, ispublic:true) used as Authorization for public agent and chatbot endpoints. If user_id is not supplied, a stable id is derived from a SHA-256 hash of the caller's IP. Errors: 400 validation.
+
+        Accepted auth: none (public).
+
+        Body fields:
+        - user_id: string or null, optional; caller-chosen user id; otherwise derived from IP
+      parameters:
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              user_id: null
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    token: <jwt>
+                    user_id: 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: '"user_id" must be a string'
+                    data: {}
+      x-docstar-published: true
+  /runagents/login:
+    post:
+      summary: Login Authenticated User For Public Agents
+      description: |-
+        Issues a public-agent token for a logged-in GTWY user: the token carries the user's id and email and ispublic:false (ispublic is true if the user has no email), which lets them access private public-agents shared with their email. Falls back to body.user_id or an IP hash if the profile has no user id. Errors: 400 validation, 401.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Body fields:
+        - user_id: string or null, optional; used only if the authenticated profile has no user id
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              user_id: null
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    token: <jwt>
+                    user_id: 501
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /runagents:
+    get:
+      summary: List Public Agents
+      description: |-
+        Lists agents published as public agents across all orgs: those with publicAgentConfig availability 'public' and isPublicAgent true, plus private ones whose publicUsers include the token's email. Returns name, slugName, org_id and settings.publicAgentConfig for each. Errors: 498 missing token, 401 invalid token.
+
+        Accepted auth: Authorization (public chatbot/agent token).
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: Public chatbot / public agent token signed with GTWY's PUBLIC_CHATBOT_TOKEN (issued by the runagents login endpoints).
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    data:
+                      - _id: 665f1c2e8b3a4d0012ab34cd
+                        name: Support Bot
+                        slugName: support_bot
+                        org_id: "12345"
+                        settings:
+                          publicAgentConfig:
+                            availability: public
+                            isPublicAgent: true
+        "498":
+          description: Missing token
+          content:
+            application/json:
+              examples:
+                Missing_token:
+                  summary: Missing token
+                  value:
+                    message: invalid token
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /runagents/{slug_name}:
+    get:
+      summary: Get Public Agent
+      description: |-
+        Intended to return one public agent by slug, subject to public/private availability and the token's email. Caution: the underlying query filters on fields named slugname, settings.availability and settings.publicUsers and on an org_id that is never passed, which differ from the fields used by List Public Agents, so it appears to return data:null in practice. Errors: 400 validation, 498 missing token, 401 invalid token.
+
+        Accepted auth: Authorization (public chatbot/agent token).
+      parameters:
+        - name: slug_name
+          in: path
+          required: true
+          description: Agent slugName, from List Public Agents
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: Public chatbot / public agent token signed with GTWY's PUBLIC_CHATBOT_TOKEN (issued by the runagents login endpoints).
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    data: null
+        "498":
+          description: Missing token
+          content:
+            application/json:
+              examples:
+                Missing_token:
+                  summary: Missing token
+                  value:
+                    message: invalid token
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true

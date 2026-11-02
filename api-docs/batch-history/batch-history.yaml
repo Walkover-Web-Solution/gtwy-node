@@ -1,0 +1,184 @@
+openapi: 3.0.3
+info:
+  title: Batch History
+  version: 1.0.0
+servers:
+  - url: https://db.gtwy.ai/api
+paths:
+  /batch/history/{agent_id}:
+    get:
+      summary: List Batch Conversation Logs
+      description: |-
+        Returns conversation log rows created by batch API runs of an agent in the caller's org, filtered by batch status (default 'completed'), paginated newest-first and reversed within the page. Errors: 400 validation, 401, 500 on database error.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: agent_id
+          in: path
+          required: true
+          description: Agent _id (24-hex ObjectId)
+          schema:
+            type: string
+        - name: page
+          in: query
+          required: false
+          description: integer >= 1, optional, default 1
+          schema:
+            type: string
+          example: "1"
+        - name: limit
+          in: query
+          required: false
+          description: integer 1-100, optional, default 30
+          schema:
+            type: string
+          example: "30"
+        - name: filter
+          in: query
+          required: false
+          description: optional; batch status 'completed' | 'queued' | 'processing' (default 'completed')
+          schema:
+            type: string
+          example: completed
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    data:
+                      - id: 1201
+                        org_id: "12345"
+                        thread_id: thread_abc
+                        sub_thread_id: thread_abc
+                        bridge_id: 665f1c2e8b3a4d0012ab34cd
+                        version_id: 665f1c2e8b3a4d0012ab34ce
+                        message_id: b1c2d3
+                        user: How do I reset my password?
+                        llm_message: Go to Settings > Security.
+                        updated_llm_message: null
+                        chatbot_message: null
+                        model: gpt-5-nano
+                        service: openai
+                        tools_call_data: []
+                        user_feedback: 0
+                        error: null
+                        tokens:
+                          input_tokens: 120
+                          output_tokens: 30
+                        latency:
+                          over_all_time: 1.4
+                        variables: {}
+                        created_at: "2026-10-20T10:00:00.000Z"
+                        updated_at: "2026-10-20T10:00:01.000Z"
+                        batch_data:
+                          batch_id: batch_123
+                          status: completed
+                    success: true
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: "filter must be one of: completed, queued, processing"
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /batch/history/count/{agent_id}:
+    get:
+      summary: Count Batch Conversation Logs
+      description: |-
+        Returns how many batch conversation logs of an agent in the caller's org are in each status (completed, queued, processing). Errors: 400 validation (agent_id must be a 24-hex ObjectId), 401, 500 on database error.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: agent_id
+          in: path
+          required: true
+          description: Agent _id (24-hex ObjectId)
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    data:
+                      completed: 40
+                      queued: 2
+                      processing: 1
+                    success: true
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: agent_id must be a valid MongoDB ObjectId
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true

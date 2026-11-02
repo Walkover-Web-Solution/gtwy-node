@@ -1,0 +1,948 @@
+openapi: 3.0.3
+info:
+  title: Agent Versions
+  version: 1.0.0
+servers:
+  - url: https://db.gtwy.ai/api
+paths:
+  /versions:
+    post:
+      summary: Create Version
+      description: |-
+        Creates a new version of an agent by copying an existing version (version_id) and appends it to the parent agent's versions list. API key credentials of the source version are copied, and a 'Version created' history entry is logged. Errors: 400 'Cannot create version for a deleted agent', 400 validation (version_id required) or 'No matching agent found' if the source version does not exist, 401, 403 for viewers.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Write access check (requireAdminRole): admins always pass; on routes with an agent/version id in the path, editors/viewers must be in the agent's users list. Only the dashboard JWT carries a role - pauthkey and proxy_auth_token callers get 403 on those id routes.
+
+        Body fields:
+        - version_id: string, required; existing version _id to copy (from Get Agent -> versions)
+        - version_description: string, optional (may be empty); description of the new version
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              version_id: 665f1c2e8b3a4d0012ab34ce
+              version_description: Try a shorter prompt
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: version created successfully
+                    version_id: 6660aa118b3a4d0012ab0003
+        "400":
+          description: Deleted agent
+          content:
+            application/json:
+              examples:
+                Deleted_agent:
+                  summary: Deleted agent
+                  value:
+                    success: false
+                    message: Cannot create version for a deleted agent
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: '"version_id" is required'
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /versions/bulk_publish:
+    post:
+      summary: Bulk Publish Versions
+      description: |-
+        Publishes several versions at once; each version's configuration is copied onto its parent agent and becomes the live published_version_id. Each id is processed independently: success is true only if all succeeded, and failures are listed with their error message (e.g. 'Version data not found'). Errors: 400 validation (version_ids must be a non-empty array), 401, 403 for viewers.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Write access check (requireAdminRole): admins always pass; on routes with an agent/version id in the path, editors/viewers must be in the agent's users list. Only the dashboard JWT carries a role - pauthkey and proxy_auth_token callers get 403 on those id routes.
+
+        Body fields:
+        - version_ids: string[], required, min 1; version _ids to publish
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              version_ids:
+                - 665f1c2e8b3a4d0012ab34ce
+                - 665f1c2e8b3a4d0012ab4444
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Bulk publish completed
+                    published_version_ids:
+                      - 665f1c2e8b3a4d0012ab34ce
+                      - 665f1c2e8b3a4d0012ab4444
+                    failed: []
+                Partial_failure:
+                  summary: Partial failure
+                  value:
+                    success: false
+                    message: Bulk publish completed
+                    published_version_ids:
+                      - 665f1c2e8b3a4d0012ab34ce
+                    failed:
+                      - status: failed
+                        version_id: 665f1c2e8b3a4d0012ab4444
+                        error: Version data not found
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: '"version_ids" must contain at least 1 items'
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /versions/{version_id}:
+    get:
+      summary: Get Version
+      description: |-
+        Returns the full configuration of one agent version, including its linked tool definitions (apiCalls); advanced parameters are converted to frontend format. The lookup is by version _id only (not filtered by the caller's org in the controller). Errors: 400 'Agent version not found', 401 unauthorized.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: version_id
+          in: path
+          required: true
+          description: Version _id, from Get Agent -> versions
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Version get successfully
+                    agent:
+                      _id: 665f1c2e8b3a4d0012ab34ce
+                      name: Support Bot
+                      slugName: support_bot
+                      org_id: "12345"
+                      service: openai
+                      bridgeType: api
+                      configuration:
+                        model: gpt-5-nano
+                        type: chat
+                        prompt:
+                          role: AI Bot
+                          goal: "..."
+                          instruction: "..."
+                      settings:
+                        maximum_iterations: 3
+                        response_format:
+                          type: default
+                        editAccess: []
+                      connected_tools: []
+                      apiCalls: {}
+                      versions:
+                        - 665f1c2e8b3a4d0012ab34ce
+                      published_version_id: 665f1c2e8b3a4d0012ab34ce
+                      bridge_status: 1
+                      parent_id: 665f1c2e8b3a4d0012ab34cd
+                      is_drafted: false
+        "400":
+          description: Not found
+          content:
+            application/json:
+              examples:
+                Not_found:
+                  summary: Not found
+                  value:
+                    success: false
+                    message: Agent version not found
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+    delete:
+      summary: Delete Version
+      description: |-
+        Permanently deletes a version of an agent. The currently published version cannot be deleted; publish another version first. Errors: 400 with message 'Version not found', 'Cannot delete the currently published version. Publish a different version first.', or 'Failed to delete version'; 401; 403 no write access.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Write access check (requireAdminRole): admins always pass; on routes with an agent/version id in the path, editors/viewers must be in the agent's users list. Only the dashboard JWT carries a role - pauthkey and proxy_auth_token callers get 403 on those id routes.
+      parameters:
+        - name: version_id
+          in: path
+          required: true
+          description: Version _id to delete, from Get Agent -> versions
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Version deleted successfully
+        "400":
+          description: Published version
+          content:
+            application/json:
+              examples:
+                Published_version:
+                  summary: Published version
+                  value:
+                    message: Cannot delete the currently published version. Publish a different version first.
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Forbidden (no write access)
+          content:
+            application/json:
+              examples:
+                Forbidden_no_write_access:
+                  summary: Forbidden (no write access)
+                  value:
+                    success: false
+                    message: You don't have access to update this agent
+      x-docstar-published: true
+    put:
+      summary: Update Version
+      description: |-
+        Updates a draft version's model configuration, service, API keys, memory, starter questions, settings, connected tools and other version-level fields. Changing configuration.model (or service) re-applies that model's default parameter values; a prompt change is stored in prompt history; settings are shallow-merged. Omitting version_description marks the version as drafted (unpublished changes). connected_tools replaces the list, or send connected_tool + operation (add/update/remove or 1/2/0) to edit one entry. Unknown body fields are rejected. Errors: 400 validation/JSON-schema errors or update failure, 404 'Version not found', 401, 403 no write access.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Write access check (requireAdminRole): admins always pass; on routes with an agent/version id in the path, editors/viewers must be in the agent's users list. Only the dashboard JWT carries a role - pauthkey and proxy_auth_token callers get 403 on those id routes.
+
+        Body fields:
+        - configuration: object, optional; model params: model(string), type('chat'|'embedding'|'fine-tune'|'reasoning'|'image'), prompt(string or object), response_format, temperature, max_tokens, top_p, frequency_penalty, presence_penalty, stop, stream, tools, tool_choice, reasoning, verbosity, n, logprobs, input, RTLayer, webhook, image_size, quality, style, size, mcp_config{servers:[{name,url}]} and other provider params (each accepts number/string/object where applicable)
+        - service: string, optional; one of the registered AI service names (e.g. 'openai', 'anthropic')
+        - apikey_object_id: object, optional; map of service name -> API key _id (24-hex), from the API keys endpoints
+        - user_reference: string, optional
+        - gpt_memory: boolean, optional; enable long-term memory
+        - gpt_memory_context: string, optional (may be empty)
+        - IsstarterQuestionEnable: boolean, optional
+        - starterQuestion: string[], optional
+        - auto_model_select: object or null, optional
+        - cache_on: boolean, optional
+        - web_search_filters: string[] or object, optional
+        - gtwy_web_search_filters: string[] or object, optional
+        - connected_agent_flow: object, optional
+        - settings: object, optional; review_agent{reviewer_agent,reviewer_prompt,reviewer_tools[],reviewer_enabled}, publicUsers(string[]), editAccess(string[]), responseStyle, tone, responseStylePrompt, tonePrompt, maximum_iterations(>=3), response_format, fall_back{is_enable,service,model}, guardrails
+        - variables_state: object, optional
+        - connected_tools: array, optional; full replacement list of tool items {type ('tools'|'agent'|'docs'|'pre_tool'|'post_tool'|'built_in_tools'), id, ...}
+        - connected_tool: object, optional; single tool item used with operation
+        - operation: string or number, optional ('add'|'update'|'remove' or 1|2|0)
+        - agent_info: object, optional; {prompt_total_tokens, description, agent_variables{fields,required}, thread_id, variables_state}
+        - version_description: string, optional; when present it is saved, when absent the version is flagged is_drafted=true
+        - embed_override: object, optional; per-key overrides merged into existing embed_override
+      parameters:
+        - name: version_id
+          in: path
+          required: true
+          description: Version _id to update, from Get Agent -> versions
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              service: openai
+              configuration:
+                model: gpt-4o-mini
+                type: chat
+                prompt: You are a helpful billing assistant for {{company}}.
+                temperature: 0.3
+              apikey_object_id:
+                openai: 665f1c2e8b3a4d0012ab7777
+              gpt_memory: true
+              starterQuestion:
+                - How do I get a refund?
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Version Updated successfully
+                    agent:
+                      _id: 665f1c2e8b3a4d0012ab34ce
+                      name: Support Bot
+                      slugName: support_bot
+                      org_id: "12345"
+                      service: openai
+                      bridgeType: api
+                      configuration:
+                        model: gpt-5-nano
+                        type: chat
+                        prompt:
+                          role: AI Bot
+                          goal: "..."
+                          instruction: "..."
+                      settings:
+                        maximum_iterations: 3
+                        response_format:
+                          type: default
+                        editAccess: []
+                      connected_tools: []
+                      apiCalls: {}
+                      versions:
+                        - 665f1c2e8b3a4d0012ab34ce
+                      published_version_id: 665f1c2e8b3a4d0012ab34ce
+                      bridge_status: 1
+                      parent_id: 665f1c2e8b3a4d0012ab34cd
+                      is_drafted: true
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                Validation_error:
+                  summary: Validation error
+                  value:
+                    message: '"configuration.type" must be one of [chat, embedding, fine-tune, reasoning, image]'
+                    data: {}
+        "404":
+          description: Not found
+          content:
+            application/json:
+              examples:
+                Not_found:
+                  summary: Not found
+                  value:
+                    success: false
+                    message: Version not found
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Forbidden (no write access)
+          content:
+            application/json:
+              examples:
+                Forbidden_no_write_access:
+                  summary: Forbidden (no write access)
+                  value:
+                    success: false
+                    message: You don't have access to update this agent
+      x-docstar-published: true
+  /versions/publish/{version_id}:
+    post:
+      summary: Publish Version
+      description: |-
+        Publishes a version: its configuration is copied onto the parent agent (keeping the agent's publicAgentConfig, editAccess, environment_config and folder), agent variables and prompt token count are recalculated, the version is marked not drafted and the previously published version is marked drafted. If generate_summary is true, an AI summary may be generated in the background; starter questions may also be generated in the background. Errors: 400 with message such as 'Version data not found', 'Parent ID not found in version data' or 'Failed to publish version: ...'; 401; 403 no write access.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Write access check (requireAdminRole): admins always pass; on routes with an agent/version id in the path, editors/viewers must be in the agent's users list. Only the dashboard JWT carries a role - pauthkey and proxy_auth_token callers get 403 on those id routes.
+
+        Body fields:
+        - generate_summary: boolean, optional, default false; generate an AI agent summary after publishing
+      parameters:
+        - name: version_id
+          in: path
+          required: true
+          description: Version _id to publish, from Get Agent -> versions
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              generate_summary: false
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: version published successfully
+                    version_id: 665f1c2e8b3a4d0012ab34ce
+        "400":
+          description: Publish failed
+          content:
+            application/json:
+              examples:
+                Publish_failed:
+                  summary: Publish failed
+                  value:
+                    message: Version data not found
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Forbidden (no write access)
+          content:
+            application/json:
+              examples:
+                Forbidden_no_write_access:
+                  summary: Forbidden (no write access)
+                  value:
+                    success: false
+                    message: You don't have access to update this agent
+      x-docstar-published: true
+  /versions/discard/{version_id}:
+    post:
+      summary: Discard Version Changes
+      description: |-
+        Discards unpublished (draft) edits on a version by overwriting it with the agent's current published configuration (everything except name, slugName, bridgeType, _id, versions, apiCalls, bridge_status) and marking it not drafted. Requires bridge_id (the parent agent) in the body. Errors: 400 'Version not found' or 'Bridge not found' (also 400 'No matching agent found' if bridge_id is missing/invalid), 401, 403 no write access.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Write access check (requireAdminRole): admins always pass; on routes with an agent/version id in the path, editors/viewers must be in the agent's users list. Only the dashboard JWT carries a role - pauthkey and proxy_auth_token callers get 403 on those id routes.
+
+        Body fields:
+        - bridge_id: string, required by the controller (not by validation); parent agent _id whose published config is restored into the version
+      parameters:
+        - name: version_id
+          in: path
+          required: true
+          description: Version _id whose draft changes should be discarded
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              bridge_id: 665f1c2e8b3a4d0012ab34cd
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: version changes discarded successfully
+                    version_id: 665f1c2e8b3a4d0012ab34ce
+        "400":
+          description: Not found
+          content:
+            application/json:
+              examples:
+                Not_found:
+                  summary: Not found
+                  value:
+                    success: false
+                    message: Version not found
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+        "403":
+          description: Forbidden (no write access)
+          content:
+            application/json:
+              examples:
+                Forbidden_no_write_access:
+                  summary: Forbidden (no write access)
+                  value:
+                    success: false
+                    message: You don't have access to update this agent
+      x-docstar-published: true
+  /versions/suggest-model/{version_id}:
+    get:
+      summary: Suggest Model For Version
+      description: |-
+        Asks a model-routing service to recommend the best model for this version, based on its system prompt and tool descriptions, choosing among models of the services for which the version (or the caller's folder) has API keys. Errors: 400 'Version not found', 400 'Please select api key for proceeding further' (no API keys configured), 400 'No models available for the selected services', 401.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: version_id
+          in: path
+          required: true
+          description: Version _id, from Get Agent -> versions
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: suggestion fetched successfully
+                    data:
+                      provider: openai
+                      model: gpt-4o-mini
+        "400":
+          description: No API key
+          content:
+            application/json:
+              examples:
+                No_API_key:
+                  summary: No API key
+                  value:
+                    success: false
+                    message: Please select api key for proceeding further
+                    data:
+                      model: null
+                      error: Please select api key for proceeding further
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /versions/connected-agents/{version_id}:
+    get:
+      summary: Get Connected Agents Graph
+      description: |-
+        Returns the graph of agents connected to the given agent or version (parents that call it and children it calls, recursively), as a map keyed by agent/version id. Use type to say whether the id is a 'bridge' (agent) or 'version'; if omitted, it is looked up as an agent first, then as a version. Only documents in the caller's org are included. Errors: 401.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: version_id
+          in: path
+          required: true
+          description: Version _id (or agent _id when type=bridge)
+          schema:
+            type: string
+        - name: type
+          in: query
+          required: false
+          description: string, optional; 'bridge' or 'version' - what kind of id version_id is
+          schema:
+            type: string
+          example: version
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    data:
+                      665f1c2e8b3a4d0012ab34ce:
+                        agent_name: Router Agent
+                        parentAgents: []
+                        childAgents:
+                          - 665f1c2e8b3a4d0012ab5555
+                        thread_id: false
+                        document_type: version
+                      665f1c2e8b3a4d0012ab5555:
+                        agent_name: Billing Helper
+                        parentAgents:
+                          - 665f1c2e8b3a4d0012ab34ce
+                        childAgents: []
+                        thread_id: false
+                        document_type: bridge
+                        description: Handles billing
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /v1/config/getuserupdates/{version_id}:
+    get:
+      summary: Get Version Change History
+      description: |-
+        Returns the audit log of configuration changes made to a version (who changed which field and when), newest first, plus the list of org users (excluding embed users) for filtering. Unknown user ids are shown as 'Former User'. Returns {success:false,message:'No updates found'} with status 200 when nothing matches. Errors: 400 validation (version_id must be an ObjectId), 401.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: version_id
+          in: path
+          required: true
+          description: Version _id (24-hex ObjectId)
+          schema:
+            type: string
+        - name: page
+          in: query
+          required: false
+          description: integer, optional; page number
+          schema:
+            type: string
+          example: "1"
+        - name: limit
+          in: query
+          required: false
+          description: integer, optional; page size
+          schema:
+            type: string
+          example: "10"
+        - name: user_ids
+          in: query
+          required: false
+          description: string, optional; comma-separated user ids to filter by
+          schema:
+            type: string
+        - name: types
+          in: query
+          required: false
+          description: string, optional; comma-separated change types (field names such as 'prompt', 'model', 'Version created')
+          schema:
+            type: string
+        - name: date_from
+          in: query
+          required: false
+          description: date string, optional; earliest change time
+          schema:
+            type: string
+        - name: date_to
+          in: query
+          required: false
+          description: date string, optional; latest change time
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    userData:
+                      success: true
+                      updates:
+                        - id: 88
+                          user_id: "501"
+                          org_id: "12345"
+                          bridge_id: 665f1c2e8b3a4d0012ab34cd
+                          type: prompt
+                          time: "2026-10-20T09:00:00.000Z"
+                          version_id: 665f1c2e8b3a4d0012ab34ce
+                          user_name: Asha
+                      total: 1
+                      users:
+                        - id: 501
+                          name: Asha
+                    success: true
+                No_updates:
+                  summary: No updates
+                  value:
+                    userData:
+                      success: false
+                      message: No updates found
+                    success: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true

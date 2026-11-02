@@ -1,0 +1,1152 @@
+openapi: 3.0.3
+info:
+  title: Knowledge Base
+  version: 1.0.0
+servers:
+  - url: https://db.gtwy.ai/api
+paths:
+  /rag/embed/login:
+    get:
+      summary: RAG Embed Login
+      description: |-
+        Logs an end user into the knowledge-base (RAG) embed. GTWY verifies the customer-signed JWT, creates or fetches the proxy user, and returns the embed identity plus a GTWY embed session token for subsequent Knowledge Base calls. Errors: 498 missing token, 401 missing claims or bad signature, 404 when the org has no auth_token. Note: tokens flagged gtwyAIDocs take a different branch that currently errors (400) in this controller.
+
+        Accepted auth: Authorization (RAG embed JWT).
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: RAG embed JWT signed by the customer with the org's auth_token (from Get Org Auth Token); payload org_id, folder_id, user_id.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    data:
+                      org_id: "12345"
+                      folder_id: 6652cc11dd22ee33ff44aa55
+                      user_id: "9876"
+                      name: Jane
+                      email: user@customer.com
+                      org_name: Acme
+                      token: <gtwy embed jwt>
+                    success: true
+        "498":
+          description: Missing Token
+          content:
+            application/json:
+              examples:
+                Missing_Token:
+                  summary: Missing Token
+                  value:
+                    message: invalid token
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /rag/get-emebed-token:
+    get:
+      summary: Get RAG Embed Token
+      description: |-
+        Returns a JWT for the external RAG embed service, signed with GTWY's RAG embed secret; payload contains GTWY's RAG org/project ids and the caller's org id as user_id. Note the path spelling 'get-emebed-token'.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    token: <jwt>
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /rag/chatbot/search:
+    post:
+      summary: Search Knowledge (Chatbot)
+      description: |-
+        Runs a semantic search in GTWY's configured shared Hippocampus collection (server env HIPPOCAMPUS_COLLECTION_ID), filtered by ownerId = agent_id, and returns only the matched chunk contents. Upstream errors are returned with the upstream status (or 500).
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Body fields:
+        - query: string, required, search text
+        - agent_id: string, required, used as the Hippocampus ownerId filter
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              query: How do I reset my password?
+              agent_id: 6650aa11bb22cc33dd44ee55
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    data:
+                      answers:
+                        - To reset your password, go to...
+        "400":
+          description: Validation Error
+          content:
+            application/json:
+              examples:
+                Validation_Error:
+                  summary: Validation Error
+                  value:
+                    message: query is required
+                    data: {}
+        "500":
+          description: Upstream Error
+          content:
+            application/json:
+              examples:
+                Upstream_Error:
+                  summary: Upstream Error
+                  value:
+                    success: false
+                    error: <message or Hippocampus error body>
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /rag/collections:
+    get:
+      summary: List Collections
+      description: |-
+        Lists the org's knowledge-base collections (internal _id removed; use collection_id).
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    data:
+                      - collection_id: 66hc11...
+                        name: high_accuracy
+                        org_id: "12345"
+                        resource_ids: []
+                        settings:
+                          denseModel: BAAI/bge-large-en-v1.5
+                          sparseModel: Qdrant/bm25
+                          rerankerModel: colbert-ir/colbertv2.0
+                        created_at: "2026-10-01T00:00:00.000Z"
+                        updated_at: "2026-10-01T00:00:00.000Z"
+                        __v: 0
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /rag/collection/{collectionId}:
+    get:
+      summary: Get Collection
+      description: |-
+        Returns one collection record by its Hippocampus collection_id. Note: not restricted to the caller's org. Returns 404 'Collection not found'.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: collectionId
+          in: path
+          required: true
+          description: Hippocampus collection_id, from List Collections
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    data:
+                      collection_id: 66hc11...
+                      name: high_accuracy
+                      org_id: "12345"
+                      resource_ids: []
+                      settings:
+                        denseModel: BAAI/bge-large-en-v1.5
+                        sparseModel: Qdrant/bm25
+                        rerankerModel: colbert-ir/colbertv2.0
+                      created_at: "2026-10-01T00:00:00.000Z"
+                      updated_at: "2026-10-01T00:00:00.000Z"
+                      __v: 0
+                      _id: 6656...
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              examples:
+                Not_Found:
+                  summary: Not Found
+                  value:
+                    success: false
+                    message: Collection not found
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /rag/collection/{collectionId}/resources:
+    get:
+      summary: List Collection Resources
+      description: |-
+        Lists resources (documents, with content) in a Hippocampus collection that belong to the caller's owner scope: org_id for normal users, or '<org_id>_<folder_id>_<user_id>' for embed-token users. A body owner_id, if sent, overrides the owner. Returns the raw Hippocampus response in data.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: collectionId
+          in: path
+          required: true
+          description: Hippocampus collection_id, from List Collections
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Resources fetched successfully
+                    data:
+                      resources:
+                        - _id: 66re11...
+                          collectionId: 66hc11...
+                          title: Refund policy
+                          description: Company refund policy
+                          ownerId: "12345"
+                          content: Refunds are...
+                          url: null
+                          settings: {}
+        "500":
+          description: Upstream Error
+          content:
+            application/json:
+              examples:
+                Upstream_Error:
+                  summary: Upstream Error
+                  value:
+                    success: false
+                    error: <message or Hippocampus error body>
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /rag/collection:
+    post:
+      summary: Create Collection
+      description: |-
+        Creates a vector collection in Hippocampus with the given embedding/chunking settings (keepDuplicate is forced true) and records it for the org. Returns 201 with the stored collection plus the raw Hippocampus response. Upstream failures return the upstream status (or 500) with error details. Users whose JWT role resolves to 'viewer' (permissions lack create_agent) get 403 {success:false, message:"You don't have access"}; pauthkey/proxy-token callers and embed users are not blocked.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Agent access check (checkAgentAccessMiddleware): restricts by the caller's role on the agent.
+
+        Body fields:
+        - name: string, required, collection name
+        - settings: object, optional: denseModel string, sparseModel string, chunkingType string, chunkSize integer, chunkOverlap integer, rerankerModel string, strategy string
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              name: product_docs
+              settings:
+                denseModel: BAAI/bge-large-en-v1.5
+                sparseModel: Qdrant/bm25
+                chunkingType: recursive
+                chunkSize: 512
+                chunkOverlap: 50
+                rerankerModel: colbert-ir/colbertv2.0
+                strategy: hybrid
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              examples:
+                Created:
+                  summary: Created
+                  value:
+                    success: true
+                    message: Collection created successfully
+                    data:
+                      collection_id: 66hc11...
+                      name: product_docs
+                      org_id: "12345"
+                      resource_ids: []
+                      settings:
+                        denseModel: BAAI/bge-large-en-v1.5
+                        sparseModel: Qdrant/bm25
+                        rerankerModel: colbert-ir/colbertv2.0
+                      created_at: "2026-10-01T00:00:00.000Z"
+                      updated_at: "2026-10-01T00:00:00.000Z"
+                      __v: 0
+                      _id: 6656...
+                      hippocampus_response:
+                        _id: 66hc11...
+                        name: product_docs
+        "400":
+          description: Validation Error
+          content:
+            application/json:
+              examples:
+                Validation_Error:
+                  summary: Validation Error
+                  value:
+                    message: Collection name is required
+                    data: {}
+        "403":
+          description: Forbidden (viewer role)
+          content:
+            application/json:
+              examples:
+                Forbidden_viewer_role:
+                  summary: Forbidden (viewer role)
+                  value:
+                    success: false
+                    message: You don't have access
+        "500":
+          description: Upstream Error
+          content:
+            application/json:
+              examples:
+                Upstream_Error:
+                  summary: Upstream Error
+                  value:
+                    success: false
+                    error: <message or Hippocampus error body>
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /rag/collection/{id}/resources:
+    delete:
+      summary: Delete Collection Resources
+      description: |-
+        Deletes all resources in a Hippocampus collection, optionally only those of one ownerId. Caution: without ownerId every resource in the collection is deleted, and the collection is not checked against the caller's org. Returns the raw Hippocampus response. Users whose JWT role resolves to 'viewer' (permissions lack create_agent) get 403 {success:false, message:"You don't have access"}; pauthkey/proxy-token callers and embed users are not blocked.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Agent access check (checkAgentAccessMiddleware): restricts by the caller's role on the agent.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Hippocampus collection_id, from List Collections
+          schema:
+            type: string
+        - name: ownerId
+          in: query
+          required: false
+          description: string, optional, only delete resources with this owner id
+          schema:
+            type: string
+          example: "12345"
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Resources deleted successfully
+                    data:
+                      deletedCount: 3
+        "403":
+          description: Forbidden (viewer role)
+          content:
+            application/json:
+              examples:
+                Forbidden_viewer_role:
+                  summary: Forbidden (viewer role)
+                  value:
+                    success: false
+                    message: You don't have access
+        "500":
+          description: Upstream Error
+          content:
+            application/json:
+              examples:
+                Upstream_Error:
+                  summary: Upstream Error
+                  value:
+                    success: false
+                    error: <message or Hippocampus error body>
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /rag/resource:
+    get:
+      summary: List Knowledge Base Resources
+      description: |-
+        Main knowledge-base listing: makes sure the org has its three default collections (high_accuracy, moderate, fastest), creating missing ones in Hippocampus, then returns all resources from them owned by the caller (org_id, or '<org_id>_<folder_id>_<user_id>' for embed users). created is the number of collections created in this call; per-collection failures are skipped.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: All collections already exist
+                    data:
+                      resources:
+                        - _id: 66re11...
+                          collectionId: 66hc11...
+                          title: Refund policy
+                          description: Company refund policy
+                          ownerId: "12345"
+                          content: Refunds are...
+                          url: null
+                          settings: {}
+                      created: 0
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+    post:
+      summary: Create Resource
+      description: |-
+        Adds a document to the knowledge base from raw content or a URL. collection_details picks one of the org's default collections: 'high_accuracy', 'moderate', anything else = 'fastest' (call List Knowledge Base Resources first so they exist); its settings are merged with the provided settings. Owner is body owner_id if given, else '<org_id>_<folder_id>_<user_id>' for embed users, else org_id. Returns 201 with the Hippocampus resource; 400 'Collection not found' if the default collection is missing. Users whose JWT role resolves to 'viewer' (permissions lack create_agent) get 403 {success:false, message:"You don't have access"}; pauthkey/proxy-token callers and embed users are not blocked.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Agent access check (checkAgentAccessMiddleware): restricts by the caller's role on the agent.
+
+        Body fields:
+        - collection_details: string, required, high_accuracy | moderate | fastest (any other value = fastest)
+        - title: string, required
+        - description: string, required
+        - content: string, optional (one of content or url required), raw text
+        - url: string (URI), optional (one of content or url required), document URL to ingest
+        - settings: object, optional: strategy, chunkingUrl (URI), chunkingType, chunkSize integer, chunkOverlap integer
+        - owner_id: string, optional, overrides the owner id used by the controller
+        - ownerId: string, optional, accepted by validation but ignored by the controller (use owner_id)
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              collection_details: high_accuracy
+              title: Refund policy
+              description: Company refund policy
+              content: Refunds are processed within 7 days...
+              settings:
+                chunkingType: recursive
+                chunkSize: 512
+                chunkOverlap: 50
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              examples:
+                Created:
+                  summary: Created
+                  value:
+                    success: true
+                    message: Resource created successfully
+                    data:
+                      _id: 66re11...
+                      collectionId: 66hc11...
+                      title: Refund policy
+                      description: Company refund policy
+                      ownerId: "12345"
+                      content: Refunds are...
+                      url: null
+                      settings: {}
+        "400":
+          description: Collection Missing
+          content:
+            application/json:
+              examples:
+                Collection_Missing:
+                  summary: Collection Missing
+                  value:
+                    success: false
+                    message: Collection not found
+                Validation_Error:
+                  summary: Validation Error
+                  value:
+                    message: At least one of content or url is required
+                    data: {}
+        "403":
+          description: Forbidden (viewer role)
+          content:
+            application/json:
+              examples:
+                Forbidden_viewer_role:
+                  summary: Forbidden (viewer role)
+                  value:
+                    success: false
+                    message: You don't have access
+        "500":
+          description: Upstream Error
+          content:
+            application/json:
+              examples:
+                Upstream_Error:
+                  summary: Upstream Error
+                  value:
+                    success: false
+                    error: <message or Hippocampus error body>
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /rag/resource/by-collection:
+    get:
+      summary: List Resources By Collection And Owner
+      description: |-
+        Returns resources (with content) of a given collection and owner id from Hippocampus. Intended as a public API for fetching a specific owner's documents. Note: the collection and owner are not checked against the caller's org.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: collectionId
+          in: query
+          required: true
+          description: string (ObjectId), required, Hippocampus collection_id
+          schema:
+            type: string
+          example: 66hc11...
+        - name: ownerId
+          in: query
+          required: true
+          description: string, required, owner id (org_id or '<org_id>_<folder_id>_<user_id>')
+          schema:
+            type: string
+          example: "12345"
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Resources fetched for the specified collection
+                    data:
+                      resources:
+                        - _id: 66re11...
+                          collectionId: 66hc11...
+                          title: Refund policy
+                          description: Company refund policy
+                          ownerId: "12345"
+                          content: Refunds are...
+                          url: null
+                          settings: {}
+                      created: 0
+        "400":
+          description: Validation Error
+          content:
+            application/json:
+              examples:
+                Validation_Error:
+                  summary: Validation Error
+                  value:
+                    message: collectionId is required
+                    data: {}
+        "500":
+          description: Upstream Error
+          content:
+            application/json:
+              examples:
+                Upstream_Error:
+                  summary: Upstream Error
+                  value:
+                    success: false
+                    error: <message or Hippocampus error body>
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /rag/resource/{id}:
+    put:
+      summary: Update Resource
+      description: |-
+        Updates a knowledge-base resource's title, description, content or url in Hippocampus (re-chunked by Hippocampus). Note: ownership is not checked against the caller's org. Upstream errors return the upstream status. Users whose JWT role resolves to 'viewer' (permissions lack create_agent) get 403 {success:false, message:"You don't have access"}; pauthkey/proxy-token callers and embed users are not blocked.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Agent access check (checkAgentAccessMiddleware): restricts by the caller's role on the agent.
+
+        Body fields:
+        - title: string, optional
+        - content: string, optional
+        - description: string, optional
+        - url: string, optional
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Resource id (_id from List Knowledge Base Resources)
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              title: Refund policy (2026)
+              content: Refunds are processed within 5 days...
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Resource updated successfully
+                    data:
+                      _id: 66re11...
+                      collectionId: 66hc11...
+                      title: Refund policy
+                      description: Company refund policy
+                      ownerId: "12345"
+                      content: Refunds are...
+                      url: null
+                      settings: {}
+        "403":
+          description: Forbidden (viewer role)
+          content:
+            application/json:
+              examples:
+                Forbidden_viewer_role:
+                  summary: Forbidden (viewer role)
+                  value:
+                    success: false
+                    message: You don't have access
+        "500":
+          description: Upstream Error
+          content:
+            application/json:
+              examples:
+                Upstream_Error:
+                  summary: Upstream Error
+                  value:
+                    success: false
+                    error: <message or Hippocampus error body>
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+    delete:
+      summary: Delete Resource
+      description: |-
+        Deletes a knowledge-base resource from Hippocampus, unless it is referenced by any agent or agent version in the org, in which case 400 is returned with isInUse:true and a usage map keyed by agent name ({bridge_id, versions[]}). Users whose JWT role resolves to 'viewer' (permissions lack create_agent) get 403 {success:false, message:"You don't have access"}; pauthkey/proxy-token callers and embed users are not blocked.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Agent access check (checkAgentAccessMiddleware): restricts by the caller's role on the agent.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Resource id, from List Knowledge Base Resources
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Resource deleted successfully
+                    data:
+                      _id: 66re11...
+        "400":
+          description: In Use
+          content:
+            application/json:
+              examples:
+                In_Use:
+                  summary: In Use
+                  value:
+                    success: false
+                    message: Cannot delete resource as it is currently in use
+                    isInUse: true
+                    usage:
+                      Support Bot:
+                        bridge_id: 6650aa11bb22cc33dd44ee55
+                        versions:
+                          - 6650aa11bb22cc33dd44ee56
+        "403":
+          description: Forbidden (viewer role)
+          content:
+            application/json:
+              examples:
+                Forbidden_viewer_role:
+                  summary: Forbidden (viewer role)
+                  value:
+                    success: false
+                    message: You don't have access
+        "500":
+          description: Upstream Error
+          content:
+            application/json:
+              examples:
+                Upstream_Error:
+                  summary: Upstream Error
+                  value:
+                    success: false
+                    error: <message or Hippocampus error body>
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /rag/resource/{id}/chunks:
+    get:
+      summary: Get Resource Chunks
+      description: |-
+        Returns the chunks Hippocampus produced for a resource (to inspect how a document was split). Note: ownership is not checked against the caller's org. Users whose JWT role resolves to 'viewer' (permissions lack create_agent) get 403 {success:false, message:"You don't have access"}; pauthkey/proxy-token callers and embed users are not blocked.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Agent access check (checkAgentAccessMiddleware): restricts by the caller's role on the agent.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Resource id, from List Knowledge Base Resources
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    data:
+                      - _id: 66ch...
+                        content: Refunds are processed...
+                        index: 0
+        "403":
+          description: Forbidden (viewer role)
+          content:
+            application/json:
+              examples:
+                Forbidden_viewer_role:
+                  summary: Forbidden (viewer role)
+                  value:
+                    success: false
+                    message: You don't have access
+        "500":
+          description: Upstream Error
+          content:
+            application/json:
+              examples:
+                Upstream_Error:
+                  summary: Upstream Error
+                  value:
+                    success: false
+                    error: <message or Hippocampus error body>
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true

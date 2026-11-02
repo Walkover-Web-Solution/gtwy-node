@@ -1,0 +1,356 @@
+openapi: 3.0.3
+info:
+  title: Alerts
+  version: 1.0.0
+servers:
+  - url: https://db.gtwy.ai/api
+paths:
+  /alerting:
+    post:
+      summary: Create Alert
+      description: |-
+        Creates a webhook alert for the org that fires on selected events (agent errors, thumbs-down feedback, variable issues, metric limit reached, retry mechanism, broadcast responses) for the listed agents. bridges is required unless alertType contains only broadcast_response; an empty bridges list is stored as ['all']. Alert names are unique per org. Returns 201 with the saved alert document (no envelope); 400 for validation/duplicate errors; 422 if webhookConfiguration.url is missing.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Body fields:
+        - name: string, required, unique per org
+        - webhookConfiguration: object, required, {url: URI (required by the DB model), headers: object of string values, optional}
+        - bridges: array of agent ObjectIds, min 1, required unless alertType is only ['broadcast_response']
+        - alertType: array, required, min 1, values: thumbsdown | Variable | Error | metrix_limit_reached | retry_mechanism | broadcast_response
+        - limit: number >= 0, optional, threshold used by limit-type alerts
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              name: Error webhook
+              webhookConfiguration:
+                url: https://hooks.example.com/gtwy
+                headers:
+                  x-token: abc
+              bridges:
+                - 6650aa11bb22cc33dd44ee55
+              alertType:
+                - Error
+              limit: 10
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              examples:
+                Created:
+                  summary: Created
+                  value:
+                    _id: 6654ee11ff22aa33bb44cc55
+                    org_id: "12345"
+                    name: Error webhook
+                    webhookConfiguration:
+                      url: https://hooks.example.com/gtwy
+                      headers:
+                        x-token: abc
+                    alertType:
+                      - Error
+                    bridges:
+                      - 6650aa11bb22cc33dd44ee55
+                    limit: 10
+                    createdAt: "2026-10-01T00:00:00.000Z"
+                    updatedAt: "2026-10-01T00:00:00.000Z"
+                    __v: 0
+        "400":
+          description: Validation Error
+          content:
+            application/json:
+              examples:
+                Validation_Error:
+                  summary: Validation Error
+                  value:
+                    message: bridges is required
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+    get:
+      summary: List Alerts
+      description: |-
+        Lists all webhook alerts configured for the org. Returns 404 'No alerts found' when the org has none.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    data:
+                      - _id: 6654ee11ff22aa33bb44cc55
+                        org_id: "12345"
+                        name: Error webhook
+                        webhookConfiguration:
+                          url: https://hooks.example.com/gtwy
+                          headers:
+                            x-token: abc
+                        alertType:
+                          - Error
+                        bridges:
+                          - 6650aa11bb22cc33dd44ee55
+                        limit: 10
+                        createdAt: "2026-10-01T00:00:00.000Z"
+                        updatedAt: "2026-10-01T00:00:00.000Z"
+                        __v: 0
+        "404":
+          description: None
+          content:
+            application/json:
+              examples:
+                None:
+                  summary: None
+                  value:
+                    success: false
+                    message: No alerts found
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+    delete:
+      summary: Delete Alert
+      description: |-
+        Deletes an alert by id (body). Note: not restricted to the caller's org. Returns 404 'No alert found for the given ID' when missing.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Body fields:
+        - id: string (24-hex ObjectId), required, alert id
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              id: 6654ee11ff22aa33bb44cc55
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Alert successfully deleted
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              examples:
+                Not_Found:
+                  summary: Not Found
+                  value:
+                    success: false
+                    message: No alert found for the given ID
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /alerting/{id}:
+    put:
+      summary: Update Alert
+      description: |-
+        Updates an alert's name, webhook url/headers, agents or alert types (only provided fields change; limit is not updatable here). Note: the alert is looked up by id only, not restricted to the caller's org. Returns 404 'Alert not found', 400 on validation or update failure.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Body fields:
+        - name: string, optional
+        - webhookConfiguration: object, optional, {url?: URI, headers?: object}
+        - bridges: array of agent ObjectIds, optional, replaces the list
+        - alertType: array, optional, thumbsdown | Variable | Error | metrix_limit_reached | retry_mechanism | broadcast_response
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Alert ObjectId, from List Alerts
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              name: Error webhook v2
+              webhookConfiguration:
+                url: https://hooks.example.com/gtwy2
+              bridges:
+                - 6650aa11bb22cc33dd44ee55
+              alertType:
+                - Error
+                - thumbsdown
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    data:
+                      _id: 6654ee11ff22aa33bb44cc55
+                      org_id: "12345"
+                      name: Error webhook
+                      webhookConfiguration:
+                        url: https://hooks.example.com/gtwy
+                        headers:
+                          x-token: abc
+                      alertType:
+                        - Error
+                      bridges:
+                        - 6650aa11bb22cc33dd44ee55
+                      limit: 10
+                      createdAt: "2026-10-01T00:00:00.000Z"
+                      updatedAt: "2026-10-01T00:00:00.000Z"
+                      __v: 0
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              examples:
+                Not_Found:
+                  summary: Not Found
+                  value:
+                    success: false
+                    message: Alert not found
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true

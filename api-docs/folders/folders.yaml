@@ -1,0 +1,310 @@
+openapi: 3.0.3
+info:
+  title: Folders
+  version: 1.0.0
+servers:
+  - url: https://db.gtwy.ai/api
+paths:
+  /folder:
+    post:
+      summary: Create Folder
+      description: |-
+        Creates a folder in the org for organising agents (default type 'agent'). Names are unique per org (case-insensitive); a duplicate returns 400 'Folder name already exists'. Unknown body keys are rejected with 400.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Body fields:
+        - name: string, required, folder name
+        - config: object, optional, default {}
+        - type: string, optional, default 'agent'
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              name: Marketing
+              config: {}
+              type: agent
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    data:
+                      _id: 6653dd11ee22ff33aa44bb55
+                      folder_id: 6653dd11ee22ff33aa44bb55
+                      name: Marketing
+                      org_id: "12345"
+                      type: agent
+                      config: {}
+                      apikey_object_id: {}
+                      folder_limit: 0
+                      folder_usage: 0
+                      folder_limit_reset_period: monthly
+                      created_at: "2026-10-01T00:00:00.000Z"
+                      updated_at: "2026-10-01T00:00:00.000Z"
+                      __v: 0
+        "400":
+          description: Duplicate
+          content:
+            application/json:
+              examples:
+                Duplicate:
+                  summary: Duplicate
+                  value:
+                    message: Folder name already exists
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+    get:
+      summary: List Folders
+      description: |-
+        Lists the org's folders excluding embed-type folders.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    data:
+                      - _id: 6653dd11ee22ff33aa44bb55
+                        folder_id: 6653dd11ee22ff33aa44bb55
+                        name: Marketing
+                        org_id: "12345"
+                        type: agent
+                        config: {}
+                        apikey_object_id: {}
+                        folder_limit: 0
+                        folder_usage: 0
+                        folder_limit_reset_period: monthly
+                        created_at: "2026-10-01T00:00:00.000Z"
+                        updated_at: "2026-10-01T00:00:00.000Z"
+                        __v: 0
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+    put:
+      summary: Update Folder
+      description: |-
+        Renames a folder and/or replaces its config. Returns 400 'Folder not found' or 'Folder name already exists'. Only folder_id, name and config are accepted; other keys (including type) cause a 400 validation error.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+
+        Body fields:
+        - folder_id: string (24-hex ObjectId), required
+        - name: string, optional, new unique name
+        - config: object, optional, replacement config
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+        - name: Content-Type
+          in: header
+          required: false
+          description: ""
+          schema:
+            type: string
+          example: application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              folder_id: 6653dd11ee22ff33aa44bb55
+              name: Growth
+              config: {}
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    data:
+                      _id: 6653dd11ee22ff33aa44bb55
+                      folder_id: 6653dd11ee22ff33aa44bb55
+                      name: Growth
+                      org_id: "12345"
+                      type: agent
+                      config: {}
+                      apikey_object_id: {}
+                      folder_limit: 0
+                      folder_usage: 0
+                      folder_limit_reset_period: monthly
+                      created_at: "2026-10-01T00:00:00.000Z"
+                      updated_at: "2026-10-01T00:00:00.000Z"
+                      __v: 0
+        "400":
+          description: Not Found
+          content:
+            application/json:
+              examples:
+                Not_Found:
+                  summary: Not Found
+                  value:
+                    message: Folder not found
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
+  /folder/{folder_id}:
+    delete:
+      summary: Delete Folder
+      description: |-
+        Deletes a folder of the org. Folders of type 'embed' cannot be deleted (400 "Cannot delete a folder of type 'embed'"); a non-existent folder also results in a 400 error.
+
+        Accepted auth: Authorization (dashboard user JWT) OR pauthkey (org auth key) OR proxy_auth_token (proxy / auth 2.0 user token).
+      parameters:
+        - name: folder_id
+          in: path
+          required: true
+          description: Folder ObjectId, from List Folders
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: GTWY dashboard user JWT (the token GTWY issues at login, signed with the server SecretKey). Raw token, no 'Bearer' prefix.
+          schema:
+            type: string
+        - name: pauthkey
+          in: header
+          required: false
+          description: GTWY org auth key (pauthkey / pauthtoken) created in GTWY > API keys. Identifies the org; carries no user role.
+          schema:
+            type: string
+        - name: proxy_auth_token
+          in: header
+          required: false
+          description: Proxy (36Blocks / MSG91) user token, e.g. returned by the proxy auth 2.0 widget. Resolved via routes.msg91.com/api/c/getDetails; carries no user role or email.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              examples:
+                Success:
+                  summary: Success
+                  value:
+                    success: true
+                    message: Folder deleted successfully
+        "400":
+          description: Embed Folder
+          content:
+            application/json:
+              examples:
+                Embed_Folder:
+                  summary: Embed Folder
+                  value:
+                    message: Cannot delete a folder of type 'embed'
+                    data: {}
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              examples:
+                Unauthorized:
+                  summary: Unauthorized
+                  value:
+                    message: unauthorized user
+      x-docstar-published: true
