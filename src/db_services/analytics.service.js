@@ -70,72 +70,46 @@ function filterClause(filters) {
   return expr ? ` AND (${expr})` : "";
 }
 
-// Single-row aggregate for the dashboard cards. latency/tokens are JSONB so we
-// extract the numeric keys. Tokens store input_tokens/output_tokens/expected_cost
-// (total_tokens may be absent, so fall back to input + output). Cost comes from
-// the tokens.expected_cost key — entirely from conversation_logs, no Timescale.
-async function getSummary({ bridge_id, org_id, start, end, filters }) {
+// Single bucketed scan that feeds every section of the dashboard. The old code
+// ran four full scans (summary + requests + response_time + cost) in parallel,
+// all with the same WHERE clause on conversation_logs. Doing one scan and
+// deriving the summary from the buckets in Node cuts Postgres CPU for an
+// analytics request to roughly a quarter of what it was (one scan, one filter
+// evaluation, one JSONB extract pass) without changing the push payloads. Each
+// bucket row carries every component the four old queries used to compute:
+//   n                           — rows in bucket
+//   success / failed            — requests-over-time chart
+//   positive/negative_feedback  — summary totals
+//   latency_sum / latency_count — summary avg_response (status=true only, so
+//                                 SUM/COUNT across buckets equals the old
+//                                 whole-window AVG)
+//   total_tokens / cost         — summary totals + cost-over-time chart
+//   typical / slow / worst      — response_time percentiles across ALL
+//                                 statuses, matching the pre-refactor behavior
+async function getBucketedRollup({ bridge_id, org_id, start, end, bucket, filters }) {
+  const { bucketSql, finalParams } = getBucketExpressionAndParams(bucket, { bridge_id, org_id, start, end });
   const query = `
     SELECT
-      COUNT(*)::int AS total_requests,
-      COUNT(*) FILTER (WHERE status = true)::int  AS success_count,
-      COUNT(*) FILTER (WHERE status = false)::int AS failed_runs,
-      COALESCE(AVG((latency->>'over_all_time')::float) FILTER (WHERE status = true), 0) AS avg_response,
+      ${bucketSql} AS t,
+      COUNT(*)::int AS n,
+      COUNT(*) FILTER (WHERE status = true)::int  AS success,
+      COUNT(*) FILTER (WHERE status = false)::int AS failed,
+      COUNT(*) FILTER (WHERE user_feedback = 1)::int AS positive_feedback,
+      COUNT(*) FILTER (WHERE user_feedback = 2)::int AS negative_feedback,
+      COALESCE(SUM((latency->>'over_all_time')::float)
+               FILTER (WHERE status = true AND (latency->>'over_all_time') IS NOT NULL), 0) AS latency_sum,
+      COUNT(*) FILTER (WHERE status = true AND (latency->>'over_all_time') IS NOT NULL)::int AS latency_count,
       COALESCE(SUM(
         COALESCE((tokens->>'total_tokens')::float,
                  COALESCE((tokens->>'input_tokens')::float, 0) + COALESCE((tokens->>'output_tokens')::float, 0))
       ), 0) AS total_tokens,
-      COALESCE(SUM((tokens->>'expected_cost')::float), 0) AS est_cost,
-      COUNT(*) FILTER (WHERE user_feedback = 1)::int AS positive_feedback,
-      COUNT(*) FILTER (WHERE user_feedback = 2)::int AS negative_feedback
-    FROM conversation_logs
-    WHERE bridge_id = :bridge_id AND org_id = :org_id
-      AND created_at BETWEEN :start AND :end ${filterClause(filters)}`;
-  const rows = await pgSelect(query, { bridge_id, org_id, start, end });
-  return rows[0] || {};
-}
-
-// Time-series for the "Requests Over Time" chart: success vs failed per bucket.
-async function getRequestsOverTime({ bridge_id, org_id, start, end, bucket, filters }) {
-  const { bucketSql, finalParams } = getBucketExpressionAndParams(bucket, { bridge_id, org_id, start, end });
-  const query = `
-    SELECT
-      ${bucketSql} AS t,
-      COUNT(*) FILTER (WHERE status = true)::int  AS success,
-      COUNT(*) FILTER (WHERE status = false)::int AS failed
-    FROM conversation_logs
-    WHERE bridge_id = :bridge_id AND org_id = :org_id
-      AND created_at BETWEEN :start AND :end ${filterClause(filters)}
-    GROUP BY 1 ORDER BY 1 ASC`;
-  return pgSelect(query, finalParams);
-}
-
-// Time-series for the "Response Time" chart: p50 (typical) / p95 (slow) / p99 (worst)
-// of over_all_time per bucket.
-async function getResponseTime({ bridge_id, org_id, start, end, bucket, filters }) {
-  const { bucketSql, finalParams } = getBucketExpressionAndParams(bucket, { bridge_id, org_id, start, end });
-  const query = `
-    SELECT
-      ${bucketSql} AS t,
-      percentile_cont(0.5)  WITHIN GROUP (ORDER BY (latency->>'over_all_time')::float) AS typical,
-      percentile_cont(0.95) WITHIN GROUP (ORDER BY (latency->>'over_all_time')::float) AS slow,
-      percentile_cont(0.99) WITHIN GROUP (ORDER BY (latency->>'over_all_time')::float) AS worst
-    FROM conversation_logs
-    WHERE bridge_id = :bridge_id AND org_id = :org_id
-      AND created_at BETWEEN :start AND :end ${filterClause(filters)}
-      AND (latency->>'over_all_time') IS NOT NULL
-    GROUP BY 1 ORDER BY 1 ASC`;
-  return pgSelect(query, finalParams);
-}
-
-// Time-series for the "Cost" chart: sum of tokens.expected_cost per bucket
-// (same source as summary.est_cost).
-async function getCostOverTime({ bridge_id, org_id, start, end, bucket, filters }) {
-  const { bucketSql, finalParams } = getBucketExpressionAndParams(bucket, { bridge_id, org_id, start, end });
-  const query = `
-    SELECT
-      ${bucketSql} AS t,
-      COALESCE(SUM((tokens->>'expected_cost')::float), 0) AS cost
+      COALESCE(SUM((tokens->>'expected_cost')::float), 0) AS cost,
+      percentile_cont(0.5)  WITHIN GROUP (ORDER BY (latency->>'over_all_time')::float)
+        FILTER (WHERE (latency->>'over_all_time') IS NOT NULL) AS typical,
+      percentile_cont(0.95) WITHIN GROUP (ORDER BY (latency->>'over_all_time')::float)
+        FILTER (WHERE (latency->>'over_all_time') IS NOT NULL) AS slow,
+      percentile_cont(0.99) WITHIN GROUP (ORDER BY (latency->>'over_all_time')::float)
+        FILTER (WHERE (latency->>'over_all_time') IS NOT NULL) AS worst
     FROM conversation_logs
     WHERE bridge_id = :bridge_id AND org_id = :org_id
       AND created_at BETWEEN :start AND :end ${filterClause(filters)}
@@ -152,66 +126,81 @@ async function pushAnalytics(channel, data) {
   });
 }
 
-// Background worker: runs the dashboard sections concurrently and pushes each over the
-// RT layer the moment it is ready (progressive render). Each section fails
-// independently — a broken section pushes an error message instead of poisoning
-// the rest.
+// Background worker: one DB roundtrip feeds every dashboard section. We still
+// push four messages (summary, requests_over_time, response_time, cost_over_time)
+// so the frontend's progressive-render path keeps working unchanged — only the
+// number of scans against conversation_logs changed (four → one), which is the
+// CPU win. If the scan fails we push a single error per section so no card is
+// left spinning forever.
 async function runAndPush({ bridge_id, org_id, channel, window, filters }) {
   const ctx = { bridge_id, org_id, ...window, filters };
   const base = { bridge_id, range_start: window.start, range_end: window.end };
 
-  const summaryTask = (async () => {
-    try {
-      const row = await getSummary(ctx);
-      const total = row.total_requests || 0;
-      const summary = {
-        total_requests: total,
-        success_rate: total ? Number(((row.success_count / total) * 100).toFixed(1)) : 0,
-        avg_response: Math.round(row.avg_response || 0),
-        failed_runs: row.failed_runs || 0,
-        total_tokens: Math.round(row.total_tokens || 0),
-        est_cost: Number(Number(row.est_cost || 0).toFixed(4)),
-        positive_feedback: row.positive_feedback || 0,
-        negative_feedback: row.negative_feedback || 0
-      };
-      await pushAnalytics(channel, { type: "summary", success: true, ...base, summary });
-    } catch (error) {
-      logger.error(`analytics summary failed for ${bridge_id}: ${error.message}`);
-      await pushAnalytics(channel, { type: "summary", success: false, ...base, error: error.message });
-    }
-  })();
+  let rows;
+  try {
+    rows = await getBucketedRollup(ctx);
+  } catch (error) {
+    logger.error(`analytics bucketed rollup failed for ${bridge_id}: ${error.message}`);
+    const errPayload = { success: false, ...base, error: error.message };
+    await Promise.allSettled([
+      pushAnalytics(channel, { type: "summary", ...errPayload }),
+      pushAnalytics(channel, { type: "requests_over_time", ...errPayload }),
+      pushAnalytics(channel, { type: "response_time", ...errPayload }),
+      pushAnalytics(channel, { type: "cost_over_time", ...errPayload })
+    ]);
+    return;
+  }
 
-  const requestsTask = (async () => {
-    try {
-      const requests_over_time = await getRequestsOverTime(ctx);
-      await pushAnalytics(channel, { type: "requests_over_time", success: true, ...base, requests_over_time });
-    } catch (error) {
-      logger.error(`analytics requests_over_time failed for ${bridge_id}: ${error.message}`);
-      await pushAnalytics(channel, { type: "requests_over_time", success: false, ...base, error: error.message });
-    }
-  })();
+  // ---- Derive summary totals by summing buckets. Equivalent to the old
+  // whole-window aggregate because every per-bucket component is additive
+  // (avg_response uses SUM(latency)/COUNT(latency) across all buckets, which
+  // equals AVG over the whole window). ----
+  let total = 0;
+  let success = 0;
+  let failed = 0;
+  let positive_feedback = 0;
+  let negative_feedback = 0;
+  let latency_sum = 0;
+  let latency_count = 0;
+  let total_tokens = 0;
+  let est_cost = 0;
+  for (const r of rows) {
+    total += r.n || 0;
+    success += r.success || 0;
+    failed += r.failed || 0;
+    positive_feedback += r.positive_feedback || 0;
+    negative_feedback += r.negative_feedback || 0;
+    latency_sum += Number(r.latency_sum) || 0;
+    latency_count += r.latency_count || 0;
+    total_tokens += Number(r.total_tokens) || 0;
+    est_cost += Number(r.cost) || 0;
+  }
 
-  const responseTimeTask = (async () => {
-    try {
-      const response_time = await getResponseTime(ctx);
-      await pushAnalytics(channel, { type: "response_time", success: true, ...base, response_time });
-    } catch (error) {
-      logger.error(`analytics response_time failed for ${bridge_id}: ${error.message}`);
-      await pushAnalytics(channel, { type: "response_time", success: false, ...base, error: error.message });
-    }
-  })();
+  const summary = {
+    total_requests: total,
+    success_rate: total ? Number(((success / total) * 100).toFixed(1)) : 0,
+    avg_response: Math.round(latency_count ? latency_sum / latency_count : 0),
+    failed_runs: failed,
+    total_tokens: Math.round(total_tokens),
+    est_cost: Number(est_cost.toFixed(4)),
+    positive_feedback,
+    negative_feedback
+  };
 
-  const costTask = (async () => {
-    try {
-      const cost_over_time = await getCostOverTime(ctx);
-      await pushAnalytics(channel, { type: "cost_over_time", success: true, ...base, cost_over_time });
-    } catch (error) {
-      logger.error(`analytics cost_over_time failed for ${bridge_id}: ${error.message}`);
-      await pushAnalytics(channel, { type: "cost_over_time", success: false, ...base, error: error.message });
-    }
-  })();
+  const requests_over_time = rows.map((r) => ({ t: r.t, success: r.success || 0, failed: r.failed || 0 }));
+  const cost_over_time = rows.map((r) => ({ t: r.t, cost: Number(r.cost) || 0 }));
+  // Response-time chart keeps the old shape: only buckets that had at least one
+  // latency sample contribute percentiles (otherwise typical/slow/worst are NULL).
+  const response_time = rows
+    .filter((r) => r.typical !== null && r.typical !== undefined)
+    .map((r) => ({ t: r.t, typical: r.typical, slow: r.slow, worst: r.worst }));
 
-  await Promise.allSettled([summaryTask, requestsTask, responseTimeTask, costTask]);
+  await Promise.allSettled([
+    pushAnalytics(channel, { type: "summary", success: true, ...base, summary }),
+    pushAnalytics(channel, { type: "requests_over_time", success: true, ...base, requests_over_time }),
+    pushAnalytics(channel, { type: "response_time", success: true, ...base, response_time }),
+    pushAnalytics(channel, { type: "cost_over_time", success: true, ...base, cost_over_time })
+  ]);
 }
 
 // Distinct filter options for a bridge, used by the frontend to build the
