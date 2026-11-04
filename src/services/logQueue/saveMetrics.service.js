@@ -19,7 +19,8 @@ function normalizeRow(row) {
     latency: row.latency ?? 0,
     success: row.success ?? false,
     cost: row.cost ?? 0,
-    time_zone: row.time_zone ?? null
+    time_zone: row.time_zone ?? null,
+    user_id: row.user_id != null && row.user_id !== "" ? String(row.user_id) : null
   };
 }
 

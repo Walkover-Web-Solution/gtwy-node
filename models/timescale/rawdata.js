@@ -49,6 +49,10 @@ export default (sequelize, DataTypes) => {
       time_zone: {
         type: DataTypes.STRING,
         allowNull: true
+      },
+      user_id: {
+        type: DataTypes.STRING,
+        allowNull: true
       }
     },
     {
