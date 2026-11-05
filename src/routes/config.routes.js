@@ -1,5 +1,5 @@
 import express from "express";
-import { middleware, requireAdminRole } from "../middlewares/middleware.js";
+import { middleware, requireAdminRole, blockFolderTokenCreation } from "../middlewares/middleware.js";
 import * as agentConfigController from "../controllers/agentConfig.controller.js";
 import validate from "../middlewares/validate.middleware.js";
 import conversationValidation from "../validation/joi_validation/conversation.validation.js";
@@ -24,6 +24,7 @@ router.get(
 router.post(
   "/",
   middleware,
+  blockFolderTokenCreation("Agent"),
   requireAdminRole,
   validate(agentConfigValidation.createAgent),
   transformAgentAdvanceParametersMiddleware,
