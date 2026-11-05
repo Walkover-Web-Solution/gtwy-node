@@ -12,6 +12,7 @@ import { resolveGtwyEmbedToken } from "./gtwyEmbedMiddleware.js";
 
 dotenv.config();
 import { findInCache } from "../cache_service/index.js";
+import { FOLDER_CREATION_BLOCKED_ORGS } from "../configs/constant.js";
 
 // Define role permissions
 const ROLE_PERMISSIONS = {
@@ -689,9 +690,6 @@ const requireAdminRole = async (req, res, next) => {
     });
   }
 };
-
-// Orgs whose folder-scoped (embed) tokens may not create agents, versions, apikeys or knowledge
-const FOLDER_CREATION_BLOCKED_ORGS = ["1277"];
 
 /**
  * Block create operations from a folder-scoped token for orgs in FOLDER_CREATION_BLOCKED_ORGS.
