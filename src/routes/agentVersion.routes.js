@@ -1,6 +1,6 @@
 import express from "express";
 import agentVersionController from "../controllers/agentVersion.controller.js";
-import { middleware, requireAdminRole } from "../middlewares/middleware.js";
+import { middleware, requireAdminRole, blockFolderTokenCreation } from "../middlewares/middleware.js";
 import validate from "../middlewares/validate.middleware.js";
 import bridgeVersionValidation from "../validation/joi_validation/bridgeVersion.validation.js";
 import { transformAgentAdvanceParametersMiddleware, transformToFrontendFormatMiddleware } from "../services/utils/advancedParam.utils.js";
@@ -9,7 +9,7 @@ const router = express.Router();
 
 //create Version
 // prettier-ignore
-router.post("/", middleware, requireAdminRole, validate(bridgeVersionValidation.createVersion), transformAgentAdvanceParametersMiddleware, agentVersionController.createVersion, transformToFrontendFormatMiddleware);
+router.post("/", middleware, blockFolderTokenCreation("Agent version"), requireAdminRole, validate(bridgeVersionValidation.createVersion), transformAgentAdvanceParametersMiddleware, agentVersionController.createVersion, transformToFrontendFormatMiddleware);
 
 //bulk publish
 // prettier-ignore
