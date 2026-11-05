@@ -7,13 +7,15 @@ import { createProxyToken, getOrganizationById, updateOrganizationData } from ".
 import { generateIdentifier } from "../services/utils/utility.service.js";
 import { cleanupCache } from "../services/utils/redis.utils.js";
 import { deleteInCache, findInCache } from "../cache_service/index.js";
-import { cost_types, redis_keys, embed_cache } from "../configs/constant.js";
+import { cost_types, redis_keys, embed_cache, embed_access } from "../configs/constant.js";
 import { generateAuthToken } from "../services/utils/utility.service.js";
 import jwt from "jsonwebtoken";
 import { validateJsonSchemaConfiguration } from "../services/utils/common.utils.js";
 
 const embedLogin = async (req, res) => {
   const { name: embeduser_name, email: embeduser_email } = req.Embed;
+  // Anything other than an explicit "read" keeps today's full access
+  const access = req.Embed.access === embed_access.read ? embed_access.read : embed_access.write;
   const embedDetails = {
     user_id: req.Embed.user_id,
     company_id: req?.Embed?.org_id,
@@ -36,7 +38,8 @@ const embedLogin = async (req, res) => {
     },
     extraDetails: {
       type: "embed",
-      folder_id: req.Embed.folder_id
+      folder_id: req.Embed.folder_id,
+      access
     }
   };
 
@@ -47,6 +50,7 @@ const embedLogin = async (req, res) => {
   const response = {
     ...req?.Embed,
     user_id: req.Embed.user_id,
+    access,
     token: generateAuthToken(Tokendata.user, Tokendata.org, { extraDetails: Tokendata.extraDetails }),
     config: { ...config, apikey_object_id }
   };
