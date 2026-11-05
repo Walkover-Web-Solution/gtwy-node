@@ -1,6 +1,6 @@
 import BillingPlanModel from "../mongoModel/BillingPlan.model.js";
 
-// All Mongo access for billing_plans lives here.
+// All Mongo access  for billing_plans lives here.
 
 // Every plan, ordered by plan_code.
 async function listPlans() {

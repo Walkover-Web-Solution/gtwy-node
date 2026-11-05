@@ -10,16 +10,19 @@ const ModelType = {
   embedding: "embedding"
 };
 
-// Flat model list for one service, optionally filtered by type.
-const getServiceModels = (service_lower, typesFilter) => {
+// Flat model list for one service, optionally filtered by type. Models the
+// embed folder marks as hidden (context.folderModels) are left out.
+const getServiceModels = (service_lower, typesFilter, folderModels = {}) => {
   const service_models = modelConfigDocument[service_lower];
   if (!service_models) return [];
 
   const typesToBuild = typesFilter && typesFilter.length ? typesFilter : ALL_MODEL_TYPES;
+  const hiddenModels = folderModels[service_lower] || {};
 
   const models = [];
   for (const [model_name, config] of Object.entries(service_models)) {
     if (config.status !== 1) continue;
+    if (hiddenModels[model_name]?.hide === true) continue;
     const type = config.validationConfig?.type || "chat";
     if (!typesToBuild.includes(type)) continue;
     models.push({ name: model_name, type, ...transformModelConfig(model_name, config) });
@@ -36,14 +39,14 @@ export const resolvers = {
       return serviceNames.filter((name) => modelConfigDocument[name]).map((name) => ({ name }));
     },
 
-    model: (_parent, { service, name }) => {
-      const models = getServiceModels(service.toLowerCase(), null);
+    model: (_parent, { service, name }, { folderModels }) => {
+      const models = getServiceModels(service.toLowerCase(), null, folderModels);
       return models.find((m) => m.name === name) || null;
     }
   },
 
   Service: {
-    modelNames: (service, { types }) => getServiceModels(service.name, types).map((m) => m.name),
-    models: (service, { types }) => getServiceModels(service.name, types)
+    modelNames: (service, { types }, { folderModels }) => getServiceModels(service.name, types, folderModels).map((m) => m.name),
+    models: (service, { types }, { folderModels }) => getServiceModels(service.name, types, folderModels)
   }
 };

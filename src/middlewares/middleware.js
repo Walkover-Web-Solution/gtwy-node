@@ -12,6 +12,7 @@ import { resolveGtwyEmbedToken } from "./gtwyEmbedMiddleware.js";
 
 dotenv.config();
 import { findInCache } from "../cache_service/index.js";
+import { FOLDER_CREATION_BLOCKED_ORGS } from "../configs/constant.js";
 
 // Define role permissions
 const ROLE_PERMISSIONS = {
@@ -690,8 +691,27 @@ const requireAdminRole = async (req, res, next) => {
   }
 };
 
+/**
+ * Block create operations from a folder-scoped token for orgs in FOLDER_CREATION_BLOCKED_ORGS.
+ * Must run after `middleware` or `combinedAuthMiddleware`, which set req.profile.
+ * @param {string} entity - What is being created, used in the error message (e.g. "Agent")
+ */
+const blockFolderTokenCreation = (entity) => (req, res, next) => {
+  const org_id = String(req.profile?.org?.id);
+  // `middleware` puts the folder in extraDetails; combinedAuthMiddleware's embed path only sets req.folder_id
+  const folder_id = req.profile?.extraDetails?.folder_id || req.folder_id;
+  if (FOLDER_CREATION_BLOCKED_ORGS.includes(org_id) && folder_id) {
+    return res.status(403).json({
+      success: false,
+      message: `${entity} can't be created for this org`
+    });
+  }
+  return next();
+};
+
 export {
   middleware,
+  blockFolderTokenCreation,
   combine_middleware,
   EmbeddecodeToken,
   InternalAuth,
