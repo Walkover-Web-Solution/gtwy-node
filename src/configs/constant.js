@@ -139,6 +139,9 @@ const new_agent_service = new Proxy(
 
 export { collectionNames, bridge_ids, redis_keys, cost_types, prebuilt_prompt_bridge_id, new_agent_service, embed_cache };
 
+// Orgs whose folder-scoped (embed) tokens may not create agents, versions, apikeys or knowledge
+export const FOLDER_CREATION_BLOCKED_ORGS = ["1277"];
+
 export const AI_OPERATION_CONFIG = {
   optimize_prompt: {
     bridgeIdConst: bridge_ids["optimze_prompt"],
