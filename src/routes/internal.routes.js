@@ -1,10 +1,10 @@
 import express from "express";
-import { middleware } from "../middlewares/middleware.js";
+import { middleware, blockEmbedUsers } from "../middlewares/middleware.js";
 
 const router = express.Router();
 
 // Define routes  use in the viasocket plug auth verify
-router.get("/info", middleware, (req, res) => {
+router.get("/info", middleware, blockEmbedUsers, (req, res) => {
   res.send({
     success: true,
     message: "Sucessfully authenticated",

@@ -690,6 +690,17 @@ const requireAdminRole = async (req, res, next) => {
   }
 };
 
+/**
+ * Reject embed (gtwy embed / folder-scoped) users on org-admin routes.
+ * Must run after `middleware`, which sets req.IsEmbedUser / req.embed.
+ */
+const blockEmbedUsers = (req, res, next) => {
+  if (req.IsEmbedUser || req.embed || req.profile?.user?.isEmbedUser) {
+    return res.status(403).json({ success: false, message: "Access denied: embed users are not allowed to access this resource" });
+  }
+  return next();
+};
+
 export {
   middleware,
   combine_middleware,
@@ -700,5 +711,6 @@ export {
   combinedAuthMiddleware,
   checkAgentAccessMiddleware,
   getAgentAccessRole,
-  requireAdminRole
+  requireAdminRole,
+  blockEmbedUsers
 };

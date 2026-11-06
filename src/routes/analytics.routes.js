@@ -1,5 +1,5 @@
 import express from "express";
-import { middleware } from "../middlewares/middleware.js";
+import { middleware, blockEmbedUsers } from "../middlewares/middleware.js";
 import analyticsController from "../controllers/analytics.controller.js";
 import validate from "../middlewares/validate.middleware.js";
 import analyticsValidation from "../validation/joi_validation/analytics.validation.js";
@@ -18,6 +18,6 @@ router.get(
 );
 
 // Embed (folder) analytics: user-wise + agent-wise for agents in the embed folder.
-router.get("/embed/:folder_id", middleware, validate(analyticsValidation.getEmbedAnalytics), analyticsController.getEmbedAnalytics);
+router.get("/embed/:folder_id", middleware, blockEmbedUsers, validate(analyticsValidation.getEmbedAnalytics), analyticsController.getEmbedAnalytics);
 
 export default router;
