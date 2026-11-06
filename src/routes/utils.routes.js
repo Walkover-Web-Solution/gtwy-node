@@ -1,7 +1,7 @@
 import express from "express";
 import utilsController from "../controllers/utils.controller.js";
 import * as agentConfigController from "../controllers/agentConfig.controller.js";
-import { middleware, InternalAuth } from "../middlewares/middleware.js";
+import { middleware, InternalAuth, blockEmbedUsers } from "../middlewares/middleware.js";
 import validate from "../middlewares/validate.middleware.js";
 import utilsValidation from "../validation/joi_validation/utils.validation.js";
 import agentConfigValidation from "../validation/joi_validation/agentConfig.validation.js";
@@ -18,9 +18,15 @@ router.get(
   validate(agentConfigValidation.getAgentsByModel),
   agentConfigController.getAgentsAndVersionsByModelController
 );
-router.post("/token", middleware, validate(utilsValidation.generateToken), utilsController.generateToken);
-router.post("/affiliate/embed-token", middleware, validate(utilsValidation.getAffiliateEmbedToken), utilsController.getAffiliateEmbedToken);
-router.get("/users-details", middleware, utilsController.getCurrentOrgUsers);
+router.post("/token", middleware, blockEmbedUsers, validate(utilsValidation.generateToken), utilsController.generateToken);
+router.post(
+  "/affiliate/embed-token",
+  middleware,
+  blockEmbedUsers,
+  validate(utilsValidation.getAffiliateEmbedToken),
+  utilsController.getAffiliateEmbedToken
+);
+router.get("/users-details", middleware, blockEmbedUsers, utilsController.getCurrentOrgUsers);
 router.delete(
   "/agent/:agent_id",
   middleware,
@@ -28,8 +34,14 @@ router.delete(
   validate(agentConfigValidation.getAgent),
   agentConfigController.permanentlyDeleteAgentController
 );
-router.patch("/models/status", middleware, validate({ body: setModelStatusAdminBodySchema }), utilsController.setModelStatus);
-router.post("/models/bulk-update", middleware, validate({ body: bulkUpdateUserModelConfigurationBodySchema }), bulkUpdateUserModelConfigurations);
+router.patch("/models/status", middleware, blockEmbedUsers, validate({ body: setModelStatusAdminBodySchema }), utilsController.setModelStatus);
+router.post(
+  "/models/bulk-update",
+  middleware,
+  blockEmbedUsers,
+  validate({ body: bulkUpdateUserModelConfigurationBodySchema }),
+  bulkUpdateUserModelConfigurations
+);
 router.get("/models/status/:status", middleware, utilsController.getModelsByStatus);
 router.post("/latency-check", middleware, InternalAuth, validate(utilsValidation.checkLatency), utilsController.checkLatency);
 

@@ -2,52 +2,47 @@ import mongoose from "mongoose";
 import { cacheInvalidationPlugin } from "../cache_service/mongoosePlugin.js";
 import { tag_keys } from "../configs/tagKeys.js";
 
-const FolderSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: true
+const FolderSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true
+    },
+    org_id: {
+      type: String,
+      required: true
+    },
+    type: {
+      type: String
+    },
+    config: {
+      type: mongoose.Schema.Types.Mixed,
+      default: "agent"
+    },
+    apikey_object_id: {
+      type: Object,
+      default: {}
+    },
+    folder_limit: {
+      type: Number,
+      default: 0
+    },
+    folder_usage: {
+      type: Number,
+      default: 0
+    },
+    folder_limit_reset_period: {
+      type: String,
+      enum: ["monthly", "weekly", "daily"],
+      default: "monthly"
+    },
+    folder_limit_start_date: {
+      type: Date,
+      default: Date.now
+    }
   },
-  org_id: {
-    type: String,
-    required: true
-  },
-  type: {
-    type: String
-  },
-  config: {
-    type: mongoose.Schema.Types.Mixed,
-    default: "agent"
-  },
-  apikey_object_id: {
-    type: Object,
-    default: {}
-  },
-  created_at: {
-    type: Date,
-    default: Date.now
-  },
-  updated_at: {
-    type: Date,
-    default: Date.now
-  },
-  folder_limit: {
-    type: Number,
-    default: 0
-  },
-  folder_usage: {
-    type: Number,
-    default: 0
-  },
-  folder_limit_reset_period: {
-    type: String,
-    enum: ["monthly", "weekly", "daily"],
-    default: "monthly"
-  },
-  folder_limit_start_date: {
-    type: Date,
-    default: Date.now
-  }
-});
+  { timestamps: { createdAt: "created_at", updatedAt: "updated_at" } }
+);
 
 FolderSchema.index({ org_id: 1, name: 1 }, { unique: true });
 
