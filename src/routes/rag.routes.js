@@ -15,7 +15,7 @@ import {
   getResourcesByCollectionAndOwner,
   deleteResourcesByCollectionAndOwner
 } from "../controllers/rag.controller.js";
-import { EmbeddecodeToken, middleware, checkAgentAccessMiddleware } from "../middlewares/middleware.js";
+import { EmbeddecodeToken, middleware, checkAgentAccessMiddleware, blockFolderTokenCreation } from "../middlewares/middleware.js";
 import validate from "../middlewares/validate.middleware.js";
 import {
   searchSchema,
@@ -35,17 +35,37 @@ routes.get("/get-emebed-token", middleware, getEmbedToken);
 routes.post("/chatbot/search", middleware, validate({ body: searchSchema }), searchKnowledge);
 
 // Collection routes
-routes.post("/collection", middleware, checkAgentAccessMiddleware, validate({ body: createCollectionSchema }), createCollection);
+routes.post(
+  "/collection",
+  middleware,
+  blockFolderTokenCreation("Knowledge"),
+  checkAgentAccessMiddleware,
+  validate({ body: createCollectionSchema }),
+  createCollection
+);
 routes.get("/collections", middleware, getAllCollections);
 routes.get("/collection/:collectionId", middleware, validate({ params: collectionIdSchema }), getCollectionById);
 routes.get("/collection/:collectionId/resources", middleware, validate({ params: collectionIdSchema }), getAllResourcesByCollectionId);
-routes.delete("/collection/:id/resources", middleware, checkAgentAccessMiddleware, validate({ query: deleteResourcesByCollectionQuerySchema }), deleteResourcesByCollectionAndOwner);
+routes.delete(
+  "/collection/:id/resources",
+  middleware,
+  checkAgentAccessMiddleware,
+  validate({ query: deleteResourcesByCollectionQuerySchema }),
+  deleteResourcesByCollectionAndOwner
+);
 
 // Resource routes
 routes.get("/resource", middleware, getOrCreateDefaultCollections);
 // Public API
 routes.get("/resource/by-collection", middleware, validate({ query: getResourcesByCollectionQuerySchema }), getResourcesByCollectionAndOwner);
-routes.post("/resource", middleware, checkAgentAccessMiddleware, validate({ body: createResourceSchema }), createResourceInCollection);
+routes.post(
+  "/resource",
+  middleware,
+  blockFolderTokenCreation("Knowledge"),
+  checkAgentAccessMiddleware,
+  validate({ body: createResourceSchema }),
+  createResourceInCollection
+);
 routes.put(
   "/resource/:id",
   middleware,
