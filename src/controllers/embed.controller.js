@@ -286,14 +286,37 @@ const getEmbedDataByUserId = async (req, res, next) => {
     const user_id = req.profile.user.id;
     const org_id = req.profile.org.id;
     const folder_id = req?.Embed?.folder_id;
-    const { agent_id } = req.query;
+    const { agent_id, page, limit, search, sortBy, sortOrder, filter } = req.query;
 
-    const data = await ConfigurationServices.getAgentsByUserId(org_id, user_id, agent_id, folder_id);
+    let parsedFilter = {};
+    if (filter) {
+      try {
+        parsedFilter = typeof filter === "string" ? JSON.parse(filter) : filter;
+      } catch (error) {
+        console.log("Error parsing filter:", error);
+        parsedFilter = {};
+      }
+    }
+
+    const paginate = page !== undefined && page !== null && page !== "";
+    const options = {
+      page: paginate ? Math.max(parseInt(page, 10) || 1, 1) : null,
+      limit: Math.max(parseInt(limit, 10) || 10, 1),
+      search: typeof search === "string" ? search.trim() : "",
+      sortBy: typeof sortBy === "string" ? sortBy.trim() : "",
+      sortOrder: sortOrder === "asc" || sortOrder === "1" ? 1 : -1,
+      filter: parsedFilter && typeof parsedFilter === "object" ? parsedFilter : {}
+    };
+
+    const result = await ConfigurationServices.getAgentsByUserId(org_id, user_id, agent_id, folder_id, options);
+
+    const isPaginated = result && !Array.isArray(result) && result.pagination;
 
     res.locals = {
       success: true,
       message: "Get Agents data successfully",
-      data
+      data: isPaginated ? result.data : result,
+      ...(isPaginated ? { pagination: result.pagination } : {})
     };
 
     req.statusCode = 200;
