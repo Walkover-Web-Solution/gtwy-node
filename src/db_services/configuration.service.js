@@ -744,8 +744,10 @@ const getAgentBySlugname = async (orgId, slugName, versionId) => {
   }
 };
 
-const getAgentsByUserId = async (orgId, userId, agent_id, folder_id) => {
+const getAgentsByUserId = async (orgId, userId, agent_id, folder_id, options = {}) => {
   try {
+    const { page = null, limit = 10, search = "", sortBy = "", sortOrder = -1, filter = {} } = options;
+
     // The hidden "direct" agent backs /ai/completion calls and is never listed.
     const query = { org_id: String(orgId), bridgeType: { $ne: "direct" } };
     if (userId) {
@@ -757,43 +759,78 @@ const getAgentsByUserId = async (orgId, userId, agent_id, folder_id) => {
     if (folder_id) {
       query.folder_id = folder_id;
     }
-    const agents = await configurationModel.aggregate([
-      { $match: query },
-      {
-        $addFields: {
-          variables_state: { $ifNull: ["$agent_info.variables_state", {}] }
-        }
-      },
-      {
-        $project: {
-          _id: 1,
-          name: 1,
-          service: 1,
-          "configuration.model": 1,
-          "configuration.prompt": 1,
-          "configuration.type": 1,
-          bridgeType: 1,
-          slugName: 1,
-          variables_state: 1,
-          meta: 1,
-          deletedAt: 1,
-          createdAt: 1,
-          updatedAt: 1,
-          folder_id: 1
+    if (search) {
+      const searchRegex = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+      query.$or = [{ name: searchRegex }, { slugName: searchRegex }];
+    }
+
+    if (filter && typeof filter === "object") {
+      for (const [key, value] of Object.entries(filter)) {
+        if (value === undefined || value === null || value === "") continue;
+        const metaKey = key.startsWith("meta.") ? key : `meta.${key}`;
+        if (Array.isArray(value)) {
+          query[metaKey] = { $in: value };
+        } else {
+          query[metaKey] = value;
         }
       }
+    }
+
+    const projectionStage = {
+      $project: {
+        _id: 1,
+        name: 1,
+        service: 1,
+        "configuration.model": 1,
+        "configuration.prompt": 1,
+        "configuration.type": 1,
+        bridgeType: 1,
+        slugName: 1,
+        variables_state: 1,
+        meta: 1,
+        deletedAt: 1,
+        createdAt: 1,
+        updatedAt: 1,
+        folder_id: 1
+      }
+    };
+
+    const basePipeline = [{ $match: query }, { $addFields: { variables_state: { $ifNull: ["$agent_info.variables_state", {}] } } }, projectionStage];
+
+    const stripNulls = (list) =>
+      list.map((agent) => {
+        const filtered = {};
+        for (const [key, value] of Object.entries(agent)) {
+          if (value === null || value === undefined) continue;
+          filtered[key] = value;
+        }
+        return filtered;
+      });
+
+    if (page === null) {
+      const pipeline = [...basePipeline];
+      if (sortBy) pipeline.push({ $sort: { [sortBy]: sortOrder } });
+      const agents = await configurationModel.aggregate(pipeline);
+      return stripNulls(agents);
+    }
+
+    const skip = (page - 1) * limit;
+    const sort = sortBy ? { [sortBy]: sortOrder } : { _id: -1 };
+
+    const [agents, total] = await Promise.all([
+      configurationModel.aggregate([...basePipeline, { $sort: sort }, { $skip: skip }, { $limit: limit }]),
+      configurationModel.countDocuments(query)
     ]);
 
-    return agents.map((agent) => {
-      const filtered = {};
-      for (const [key, value] of Object.entries(agent)) {
-        if (value === null || value === undefined) {
-          continue;
-        }
-        filtered[key] = value;
+    return {
+      data: stripNulls(agents),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
       }
-      return filtered;
-    });
+    };
   } catch (error) {
     console.error("Error fetching agents:", error);
     return { success: false, error: "Agent not found!!" };
