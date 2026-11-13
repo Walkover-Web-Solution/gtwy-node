@@ -80,6 +80,12 @@ const redis_keys = {
   billing_reconcile_lock: "nd_billing_reconcile_lock"
 };
 
+// Access an embed user gets in GTWY, sent by the customer as the `access` claim of the embed token
+const embed_access = {
+  read: "read",
+  write: "write"
+};
+
 const embed_cache = {
   keys: {
     folder: (folderId) => `embed:folder_${folderId}`,
@@ -137,7 +143,7 @@ const new_agent_service = new Proxy(
   }
 );
 
-export { collectionNames, bridge_ids, redis_keys, cost_types, prebuilt_prompt_bridge_id, new_agent_service, embed_cache };
+export { collectionNames, bridge_ids, redis_keys, cost_types, prebuilt_prompt_bridge_id, new_agent_service, embed_cache, embed_access };
 
 // Orgs whose folder-scoped (embed) tokens may not create agents, versions, apikeys or knowledge
 export const FOLDER_CREATION_BLOCKED_ORGS = ["1277"];
