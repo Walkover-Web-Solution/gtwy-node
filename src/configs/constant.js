@@ -142,6 +142,26 @@ export { collectionNames, bridge_ids, redis_keys, cost_types, prebuilt_prompt_br
 // Orgs whose folder-scoped (embed) tokens may not create agents, versions, apikeys or knowledge
 export const FOLDER_CREATION_BLOCKED_ORGS = ["1277"];
 
+// Fields an embed user may pick with ?fields= on GET /embed/getAgents. "id" is accepted as an alias
+// for "_id", "configuration" expands to model/prompt/type, and "meta.<key>" picks one meta key.
+export const EMBED_AGENT_LIST_FIELDS = [
+  "_id",
+  "name",
+  "service",
+  "configuration",
+  "configuration.model",
+  "configuration.prompt",
+  "configuration.type",
+  "bridgeType",
+  "slugName",
+  "variables_state",
+  "meta",
+  "deletedAt",
+  "createdAt",
+  "updatedAt",
+  "folder_id"
+];
+
 export const AI_OPERATION_CONFIG = {
   optimize_prompt: {
     bridgeIdConst: bridge_ids["optimze_prompt"],

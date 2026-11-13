@@ -286,7 +286,7 @@ const getEmbedDataByUserId = async (req, res, next) => {
     const user_id = req.profile.user.id;
     const org_id = req.profile.org.id;
     const folder_id = req?.Embed?.folder_id;
-    const { agent_id, page, limit, search, sortBy, sortOrder, filter } = req.query;
+    const { agent_id, agent_ids, page, limit, search, sortBy, sortOrder, filter, fields, status } = req.query;
 
     let parsedFilter = {};
     if (filter) {
@@ -305,7 +305,12 @@ const getEmbedDataByUserId = async (req, res, next) => {
       search: typeof search === "string" ? search.trim() : "",
       sortBy: typeof sortBy === "string" ? sortBy.trim() : "",
       sortOrder: sortOrder === "asc" || sortOrder === "1" ? 1 : -1,
-      filter: parsedFilter && typeof parsedFilter === "object" ? parsedFilter : {}
+      filter: parsedFilter && typeof parsedFilter === "object" ? parsedFilter : {},
+      // Already split, checked and normalized by the Joi schema (e.g. ["_id", "name", "meta"])
+      fields: Array.isArray(fields) ? fields : [],
+      status: status === "live" || status === "draft" ? status : "",
+      // Already split, checked and de-duplicated by the Joi schema
+      agent_ids: Array.isArray(agent_ids) ? agent_ids : []
     };
 
     const result = await ConfigurationServices.getAgentsByUserId(org_id, user_id, agent_id, folder_id, options);
