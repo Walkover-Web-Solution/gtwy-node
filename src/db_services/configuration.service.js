@@ -768,6 +768,7 @@ const buildAgentListProjection = (fields = []) => {
 
   const projection = { _id: fields.includes("_id") ? 1 : 0 };
   const wantsWholeMeta = fields.includes("meta");
+  const wantsWholePrompt = fields.includes("configuration") || fields.includes("configuration.prompt");
   for (const field of fields) {
     if (field === "_id") continue;
     if (field === "configuration") {
@@ -778,6 +779,8 @@ const buildAgentListProjection = (fields = []) => {
     }
     // "meta" together with "meta.x" is a Mongo path collision; the whole object already covers it.
     if (wantsWholeMeta && field.startsWith("meta.")) continue;
+    // Same for "configuration.prompt.<key>" when the whole prompt is already requested.
+    if (wantsWholePrompt && field.startsWith("configuration.prompt.")) continue;
     projection[field] = 1;
   }
   return projection;
@@ -833,24 +836,39 @@ const getAgentsByUserId = async (orgId, userId, agent_id, folder_id, options = {
         const filtered = {};
         for (const [key, value] of Object.entries(agent)) {
           if (value === null || value === undefined) continue;
+          // A requested prompt key the agent doesn't have (or a string prompt) leaves configuration
+          // as {}; drop it so a missing key is simply absent, never an error.
+          if (key === "configuration" && typeof value === "object" && !Array.isArray(value) && Object.keys(value).length === 0) continue;
           filtered[key] = value;
         }
         return filtered;
       });
 
+    // Mongo sorts strings by byte order, which puts every capital letter before every lowercase one
+    // ("Zeta" before "alpha"). Sort on a lowercased copy of string values so A/a sort together;
+    // non-string values (dates, numbers) keep their own type. The helper field is dropped by the
+    // inclusion projection that follows. _id breaks ties so pages stay stable.
+    const sortStages = [];
+    if (sortBy && /^[A-Za-z_][\w.]*$/.test(sortBy)) {
+      const fieldRef = `$${sortBy}`;
+      sortStages.push(
+        { $addFields: { __sortKey: { $cond: [{ $eq: [{ $type: fieldRef }, "string"] }, { $toLower: fieldRef }, fieldRef] } } },
+        { $sort: { __sortKey: sortOrder, _id: sortOrder } }
+      );
+    } else if (sortBy) {
+      sortStages.push({ $sort: { [sortBy]: sortOrder } });
+    }
+
     if (page === null) {
-      const pipeline = [...basePipeline];
-      if (sortBy) pipeline.push({ $sort: { [sortBy]: sortOrder } });
-      pipeline.push(projectionStage);
-      const agents = await configurationModel.aggregate(pipeline);
+      const agents = await configurationModel.aggregate([...basePipeline, ...sortStages, projectionStage]);
       return stripNulls(agents);
     }
 
     const skip = (page - 1) * limit;
-    const sort = sortBy ? { [sortBy]: sortOrder } : { _id: -1 };
+    if (sortStages.length === 0) sortStages.push({ $sort: { _id: -1 } });
 
     const [agents, total] = await Promise.all([
-      configurationModel.aggregate([...basePipeline, { $sort: sort }, { $skip: skip }, { $limit: limit }, projectionStage]),
+      configurationModel.aggregate([...basePipeline, ...sortStages, { $skip: skip }, { $limit: limit }, projectionStage]),
       configurationModel.countDocuments(query)
     ]);
 
