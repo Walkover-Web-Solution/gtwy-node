@@ -333,6 +333,31 @@ paths:
           description: string (24-hex ObjectId), optional, return only this agent
           schema:
             type: string
+        - name: fields
+          in: query
+          required: false
+          description: |-
+            Comma-separated list of fields to return per agent, e.g. fields=id,name,createdAt,updatedAt,meta. Omit to get the full default set. id is an alias for _id and is left out unless asked for. Allowed: id, _id, name, service, configuration (model/prompt/type), configuration.model, configuration.prompt, configuration.type, bridgeType, slugName, variables_state, meta, meta.<key>, deletedAt, createdAt, updatedAt, folder_id. Any other value returns 400.
+          schema:
+            type: string
+          example: id,name,createdAt,updatedAt,meta
+        - name: agent_ids
+          in: query
+          required: false
+          description: |-
+            Comma-separated list of agent ids (24-hex ObjectIds, max 200) to return only those agents, e.g. agent_ids=6650aa11bb22cc33dd44ee55,6650aa11bb22cc33dd44ee56. Can also be sent as a repeated param. Combined with agent_id if both are given (an agent matching either is returned). Ids outside the token's org/user/folder are simply not returned. Invalid ids return 400.
+          schema:
+            type: string
+          example: 6650aa11bb22cc33dd44ee55,6650aa11bb22cc33dd44ee56
+        - name: status
+          in: query
+          required: false
+          description: |-
+            live or draft (case-insensitive). live returns only agents that have a published_version_id; draft returns only agents whose published_version_id is missing, null or empty. Omit to get both. Any other value returns 400. Also applies to the pagination total.
+          schema:
+            type: string
+            enum: [live, draft]
+          example: live
         - name: Authorization
           in: header
           required: false
