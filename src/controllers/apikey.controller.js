@@ -14,6 +14,8 @@ const saveApikey = async (req, res, next) => {
   const folder_id = req.profile?.extraDetails?.folder_id;
   const user_id = req.profile.user.id;
   let apikey = req.body.apikey;
+  // A pasted Claude login often carries the line break of the terminal it was copied from.
+  if (service === CLAUDE_CODE) apikey = String(apikey || "").replace(/\s+/g, "");
 
   // Check API key validity
   await checkApikey(apikey, service, org_id, user_id);
@@ -28,7 +30,7 @@ const saveApikey = async (req, res, next) => {
       await apikeyService.updateApikeyRecord(existing._id, apikey, name, service, apikey_limit, -1, apikey_limit_reset_period);
       await cleanupCache(cost_types.apikey, existing._id.toString(), org_id);
       await deleteInCache([claudeLoginCacheKey(org_id)]);
-      res.locals = { success: true, api: { ...existing, name, apikey: await Helper.maskApiKey(req.body.apikey) } };
+      res.locals = { success: true, api: { ...existing, name, apikey: await Helper.maskApiKey(await Helper.decrypt(apikey)) } };
       req.statusCode = 200;
       return next();
     }
@@ -139,6 +141,7 @@ const updateApikey = async (req, res, next) => {
 
   // Check API key validity if provided
   if (apikey) {
+    if (service === CLAUDE_CODE) apikey = String(apikey).replace(/\s+/g, "");
     await checkApikey(apikey, service, org_id, req.profile?.user?.id);
     apikey = await Helper.encrypt(apikey);
   }
