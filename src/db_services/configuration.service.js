@@ -744,20 +744,69 @@ const getAgentBySlugname = async (orgId, slugName, versionId) => {
   }
 };
 
+const DEFAULT_AGENT_LIST_PROJECTION = {
+  _id: 1,
+  name: 1,
+  service: 1,
+  "configuration.model": 1,
+  "configuration.prompt": 1,
+  "configuration.type": 1,
+  bridgeType: 1,
+  slugName: 1,
+  variables_state: 1,
+  meta: 1,
+  deletedAt: 1,
+  createdAt: 1,
+  updatedAt: 1,
+  folder_id: 1
+};
+
+// Builds the $project for the embed agent list. With no fields the full default set is returned;
+// otherwise only the requested ones (fields are validated against EMBED_AGENT_LIST_FIELDS upstream).
+const buildAgentListProjection = (fields = []) => {
+  if (!Array.isArray(fields) || fields.length === 0) return DEFAULT_AGENT_LIST_PROJECTION;
+
+  const projection = { _id: fields.includes("_id") ? 1 : 0 };
+  const wantsWholeMeta = fields.includes("meta");
+  for (const field of fields) {
+    if (field === "_id") continue;
+    if (field === "configuration") {
+      projection["configuration.model"] = 1;
+      projection["configuration.prompt"] = 1;
+      projection["configuration.type"] = 1;
+      continue;
+    }
+    // "meta" together with "meta.x" is a Mongo path collision; the whole object already covers it.
+    if (wantsWholeMeta && field.startsWith("meta.")) continue;
+    projection[field] = 1;
+  }
+  return projection;
+};
+
 const getAgentsByUserId = async (orgId, userId, agent_id, folder_id, options = {}) => {
   try {
-    const { page = null, limit = 10, search = "", sortBy = "", sortOrder = -1, filter = {} } = options;
+    const { page = null, limit = 10, search = "", sortBy = "", sortOrder = -1, filter = {}, fields = [], status = "", agent_ids = [] } = options;
 
     // The hidden "direct" agent backs /ai/completion calls and is never listed.
     const query = { org_id: String(orgId), bridgeType: { $ne: "direct" } };
     if (userId) {
       query.user_id = String(userId);
     }
-    if (agent_id) {
-      query._id = new ObjectId(agent_id);
+    // agent_id (single) and agent_ids (list) are merged: an agent matching either is returned.
+    const ids = [...new Set([...(agent_id ? [agent_id] : []), ...(Array.isArray(agent_ids) ? agent_ids : [])])];
+    if (ids.length === 1) {
+      query._id = new ObjectId(ids[0]);
+    } else if (ids.length > 1) {
+      query._id = { $in: ids.map((id) => new ObjectId(id)) };
     }
     if (folder_id) {
       query.folder_id = folder_id;
+    }
+    // live = has a published version; draft = never published (field missing, null or empty)
+    if (status === "live") {
+      query.published_version_id = { $nin: [null, ""] };
+    } else if (status === "draft") {
+      query.published_version_id = { $in: [null, ""] };
     }
     if (search) {
       const searchRegex = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
@@ -776,26 +825,8 @@ const getAgentsByUserId = async (orgId, userId, agent_id, folder_id, options = {
       }
     }
 
-    const projectionStage = {
-      $project: {
-        _id: 1,
-        name: 1,
-        service: 1,
-        "configuration.model": 1,
-        "configuration.prompt": 1,
-        "configuration.type": 1,
-        bridgeType: 1,
-        slugName: 1,
-        variables_state: 1,
-        meta: 1,
-        deletedAt: 1,
-        createdAt: 1,
-        updatedAt: 1,
-        folder_id: 1
-      }
-    };
-
-    const basePipeline = [{ $match: query }, { $addFields: { variables_state: { $ifNull: ["$agent_info.variables_state", {}] } } }, projectionStage];
+    const projectionStage = { $project: buildAgentListProjection(fields) };
+    const basePipeline = [{ $match: query }, { $addFields: { variables_state: { $ifNull: ["$agent_info.variables_state", {}] } } }];
 
     const stripNulls = (list) =>
       list.map((agent) => {
@@ -810,6 +841,7 @@ const getAgentsByUserId = async (orgId, userId, agent_id, folder_id, options = {
     if (page === null) {
       const pipeline = [...basePipeline];
       if (sortBy) pipeline.push({ $sort: { [sortBy]: sortOrder } });
+      pipeline.push(projectionStage);
       const agents = await configurationModel.aggregate(pipeline);
       return stripNulls(agents);
     }
@@ -818,7 +850,7 @@ const getAgentsByUserId = async (orgId, userId, agent_id, folder_id, options = {
     const sort = sortBy ? { [sortBy]: sortOrder } : { _id: -1 };
 
     const [agents, total] = await Promise.all([
-      configurationModel.aggregate([...basePipeline, { $sort: sort }, { $skip: skip }, { $limit: limit }]),
+      configurationModel.aggregate([...basePipeline, { $sort: sort }, { $skip: skip }, { $limit: limit }, projectionStage]),
       configurationModel.countDocuments(query)
     ]);
 
