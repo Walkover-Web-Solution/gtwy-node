@@ -5,8 +5,9 @@ import axios from "axios";
 import jwt from "jsonwebtoken";
 
 const CLAUDE_CODE = "claude_code";
-// Same environment switch as latency.service.js.
-const GATEWAY_URL = process.env.ENVIRONMENT === "TESTING" ? "https://dev-api.gtwy.ai" : "https://api.gtwy.ai";
+// Same environment switch as latency.service.js. GTWY_API_URL points it somewhere else, for
+// example at a gateway running on this machine (http://localhost:8080).
+const GATEWAY_URL = process.env.GTWY_API_URL || (process.env.ENVIRONMENT === "TESTING" ? "https://dev-api.gtwy.ai" : "https://api.gtwy.ai");
 const VERIFY_TIMEOUT_MS = 70000;
 
 // The gateway caches the org's login under this key (same Redis prefix in both servers).
@@ -24,6 +25,9 @@ async function verifyClaudeLogin(token, org_id, user_id) {
     return { success: true };
   } catch (error) {
     const detail = error.response?.data?.detail;
+    if (error.response?.status === 404 && !detail?.error) {
+      return { success: false, error: `the gateway at ${GATEWAY_URL} does not have the Claude Code service yet` };
+    }
     return { success: false, error: detail?.error || error.message };
   }
 }
