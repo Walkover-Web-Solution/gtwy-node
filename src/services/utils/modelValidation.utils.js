@@ -12,6 +12,8 @@ dotenv.config();
 const API_KEY_ENV_MAP = {
   openai: "OPENAI_API_KEY",
   anthropic: "ANTHROPIC_API_KEY",
+  // claude_code serves the same models; the provider's model list is read with the Anthropic key
+  claude_code: "ANTHROPIC_API_KEY",
   groq: "GROQ_API_KEY",
   mistral: "MISTRAL_API_KEY",
   deepgram: "DEEPGRAM_API_KEY",
@@ -26,6 +28,10 @@ const API_KEY_ENV_MAP = {
 // Services that require special header formats
 const SPECIAL_HEADERS = {
   anthropic: (apiKey) => ({
+    "x-api-key": apiKey,
+    "anthropic-version": "2023-06-01"
+  }),
+  claude_code: (apiKey) => ({
     "x-api-key": apiKey,
     "anthropic-version": "2023-06-01"
   }),

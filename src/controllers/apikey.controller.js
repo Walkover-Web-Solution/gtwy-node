@@ -6,6 +6,7 @@ import { getBaseUrl, getDefaultModel, getValidationConfig } from "../services/ut
 import { redis_keys, cost_types, new_agent_service } from "../configs/constant.js";
 import { cleanupCache } from "../services/utils/redis.utils.js";
 import { periodKey, allPeriodKeys } from "../services/utils/periodKey.utils.js";
+import { CLAUDE_CODE, claudeLoginCacheKey, verifyClaudeLogin } from "../services/utils/claudeCode.utils.js";
 
 const saveApikey = async (req, res, next) => {
   const { service, name, apikey_limit = 0, apikey_limit_reset_period, apikey_limit_start_date } = req.body;
@@ -13,12 +14,29 @@ const saveApikey = async (req, res, next) => {
   const folder_id = req.profile?.extraDetails?.folder_id;
   const user_id = req.profile.user.id;
   let apikey = req.body.apikey;
+  // A pasted Claude login often carries the line break of the terminal it was copied from.
+  if (service === CLAUDE_CODE) apikey = String(apikey || "").replace(/\s+/g, "");
 
   // Check API key validity
-  await checkApikey(apikey, service);
+  await checkApikey(apikey, service, org_id, user_id);
 
   // Encrypt API key
   apikey = await Helper.encrypt(apikey);
+
+  // claude_code: an org (or an embed folder) has one Claude login. Saving again replaces it.
+  if (service === CLAUDE_CODE) {
+    const existing = await apikeyService.findClaudeLogin(org_id, folder_id);
+    if (existing) {
+      await apikeyService.updateApikeyRecord(existing._id, apikey, name, service, apikey_limit, -1, apikey_limit_reset_period);
+      await cleanupCache(cost_types.apikey, existing._id.toString(), org_id);
+      await deleteInCache([claudeLoginCacheKey(org_id)]);
+      res.locals = { success: true, api: { ...existing, name, apikey: await Helper.maskApiKey(await Helper.decrypt(apikey)) } };
+      req.statusCode = 200;
+      return next();
+    }
+    await deleteInCache([claudeLoginCacheKey(org_id)]);
+  }
+
   const result = await apikeyService.saveApikeyRecord({
     org_id,
     apikey,
@@ -123,7 +141,8 @@ const updateApikey = async (req, res, next) => {
 
   // Check API key validity if provided
   if (apikey) {
-    await checkApikey(apikey, service);
+    if (service === CLAUDE_CODE) apikey = String(apikey).replace(/\s+/g, "");
+    await checkApikey(apikey, service, org_id, req.profile?.user?.id);
     apikey = await Helper.encrypt(apikey);
   }
 
@@ -148,6 +167,8 @@ const updateApikey = async (req, res, next) => {
   if (result.success) {
     // Clean up cache using the universal Redis utility for cost
     await cleanupCache(cost_types.apikey, apikey_object_id, org_id);
+    // The gateway caches the org's Claude login apart from the agents; drop it in case this was it.
+    await deleteInCache([claudeLoginCacheKey(org_id)]);
     if (apikey_usage == 0) {
       // Drop the live counters. Covers every reset-period format, since this same
       // request may have just changed which one applies. The document's
@@ -205,6 +226,7 @@ const deleteApikey = async (req, res, next) => {
 
   if (result.success) {
     await cleanupCache(cost_types.apikey, apikey_object_id, org_id);
+    await deleteInCache([claudeLoginCacheKey(org_id)]);
     res.locals = {
       success: true,
       message: "Apikey deleted successfully"
@@ -221,7 +243,16 @@ const deleteApikey = async (req, res, next) => {
   }
 };
 
-const checkApikey = async (apikey, service) => {
+const checkApikey = async (apikey, service, org_id, user_id) => {
+  if (service === CLAUDE_CODE) {
+    const login = await verifyClaudeLogin(apikey, org_id, user_id);
+    if (!login.success) {
+      const error = new Error(`This Claude login could not be used: ${login.error}`);
+      error.statusCode = 400;
+      throw error;
+    }
+    return login;
+  }
   // Prefer the existing default model (parity) and fall back to the registry
   // so a brand-new registered service still resolves a model with no code change.
   const model = new_agent_service[service]?.model || getDefaultModel(service);
