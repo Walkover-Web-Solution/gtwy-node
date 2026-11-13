@@ -55,6 +55,8 @@ const updateEmbed = {
 };
 
 const META_SUBFIELD_PATTERN = /^meta\.[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*$/;
+// One key of an object prompt, e.g. "configuration.prompt.company_name"
+const PROMPT_SUBFIELD_PATTERN = /^configuration\.prompt\.[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*$/;
 
 // Turns "id,name, createdAt" or ["id","name"] into a de-duplicated list, with "id" mapped to "_id".
 const normalizeEmbedAgentFields = (value, helpers) => {
@@ -67,9 +69,11 @@ const normalizeEmbedAgentFields = (value, helpers) => {
         .map((f) => (f === "id" ? "_id" : f))
     )
   ];
-  const invalid = fields.filter((f) => !EMBED_AGENT_LIST_FIELDS.includes(f) && !META_SUBFIELD_PATTERN.test(f));
+  const invalid = fields.filter((f) => !EMBED_AGENT_LIST_FIELDS.includes(f) && !META_SUBFIELD_PATTERN.test(f) && !PROMPT_SUBFIELD_PATTERN.test(f));
   if (invalid.length) {
-    return helpers.message(`fields has unsupported value(s): ${invalid.join(", ")}. Allowed: id, ${EMBED_AGENT_LIST_FIELDS.join(", ")}, meta.<key>`);
+    return helpers.message(
+      `fields has unsupported value(s): ${invalid.join(", ")}. Allowed: id, ${EMBED_AGENT_LIST_FIELDS.join(", ")}, meta.<key>, configuration.prompt.<key>`
+    );
   }
   return fields;
 };
