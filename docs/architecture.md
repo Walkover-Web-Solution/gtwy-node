@@ -126,6 +126,8 @@ Public listings and logins live at `/api/runagents`. The runAgents controller po
 
 Historical querying uses `/api/history` to fetch recent threads, conversation logs, and recursive agent-call trees. The history controller issues optimized queries through `history.service` to keep pagination and filters fast.
 
+Agent run logs (per-message rows in Postgres `conversation_logs`) are exposed at `/api/analytics/agent/:bridge_id/runs` with the same filter query params as the analytics thread list, plus `page` and `page_size`. Page 1 responses include `pagination.total` for UI paging. Full CSV export (keyset-batched, same filter scope) is at `GET /api/analytics/agent/:bridge_id/runs/export`.
+
 ### RAG (Retrieval Augmented Generation)
 
 Knowledge-base management sits at `/api/rag`. The RAG controller brokers embed token generation, chatbot search, collection/resource CRUD, and chunk inspection by coordinating `ragCollection.service`, proxy utilities, and the external Hippocampus API.

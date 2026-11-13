@@ -133,11 +133,15 @@ const getRecentThreads = async (req, res, next) => {
   };
 
   // Get recent threads with search functionality built-in
-  const result = await findRecentThreadsByBridgeId(org_id, agent_id, filters, error, pageNum, limitNum, version_id, testcase_id);
+  const result = await findRecentThreadsByBridgeId(org_id, agent_id, filters, error, pageNum, limitNum, version_id, testcase_id, {
+    includeTotal: pageNum === 1
+  });
 
   if (result.success) {
     res.locals = {
       data: result.data,
+      threads: result.data,
+      pagination: result.pagination,
       total_user_feedback_count: result.total_user_feedback_count,
       success: true
     };
