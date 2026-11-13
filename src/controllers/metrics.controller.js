@@ -1,5 +1,5 @@
 import metrics_sevice from "../db_services/metrics.service.js";
-import { buildWhereClause, selectTable } from "../utils/metrics.utils.js";
+import { buildWhereClause, buildUserMetricsQuery, selectTable } from "../utils/metrics.utils.js";
 
 const getMetricsData = async (req, res, next) => {
   const org_id = req.profile?.org?.id;
@@ -23,7 +23,7 @@ const getMetricsData = async (req, res, next) => {
     start_date = req.body.start_date;
     end_date = req.body.end_date;
   }
-  const whereClause = buildWhereClause(params, values, factor, range, start_date, end_date);
+  const whereClause = buildWhereClause(params, values, factor, range, true, start_date, end_date);
   // const table = selectTable(startTime, endTime, range);
   const table = selectTable(range);
   const query = `SELECT ${factor}, created_at, SUM(cost_sum) as cost_sum, AVG(latency_sum/NULLIF(record_count, 0)) as latency_sum, SUM(success_count) as success_count, SUM(total_token_count) AS total_token_count FROM ${table} ${whereClause} ORDER BY created_at ASC`;
@@ -46,6 +46,33 @@ const getMetricsData = async (req, res, next) => {
       message: "Successfully get request data"
     };
   }
+  req.statusCode = 200;
+  return next();
+};
+
+/**
+ * POST /api/metrics/user
+ * Body: { user_id, start_date, end_date }
+ * Returns metrics for the given user over an explicit date range from metrics_raw_data.
+ */
+const getUserMetrics = async (req, res, next) => {
+  const org_id = req.profile?.org?.id;
+  const { user_id, start_date, end_date } = req.body;
+
+  const query = buildUserMetricsQuery({
+    org_id,
+    user_id,
+    start_date,
+    end_date
+  });
+
+  const data = await metrics_sevice.find(query, []);
+
+  res.locals = {
+    statusCode: 200,
+    data,
+    message: "Successfully retrieved user metrics"
+  };
   req.statusCode = 200;
   return next();
 };
@@ -93,5 +120,6 @@ const getBridgeMetrics = async (req, res, next) => {
 
 export default {
   getMetricsData,
+  getUserMetrics,
   getBridgeMetrics
 };
