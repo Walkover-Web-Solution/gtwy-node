@@ -143,7 +143,8 @@ export { collectionNames, bridge_ids, redis_keys, cost_types, prebuilt_prompt_br
 export const FOLDER_CREATION_BLOCKED_ORGS = ["1277"];
 
 // Fields an embed user may pick with ?fields= on GET /embed/getAgents. "id" is accepted as an alias
-// for "_id", "configuration" expands to model/prompt/type, and "meta.<key>" picks one meta key.
+// for "_id", "configuration" expands to model/prompt/type, "meta.<key>" picks one meta key and
+// "configuration.prompt.<key>" picks one key of an object prompt.
 export const EMBED_AGENT_LIST_FIELDS = [
   "_id",
   "name",
