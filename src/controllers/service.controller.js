@@ -2,6 +2,7 @@ import { servicesRegistry } from "../services/utils/loadServicesRegistry.js";
 import { modelConfigDocument } from "../services/utils/loadModelConfigs.js";
 import { getSupportedModelSet } from "../services/utils/notDiamond.utils.js";
 import serviceDbService from "../db_services/service.service.js";
+import folderDbService from "../db_services/folder.service.js";
 import { yoga } from "../graphql/yoga.js";
 
 const getAllServiceModelsController = async (req, res, next) => {
@@ -17,9 +18,13 @@ const getAllServiceModelsController = async (req, res, next) => {
   const result = { chat: {}, "fine-tune": {}, reasoning: {}, image: {}, embedding: {} };
   const service_models = modelConfigDocument[service_lower];
 
+  // Embed tokens carry a folder_id; skip models the folder config marks as hidden.
+  const folderModels = (await folderDbService.getFolderModels(req.folder_id || req.Embed?.folder_id))[service_lower] || {};
+
   // service_models key order comes from DB sort (created_at desc) at load time.
   for (const [model_name, config] of Object.entries(service_models)) {
     if (config.status !== 1) continue;
+    if (folderModels[model_name]?.hide === true) continue;
     const type = config.validationConfig?.type || "chat";
     if (!result[type]) continue;
 
