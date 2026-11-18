@@ -26,6 +26,14 @@ const saveApikeyRecord = async (data) => {
   };
 };
 
+// The Claude login of an org, or of one embed folder: the newest `claude_code` credential in that scope.
+const findClaudeLogin = async (org_id, folder_id) => {
+  const scope = folder_id ? { folder_id } : { folder_id: { $in: ["", null] } };
+  return ApikeyCredential.findOne({ org_id, service: "claude_code", ...scope })
+    .sort({ _id: -1 })
+    .lean();
+};
+
 const findApikeyByName = async (name, org_id) => {
   try {
     const result = await ApikeyCredential.findOne({
@@ -337,6 +345,7 @@ async function findApikeyByAgentId(agent_id, org_id) {
 export default {
   saveApikeyRecord,
   findApikeyByName,
+  findClaudeLogin,
   findAllApikeys,
   updateApikeyRecord,
   removeApikeyById,
