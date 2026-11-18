@@ -131,6 +131,7 @@ const updateVersionController = async (req, res, next) => {
       "post_tool",
       "web_search_filters",
       "gtwy_web_search_filters",
+      "auto_login",
       "connected_agent_flow",
       "variables_state"
     ];

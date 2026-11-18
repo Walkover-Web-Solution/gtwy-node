@@ -163,6 +163,11 @@ const version = new mongoose.Schema({
     type: Array,
     default: []
   },
+  // Gtwy_Browser: whether the browser session should log in automatically.
+  auto_login: {
+    type: Boolean,
+    default: false
+  },
   created_at: {
     type: Date,
     default: Date.now

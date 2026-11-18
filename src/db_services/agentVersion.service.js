@@ -423,6 +423,8 @@ async function publish(org_id, version_id, user_id, generate_summary = false) {
   delete updatedConfiguration._id;
   updatedConfiguration.published_version_id = publishedVersionId;
   delete updatedConfiguration.apiCalls; // Remove looked-up data
+  // Versions saved before auto_login existed have no value; publish them as off rather than keeping the old one.
+  updatedConfiguration.auto_login = getVersionData.auto_login === true;
 
   if (folder_id !== undefined) {
     updatedConfiguration.folder_id = folder_id;
