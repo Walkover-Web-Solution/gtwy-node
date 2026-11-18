@@ -95,8 +95,27 @@ const getEmbedAnalytics = {
     .unknown(true)
 };
 
+const getAgentRuns = {
+  params: Joi.object()
+    .keys({
+      bridge_id: Joi.string().trim().min(1).required().messages({
+        "string.empty": "bridge_id cannot be empty",
+        "any.required": "bridge_id is required"
+      })
+    })
+    .unknown(true),
+  query: getAgentAnalytics.query
+};
+
+const exportAgentRunsCsv = {
+  params: getAgentRuns.params,
+  query: getAgentRuns.query
+};
+
 export default {
   getAgentAnalytics,
   getAgentAnalyticsFilters,
+  getAgentRuns,
+  exportAgentRunsCsv,
   getEmbedAnalytics
 };

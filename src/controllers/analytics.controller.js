@@ -1,12 +1,104 @@
 import mongoose from "mongoose";
 import analyticsService from "../db_services/analytics.service.js";
 import embedAnalyticsService from "../db_services/embedAnalytics.service.js";
-import { findRecentThreadsByBridgeId } from "../db_services/history.service.js";
+import { findRecentThreadsByBridgeId, findAgentRunsPaginated, fetchAgentRunsExportBatch } from "../db_services/history.service.js";
 import configurationModel from "../mongoModel/Configuration.model.js";
 import folderService from "../db_services/folder.service.js";
 import { getProxyDetails } from "../services/proxy.service.js";
 import { findInCache, storeInCache } from "../cache_service/index.js";
 import logger from "../logger.js";
+
+const toFilterArray = (v) => {
+  if (v == null) return undefined;
+  const arr = (Array.isArray(v) ? v : String(v).split(",")).map((s) => String(s).trim()).filter(Boolean);
+  return arr.length ? arr : undefined;
+};
+
+const csvEscape = (val) => {
+  if (val == null || val === "") return "";
+  const s = String(val);
+  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+};
+
+const AGENT_RUNS_CSV_HEADER =
+  "message_id,thread_id,sub_thread_id,created_at,status,error,model,service,version_id,user_feedback,latency_ms,total_tokens,user\n";
+
+function buildAgentListContext(req) {
+  const { bridge_id } = req.params;
+  const org_id = req.profile?.org?.id;
+  const {
+    range,
+    start_date,
+    end_date,
+    interval,
+    tool_id,
+    model,
+    service,
+    agent_id,
+    knowledgebase_id,
+    user_feedback,
+    error,
+    review_failed,
+    version_id,
+    testcase_id,
+    keyword,
+    message_id,
+    filter_by
+  } = req.query;
+
+  const channel = `${org_id}_${bridge_id}_${req.profile.user?.id}`;
+  const window = analyticsService.computeWindow({ range, start_date, end_date, interval });
+  const feedbackMap = { good: 1, bad: 2 };
+  const filters = {
+    tool_id: toFilterArray(tool_id),
+    model: toFilterArray(model),
+    service: toFilterArray(service),
+    agent_id: toFilterArray(agent_id),
+    knowledgebase_id: toFilterArray(knowledgebase_id),
+    user_feedback: feedbackMap[user_feedback],
+    error: error || undefined,
+    review_failed: review_failed || undefined,
+    version_id: version_id || undefined,
+    testcase_id: testcase_id || undefined,
+    keyword: keyword || undefined,
+    filter_by: filter_by && typeof filter_by === "object" ? filter_by : undefined
+  };
+
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const page_size = Math.min(100, Math.max(1, parseInt(req.query.page_size, 10) || 20));
+  const runAnalytics = req.query.analytics === true || req.query.analytics === "true";
+  const hasMessageId = typeof message_id === "string" && message_id.trim().length > 0;
+  const baseFilterBy = filters.filter_by ? { ...filters.filter_by } : undefined;
+  const mergedFilterBy = hasMessageId ? { ...(baseFilterBy || {}), message_id: message_id.trim() } : baseFilterBy;
+
+  const searchFilters = {
+    keyword: filters.keyword,
+    filter_by: mergedFilterBy,
+    time_range: start_date || end_date ? { start: start_date, end: end_date } : undefined,
+    tool_id: filters.tool_id,
+    model: filters.model,
+    service: filters.service,
+    agent_id: filters.agent_id,
+    knowledgebase_id: filters.knowledgebase_id,
+    review_failed: filters.review_failed
+  };
+
+  return {
+    bridge_id,
+    org_id,
+    window,
+    filters,
+    searchFilters,
+    page,
+    page_size,
+    runAnalytics,
+    channel,
+    error: error || "false",
+    version_id: version_id || null,
+    testcase_id: testcase_id || null
+  };
+}
 
 // GET /api/analytics/agent/:bridge_id?range=7
 // Returns the agent's sub-threads (from Postgres conversation_logs) in the
@@ -14,109 +106,25 @@ import logger from "../logger.js";
 // that result (summary + two charts) is pushed over the RT layer to `channel`.
 const getAgentAnalytics = async (req, res, next) => {
   try {
-    const { bridge_id } = req.params;
-    const org_id = req.profile?.org?.id;
-    const {
-      range,
-      start_date,
-      end_date,
-      interval,
-      tool_id,
-      model,
-      service,
-      agent_id,
-      knowledgebase_id,
-      user_feedback,
-      error,
-      review_failed,
-      version_id,
-      testcase_id,
-      keyword,
-      message_id,
-      filter_by
-    } = req.query;
-    // RT channel is always org_id + "_" + bridge_id.
-    const channel = `${org_id}_${bridge_id}_${req.profile.user?.id}`;
-
-    const window = analyticsService.computeWindow({ range, start_date, end_date, interval });
-
-    // Normalize a multi-value query param to an array. Supports both comma-separated
-    // (tool_id=a,b) and array brackets (tool_id[]=a&tool_id[]=b). Empty -> undefined.
-    const toFilterArray = (v) => {
-      if (v == null) return undefined;
-      const arr = (Array.isArray(v) ? v : String(v).split(",")).map((s) => String(s).trim()).filter(Boolean);
-      return arr.length ? arr : undefined;
-    };
-
-    // Optional filters: when omitted the API behaves exactly as before. Mirrors
-    // the full threads-API filter set so the dashboard can slice the same way.
-    // tool_id / model / service are multi-select (match ANY).
-    // user_feedback: good->1 (thumbs up), bad->2 (thumbs down), all/undefined-> no filter.
-    const feedbackMap = { good: 1, bad: 2 };
-    const filters = {
-      tool_id: toFilterArray(tool_id),
-      model: toFilterArray(model),
-      service: toFilterArray(service),
-      agent_id: toFilterArray(agent_id),
-      knowledgebase_id: toFilterArray(knowledgebase_id),
-      user_feedback: feedbackMap[user_feedback],
-      error: error || undefined,
-      review_failed: review_failed || undefined,
-      version_id: version_id || undefined,
-      testcase_id: testcase_id || undefined,
-      keyword: keyword || undefined,
-      filter_by: filter_by && typeof filter_by === "object" ? filter_by : undefined
-    };
-
-    // Pagination: page 1 runs the full analytics + total count; page 2+ returns
-    // only that page of threads (cheap navigation — no RT push, no count query).
-    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-    const page_size = Math.min(100, Math.max(1, parseInt(req.query.page_size, 10) || 20));
-
-    // Analytics aggregations (summary + 2 charts over RT) run ONLY when explicitly
-    // requested via `analytics=true`, and only on page 1. Orthogonal to the
-    // response format below. Uses the same filters so the RT payload reflects them.
-    const runAnalytics = req.query.analytics === true || req.query.analytics === "true";
-
-    // The new threads-search response shape ({ data, total_user_feedback_count })
-    // is used whenever ANY facet/search filter is present. The time window
-    // (range/start/end/interval) does NOT count. With no filters we keep the
-    // current { threads, pagination, ... } shape.
-    const hasMessageId = typeof message_id === "string" && message_id.trim().length > 0;
+    const ctx = buildAgentListContext(req);
+    const { bridge_id, org_id, window, filters, searchFilters, page, page_size, runAnalytics, channel, error, version_id, testcase_id } = ctx;
 
     if (runAnalytics && page === 1) {
       analyticsService
         .runAndPush({ bridge_id, org_id, channel, window, filters })
         .catch((err) => logger.error(`analytics runAndPush failed for ${bridge_id}: ${err.message}`));
     }
-    const baseFilterBy = filters.filter_by ? { ...filters.filter_by } : undefined;
-    const mergedFilterBy = hasMessageId ? { ...(baseFilterBy || {}), message_id: message_id.trim() } : baseFilterBy;
-    const searchFilters = {
-      keyword: filters.keyword,
-      filter_by: mergedFilterBy,
-      time_range: start_date || end_date ? { start: start_date, end: end_date } : undefined,
-      tool_id: filters.tool_id,
-      model: filters.model,
-      service: filters.service,
-      agent_id: filters.agent_id,
-      knowledgebase_id: filters.knowledgebase_id,
-      review_failed: filters.review_failed
-    };
-    const result = await findRecentThreadsByBridgeId(
-      org_id,
-      bridge_id,
-      searchFilters,
-      error || "false",
-      page,
-      page_size,
-      version_id || null,
-      testcase_id || null
-    );
+
+    const result = await findRecentThreadsByBridgeId(org_id, bridge_id, searchFilters, error, page, page_size, version_id, testcase_id, {
+      includeTotal: page === 1
+    });
 
     res.locals = result.success
       ? {
           success: true,
+          threads: result.data,
           data: result.data,
+          pagination: result.pagination,
           total_user_feedback_count: result.total_user_feedback_count,
           ...(runAnalytics ? { channel } : {})
         }
@@ -128,6 +136,91 @@ const getAgentAnalytics = async (req, res, next) => {
     res.locals = { success: false, error: error.message };
     req.statusCode = 500;
     return next();
+  }
+};
+
+const getAgentRuns = async (req, res, next) => {
+  try {
+    const ctx = buildAgentListContext(req);
+    const { bridge_id, org_id, searchFilters, page, page_size, error, version_id, testcase_id } = ctx;
+
+    const result = await findAgentRunsPaginated(org_id, bridge_id, searchFilters, error, page, page_size, version_id, testcase_id, {
+      includeTotal: page === 1
+    });
+
+    res.locals = result.success ? { success: true, data: result.data, pagination: result.pagination } : { success: false, message: result.message };
+    req.statusCode = result.success ? 200 : 500;
+    return next();
+  } catch (error) {
+    logger.error(`Error fetching agent runs: ${error.message}`);
+    res.locals = { success: false, error: error.message };
+    req.statusCode = 500;
+    return next();
+  }
+};
+
+const exportAgentRunsCsv = async (req, res) => {
+  try {
+    const ctx = buildAgentListContext(req);
+    const { bridge_id, org_id, searchFilters, error, version_id, testcase_id } = ctx;
+
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="agent-runs-${bridge_id}.csv"`);
+    res.status(200);
+    res.write(AGENT_RUNS_CSV_HEADER);
+
+    let cursor = null;
+    for (;;) {
+      const batch = await fetchAgentRunsExportBatch(org_id, bridge_id, searchFilters, error, version_id, testcase_id, {
+        batchSize: 250,
+        cursor
+      });
+      if (!batch.length) break;
+
+      const lines = batch
+        .map((row) => {
+          const json = row?.toJSON ? row.toJSON() : row;
+          const latency = json.latency?.over_all_time ?? "";
+          const tokens =
+            json.tokens?.total_tokens ??
+            (json.tokens?.input_tokens != null && json.tokens?.output_tokens != null
+              ? Number(json.tokens.input_tokens) + Number(json.tokens.output_tokens)
+              : "");
+          const created = json.created_at instanceof Date ? json.created_at.toISOString() : json.created_at;
+          return [
+            json.message_id,
+            json.thread_id,
+            json.sub_thread_id,
+            created,
+            json.status,
+            json.error,
+            json.model,
+            json.service,
+            json.version_id,
+            json.user_feedback,
+            latency,
+            tokens,
+            json.user
+          ]
+            .map(csvEscape)
+            .join(",");
+        })
+        .join("\n");
+      res.write(`${lines}\n`);
+
+      const last = batch[batch.length - 1];
+      const lastJson = last?.toJSON ? last.toJSON() : last;
+      cursor = { created_at: lastJson.created_at, id: lastJson.id };
+    }
+
+    res.end();
+  } catch (error) {
+    logger.error(`Error exporting agent runs CSV: ${error.message}`);
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, message: "Failed to export agent runs" });
+    } else {
+      res.end();
+    }
   }
 };
 
@@ -356,5 +449,7 @@ const getEmbedAnalytics = async (req, res, next) => {
 export default {
   getAgentAnalytics,
   getAgentAnalyticsFilters,
+  getAgentRuns,
+  exportAgentRunsCsv,
   getEmbedAnalytics
 };

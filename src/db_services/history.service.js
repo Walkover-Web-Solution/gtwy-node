@@ -198,146 +198,186 @@ const FILTERBY_ID_COLUMNS = ["message_id", "thread_id", "sub_thread_id"];
 /** Escape LIKE wildcards so user input can't pattern-inject. */
 const escapeLike = (s) => String(s).replace(/[\\%_]/g, (c) => "\\" + c);
 
-async function findRecentThreadsByBridgeId(org_id, bridge_id, filters, error, page = 1, limit = 30, version_id = null, testcase_id = null) {
+const AGENT_RUN_LIST_ATTRIBUTES = [
+  "id",
+  "message_id",
+  "thread_id",
+  "sub_thread_id",
+  "display_name",
+  "created_at",
+  "updated_at",
+  "status",
+  "error",
+  "model",
+  "service",
+  "version_id",
+  "user_feedback",
+  "user",
+  "latency",
+  "tokens"
+];
+
+/** Shared org/bridge scope + search/facet predicates for thread lists and run logs. */
+function buildConversationScopeWhere(org_id, bridge_id, filters, error, version_id = null, testcase_id = null) {
+  const replacements = {};
+  let paramSeq = 0;
+  const addParam = (value) => {
+    const name = `p${paramSeq++}`;
+    replacements[name] = value;
+    return `:${name}`;
+  };
+
+  const baseWhereConditions = { org_id, bridge_id };
+  if (version_id) baseWhereConditions.version_id = version_id;
+  if (testcase_id) baseWhereConditions.testcase_id = testcase_id;
+
+  if (filters?.time_range) {
+    const timeConditions = {};
+    if (filters.time_range.start) {
+      timeConditions[Sequelize.Op.gte] = new Date(filters.time_range.start);
+    }
+    if (filters.time_range.end) {
+      timeConditions[Sequelize.Op.lte] = new Date(filters.time_range.end);
+    }
+    if (Object.getOwnPropertySymbols(timeConditions).length > 0) {
+      baseWhereConditions.created_at = timeConditions;
+    }
+  }
+
+  const whereConditions = { ...baseWhereConditions };
+
+  if (error === "true" || error === true) {
+    whereConditions.error = { [Sequelize.Op.ne]: null };
+  }
+
+  const filterBy = filters?.filter_by;
+  const isFilterBySearch = filterBy && typeof filterBy === "object" && Object.keys(filterBy).length > 0;
+  const isKeywordSearch = !isFilterBySearch && typeof filters?.keyword === "string" && filters.keyword.trim() !== "";
+
+  if (isFilterBySearch) {
+    const orConditions = [];
+
+    for (const [col, keyword] of Object.entries(filterBy)) {
+      if (col === "variables_absent") continue;
+
+      if (col === "variables") {
+        if (!keyword) continue;
+
+        if (typeof keyword !== "object" || Object.keys(keyword).length === 0) continue;
+
+        for (const [varName, varVal] of Object.entries(keyword)) {
+          const key = String(varName).trim();
+          if (!key) continue;
+          const val = varVal === null || varVal === undefined ? "" : String(varVal).trim();
+
+          if (val) {
+            const keyCond = key === "value" ? "" : `kv.key = ${addParam(key)} AND `;
+            const pat = addParam(`%${escapeLike(val)}%`);
+            orConditions.push(
+              Sequelize.literal(
+                `EXISTS (SELECT 1 FROM jsonb_each_text(CASE WHEN jsonb_typeof("conversation_logs"."variables") = 'object' ` +
+                  `THEN "conversation_logs"."variables" ELSE '{}'::jsonb END) AS kv WHERE ${keyCond}kv.value ILIKE ${pat} ESCAPE '\\')`
+              )
+            );
+          } else {
+            const keyParam = addParam(key);
+            orConditions.push(Sequelize.literal(`jsonb_exists(COALESCE("conversation_logs"."variables", '{}'::jsonb), ${keyParam})`));
+          }
+        }
+      } else if (col === "batch_id") {
+        if (!keyword || keyword === "") continue;
+        const pat = addParam(`%${escapeLike(keyword)}%`);
+        orConditions.push(Sequelize.literal(`"conversation_logs"."batch_data"->>'batch_id' ILIKE ${pat} ESCAPE '\\'`));
+      } else if (FILTERBY_TEXT_COLUMNS.includes(col)) {
+        if (!keyword || keyword === "") continue;
+        orConditions.push({ [col]: { [Sequelize.Op.iLike]: `%${escapeLike(keyword)}%` } });
+      } else if (FILTERBY_ID_COLUMNS.includes(col)) {
+        if (!keyword || keyword === "") continue;
+        orConditions.push({ [col]: { [Sequelize.Op.like]: `${escapeLike(keyword)}%` } });
+      }
+    }
+
+    if (orConditions.length > 0) {
+      whereConditions[Sequelize.Op.and] = [{ [Sequelize.Op.or]: orConditions }];
+    }
+  } else if (isKeywordSearch) {
+    const kw = filters.keyword.trim();
+    const orBranches = [
+      ...KEYWORD_TEXT_COLUMNS.map((col) => ({
+        [col]: { [Sequelize.Op.iLike]: `%${escapeLike(kw)}%` }
+      })),
+      ...KEYWORD_ID_COLUMNS.map((col) => ({
+        [col]: { [Sequelize.Op.like]: `${escapeLike(kw)}%` }
+      }))
+    ];
+
+    if (KEYWORD_SEARCH_BATCH_ID) {
+      const batchPat = addParam(`%${escapeLike(kw)}%`);
+      orBranches.push(Sequelize.literal(`"conversation_logs"."batch_data"->>'batch_id' ILIKE ${batchPat} ESCAPE '\\'`));
+    }
+
+    whereConditions[Sequelize.Op.and] = [{ [Sequelize.Op.or]: orBranches }];
+  }
+
+  const absentRaw = filterBy?.variables_absent;
+  const absent = (Array.isArray(absentRaw) ? absentRaw : absentRaw ? [absentRaw] : []).map((v) => String(v).trim()).filter(Boolean);
+
+  if (absent.length) {
+    const keyParams = absent.map((k) => addParam(k)).join(", ");
+    whereConditions[Sequelize.Op.and] = [
+      ...(whereConditions[Sequelize.Op.and] || []),
+      Sequelize.literal(`NOT jsonb_exists_any(COALESCE("conversation_logs"."variables", '{}'::jsonb), ARRAY[${keyParams}]::text[])`)
+    ];
+  }
+
+  const facetExpr = buildConversationFilterSql({
+    tool_id: filters?.tool_id,
+    model: filters?.model,
+    service: filters?.service,
+    agent_id: filters?.agent_id,
+    knowledgebase_id: filters?.knowledgebase_id,
+    review_failed: filters?.review_failed
+  });
+  if (facetExpr) {
+    whereConditions[Sequelize.Op.and] = [...(whereConditions[Sequelize.Op.and] || []), Sequelize.literal(facetExpr)];
+  }
+
+  return { whereConditions, replacements, isKeywordSearch, isFilterBySearch, filterBy };
+}
+
+async function countScopedDistinctThreads(scope) {
+  return models.pg.conversation_logs.count({
+    where: scope.whereConditions,
+    distinct: true,
+    col: "thread_id",
+    replacements: scope.replacements
+  });
+}
+
+async function countScopedAgentRuns(scope) {
+  return models.pg.conversation_logs.count({
+    where: scope.whereConditions,
+    replacements: scope.replacements
+  });
+}
+
+async function findRecentThreadsByBridgeId(
+  org_id,
+  bridge_id,
+  filters,
+  error,
+  page = 1,
+  limit = 30,
+  version_id = null,
+  testcase_id = null,
+  { includeTotal = false } = {}
+) {
   try {
     const offset = (page - 1) * limit;
+    const scope = buildConversationScopeWhere(org_id, bridge_id, filters, error, version_id, testcase_id);
+    const { whereConditions, replacements, isKeywordSearch, isFilterBySearch } = scope;
 
-    // Named replacements for every raw literal — bound safely by Sequelize.
-    const replacements = {};
-    let paramSeq = 0;
-    const addParam = (value) => {
-      const name = `p${paramSeq++}`;
-      replacements[name] = value;
-      return `:${name}`;
-    };
-
-    // ---------------- Base scope ----------------
-    const baseWhereConditions = { org_id, bridge_id };
-    if (version_id) baseWhereConditions.version_id = version_id;
-    if (testcase_id) baseWhereConditions.testcase_id = testcase_id;
-
-    if (filters?.time_range) {
-      const timeConditions = {};
-      if (filters.time_range.start) {
-        timeConditions[Sequelize.Op.gte] = new Date(filters.time_range.start);
-      }
-      if (filters.time_range.end) {
-        timeConditions[Sequelize.Op.lte] = new Date(filters.time_range.end);
-      }
-      if (Object.getOwnPropertySymbols(timeConditions).length > 0) {
-        baseWhereConditions.created_at = timeConditions;
-      }
-    }
-
-    // ---------------- Thread-list conditions ----------------
-    const whereConditions = { ...baseWhereConditions };
-
-    if (error === "true" || error === true) {
-      whereConditions.error = { [Sequelize.Op.ne]: null };
-    }
-
-    const filterBy = filters?.filter_by;
-    const isFilterBySearch = filterBy && typeof filterBy === "object" && Object.keys(filterBy).length > 0;
-    const isKeywordSearch = !isFilterBySearch && typeof filters?.keyword === "string" && filters.keyword.trim() !== "";
-
-    if (isFilterBySearch) {
-      const orConditions = [];
-
-      for (const [col, keyword] of Object.entries(filterBy)) {
-        if (col === "variables_absent") continue;
-
-        if (col === "variables") {
-          if (!keyword) continue;
-
-          if (typeof keyword !== "object" || Object.keys(keyword).length === 0) continue;
-
-          for (const [varName, varVal] of Object.entries(keyword)) {
-            const key = String(varName).trim();
-            if (!key) continue;
-            const val = varVal === null || varVal === undefined ? "" : String(varVal).trim();
-
-            if (val) {
-              // Case-insensitive substring match on the variable's text value, so partial
-              // input, numbers and booleans match too. The UI sends the key "value" when
-              // only a value was typed: that searches every variable.
-              const keyCond = key === "value" ? "" : `kv.key = ${addParam(key)} AND `;
-              const pat = addParam(`%${escapeLike(val)}%`);
-              orConditions.push(
-                Sequelize.literal(
-                  `EXISTS (SELECT 1 FROM jsonb_each_text(CASE WHEN jsonb_typeof("conversation_logs"."variables") = 'object' ` +
-                    `THEN "conversation_logs"."variables" ELSE '{}'::jsonb END) AS kv WHERE ${keyCond}kv.value ILIKE ${pat} ESCAPE '\\')`
-                )
-              );
-            } else {
-              const keyParam = addParam(key);
-              orConditions.push(Sequelize.literal(`jsonb_exists(COALESCE("conversation_logs"."variables", '{}'::jsonb), ${keyParam})`));
-            }
-          }
-        } else if (col === "batch_id") {
-          if (!keyword || keyword === "") continue;
-          const pat = addParam(`%${escapeLike(keyword)}%`);
-          orConditions.push(Sequelize.literal(`"conversation_logs"."batch_data"->>'batch_id' ILIKE ${pat} ESCAPE '\\'`));
-        } else if (FILTERBY_TEXT_COLUMNS.includes(col)) {
-          if (!keyword || keyword === "") continue;
-          orConditions.push({ [col]: { [Sequelize.Op.iLike]: `%${escapeLike(keyword)}%` } });
-        } else if (FILTERBY_ID_COLUMNS.includes(col)) {
-          if (!keyword || keyword === "") continue;
-          orConditions.push({ [col]: { [Sequelize.Op.like]: `${escapeLike(keyword)}%` } });
-        }
-      }
-
-      if (orConditions.length > 0) {
-        whereConditions[Sequelize.Op.and] = [{ [Sequelize.Op.or]: orConditions }];
-      }
-    } else if (isKeywordSearch) {
-      // Keyword search across 5 fields, every branch index-backed so the
-      // planner can BitmapOr them:
-      //   user, llm_message          -> substring ILIKE '%kw%' (trgm GIN)
-      //   message_id, thread_id      -> prefix LIKE 'kw%'      (B-tree)
-      //   batch_data->>'batch_id'    -> substring ILIKE '%kw%' (expr trgm GIN)
-      const kw = filters.keyword.trim();
-      const orBranches = [
-        ...KEYWORD_TEXT_COLUMNS.map((col) => ({
-          [col]: { [Sequelize.Op.iLike]: `%${escapeLike(kw)}%` }
-        })),
-        ...KEYWORD_ID_COLUMNS.map((col) => ({
-          [col]: { [Sequelize.Op.like]: `${escapeLike(kw)}%` }
-        }))
-      ];
-
-      if (KEYWORD_SEARCH_BATCH_ID) {
-        const batchPat = addParam(`%${escapeLike(kw)}%`);
-        orBranches.push(Sequelize.literal(`"conversation_logs"."batch_data"->>'batch_id' ILIKE ${batchPat} ESCAPE '\\'`));
-      }
-
-      whereConditions[Sequelize.Op.and] = [{ [Sequelize.Op.or]: orBranches }];
-    }
-
-    // variables_absent: rows where NONE of the named keys exist.
-    const absentRaw = filterBy?.variables_absent;
-    const absent = (Array.isArray(absentRaw) ? absentRaw : absentRaw ? [absentRaw] : []).map((v) => String(v).trim()).filter(Boolean);
-
-    if (absent.length) {
-      const keyParams = absent.map((k) => addParam(k)).join(", ");
-      whereConditions[Sequelize.Op.and] = [
-        ...(whereConditions[Sequelize.Op.and] || []),
-        Sequelize.literal(`NOT jsonb_exists_any(COALESCE("conversation_logs"."variables", '{}'::jsonb), ARRAY[${keyParams}]::text[])`)
-      ];
-    }
-
-    // Multi-select facets via the shared builder.
-    const facetExpr = buildConversationFilterSql({
-      tool_id: filters?.tool_id,
-      model: filters?.model,
-      service: filters?.service,
-      agent_id: filters?.agent_id,
-      knowledgebase_id: filters?.knowledgebase_id,
-      review_failed: filters?.review_failed
-    });
-    if (facetExpr) {
-      whereConditions[Sequelize.Op.and] = [...(whereConditions[Sequelize.Op.and] || []), Sequelize.literal(facetExpr)];
-    }
-    const [threads] = await Promise.all([
+    const [threads, totalThreads] = await Promise.all([
       models.pg.conversation_logs.findAll({
         attributes: ["thread_id", [Sequelize.fn("MAX", Sequelize.col("id")), "id"], [Sequelize.fn("MAX", Sequelize.col("updated_at")), "updated_at"]],
         where: whereConditions,
@@ -346,7 +386,8 @@ async function findRecentThreadsByBridgeId(org_id, bridge_id, filters, error, pa
         limit,
         offset,
         replacements
-      })
+      }),
+      includeTotal ? countScopedDistinctThreads(scope) : Promise.resolve(null)
     ]);
 
     const formattedThreads = threads.map((thread) => ({
@@ -424,9 +465,21 @@ async function findRecentThreadsByBridgeId(org_id, bridge_id, filters, error, pa
       });
     }
 
+    const pagination = {
+      page,
+      page_size: limit,
+      ...(includeTotal && totalThreads != null
+        ? {
+            total: totalThreads,
+            total_pages: Math.max(1, Math.ceil(totalThreads / limit))
+          }
+        : {})
+    };
+
     return {
       success: true,
-      data: formattedThreads
+      data: formattedThreads,
+      pagination
     };
   } catch (err) {
     console.error("Error fetching recent threads:", err);
@@ -808,10 +861,99 @@ async function findChatbotThreadHistory(org_id, thread_id, bridge_id, sub_thread
   };
 }
 
+/**
+ * Paginated agent run rows (one conversation_log per run), sharing filters with the thread list.
+ */
+async function findAgentRunsPaginated(
+  org_id,
+  bridge_id,
+  filters,
+  error,
+  page = 1,
+  limit = 50,
+  version_id = null,
+  testcase_id = null,
+  { includeTotal = false } = {}
+) {
+  try {
+    const offset = (page - 1) * limit;
+    const scope = buildConversationScopeWhere(org_id, bridge_id, filters, error, version_id, testcase_id);
+
+    const [rows, totalRuns] = await Promise.all([
+      models.pg.conversation_logs.findAll({
+        attributes: AGENT_RUN_LIST_ATTRIBUTES,
+        where: scope.whereConditions,
+        order: [
+          ["created_at", "DESC"],
+          ["id", "DESC"]
+        ],
+        limit,
+        offset,
+        replacements: scope.replacements
+      }),
+      includeTotal ? countScopedAgentRuns(scope) : Promise.resolve(null)
+    ]);
+
+    const pagination = {
+      page,
+      page_size: limit,
+      ...(includeTotal && totalRuns != null
+        ? {
+            total: totalRuns,
+            total_pages: Math.max(1, Math.ceil(totalRuns / limit))
+          }
+        : {})
+    };
+
+    return { success: true, data: rows, pagination };
+  } catch (err) {
+    console.error("Error fetching agent runs:", err);
+    return {
+      success: false,
+      message: "Failed to fetch agent runs",
+      error: err.message
+    };
+  }
+}
+
+/** Keyset-batched rows for CSV export (same scope as findAgentRunsPaginated). */
+async function fetchAgentRunsExportBatch(org_id, bridge_id, filters, error, version_id, testcase_id, { batchSize = 250, cursor } = {}) {
+  const scope = buildConversationScopeWhere(org_id, bridge_id, filters, error, version_id, testcase_id);
+  const whereConditions = { ...scope.whereConditions };
+
+  if (cursor?.created_at != null && cursor?.id != null) {
+    const cursorClause = {
+      [Sequelize.Op.or]: [
+        { created_at: { [Sequelize.Op.lt]: cursor.created_at } },
+        {
+          created_at: cursor.created_at,
+          id: { [Sequelize.Op.lt]: cursor.id }
+        }
+      ]
+    };
+    whereConditions[Sequelize.Op.and] = [...(whereConditions[Sequelize.Op.and] || []), cursorClause];
+  }
+
+  const rows = await models.pg.conversation_logs.findAll({
+    attributes: AGENT_RUN_LIST_ATTRIBUTES,
+    where: whereConditions,
+    order: [
+      ["created_at", "DESC"],
+      ["id", "DESC"]
+    ],
+    limit: batchSize,
+    replacements: scope.replacements
+  });
+
+  return rows;
+}
+
 export {
   findConversationLogsByIds,
   updateStatus,
   findRecentThreadsByBridgeId,
+  findAgentRunsPaginated,
+  fetchAgentRunsExportBatch,
   findConversationLogsByFilters,
   findThreadHistoryFormatted,
   findHistoryByMessageId,
