@@ -143,6 +143,175 @@ async function getCostOverTime({ bridge_id, org_id, start, end, bucket, filters 
   return pgSelect(query, finalParams);
 }
 
+// ---------------- Timescale rollups: daily_data (whole UTC days) + fifteen_minute_data ----------------
+
+const timescaleSelect = (query, replacements) => models.timescale.sequelize.query(query, { type: Sequelize.QueryTypes.SELECT, replacements });
+
+const isTrue = (v) => v === true || v === "true";
+const hasValues = (v) => (Array.isArray(v) ? v.length > 0 : v != null && v !== "");
+const num = (v) => Number(v) || 0;
+const minDate = (a, b) => (a < b ? a : b);
+const maxDate = (a, b) => (a > b ? a : b);
+
+function canUseTimescale(filters = {}) {
+  return !(
+    hasValues(filters.tool_id) ||
+    hasValues(filters.agent_id) ||
+    hasValues(filters.knowledgebase_id) ||
+    filters.user_feedback != null ||
+    isTrue(filters.error) ||
+    isTrue(filters.review_failed) ||
+    hasValues(filters.testcase_id) ||
+    hasValues(filters.keyword) ||
+    (filters.filter_by && Object.keys(filters.filter_by).length > 0)
+  );
+}
+
+function isDayOrCoarser(bucket) {
+  if (bucket === "day") return true;
+  const match = /^([0-9]+)h$/.exec(bucket || "");
+  return Boolean(match) && parseInt(match[1], 10) >= 24;
+}
+
+// null -> Postgres: a table is empty or the two rollups leave a gap.
+async function getCutoffs() {
+  try {
+    const [row] = await timescaleSelect(
+      `SELECT (SELECT MAX(created_at) + INTERVAL '1 day' FROM daily_data) AS daily_cutoff,
+              (SELECT MIN(created_at) FROM fifteen_minute_data) AS fifteen_start,
+              (SELECT MAX(created_at) + INTERVAL '15 minutes' FROM fifteen_minute_data) AS fifteen_cutoff`,
+      {}
+    );
+    if (!row?.daily_cutoff || !row.fifteen_start || row.daily_cutoff < row.fifteen_start) return null;
+    return { daily_cutoff: new Date(row.daily_cutoff), fifteen_start: new Date(row.fifteen_start), fifteen_cutoff: new Date(row.fifteen_cutoff) };
+  } catch (error) {
+    logger.warn(`analytics cutoff lookup failed, using PG: ${error.message}`);
+    return null;
+  }
+}
+
+// Half-open segment bounds; the daily one is whole UTC days. null when the rollups cannot serve the window.
+function segments({ start, end, cutoffs }, wholeDays) {
+  const to = minDate(end, cutoffs.fifteen_cutoff);
+  if (start >= to || (!wholeDays && start < cutoffs.fifteen_start)) return null;
+  const dayStart = new Date(start);
+  dayStart.setUTCHours(0, 0, 0, 0);
+  const dailyTo = minDate(cutoffs.daily_cutoff, to);
+  const fifteenFrom = wholeDays ? maxDate(start, cutoffs.daily_cutoff) : start;
+  return {
+    range_end: to,
+    daily: wholeDays && dayStart < dailyTo ? { from: dayStart, to: dailyTo } : null,
+    fifteen: fifteenFrom < to ? { from: fifteenFrom, to } : null
+  };
+}
+
+function rollupWhere(table, { bridge_id, org_id, filters = {} }, { from, to }) {
+  const replacements = { bridge_id, org_id: String(org_id), from, to };
+  let where = "org_id = :org_id AND bridge_id = :bridge_id AND created_at >= :from AND created_at < :to";
+  // daily_data is built from the Asia/Kolkata 15-minute rows only, so match that.
+  if (table === "fifteen_minute_data") where += " AND time_zone = 'Asia/Kolkata'";
+  if (filters.version_id) {
+    where += " AND version_id = :version_id";
+    replacements.version_id = filters.version_id;
+  }
+  if (hasValues(filters.model)) {
+    where += " AND model IN (:models)";
+    replacements.models = filters.model;
+  }
+  if (hasValues(filters.service)) {
+    where += " AND service IN (:services)";
+    replacements.services = filters.service;
+  }
+  return { where, replacements };
+}
+
+async function rollupTotals(table, ctx, segment) {
+  if (!segment) return {};
+  const { where, replacements } = rollupWhere(table, ctx, segment);
+  const query = `
+    SELECT
+      COALESCE(SUM(record_count), 0) AS total_requests,
+      COALESCE(SUM(success_count), 0) AS success_count,
+      COALESCE(SUM(latency_sum), 0) AS latency_sum,
+      COALESCE(SUM(total_token_count), 0) AS total_tokens,
+      COALESCE(SUM(cost_sum), 0) AS est_cost
+    FROM ${table}
+    WHERE ${where}`;
+  const rows = await timescaleSelect(query, replacements);
+  return rows[0] || {};
+}
+
+async function rollupBuckets(table, ctx, segment) {
+  if (!segment) return [];
+  const { where, replacements } = rollupWhere(table, ctx, segment);
+  const { bucketSql, finalParams } = getBucketExpressionAndParams(ctx.bucket, replacements);
+  const query = `
+    SELECT
+      ${bucketSql} AS t,
+      SUM(success_count)::int AS success,
+      SUM(record_count - success_count)::int AS failed
+    FROM ${table}
+    WHERE ${where}
+    GROUP BY 1 ORDER BY 1 ASC`;
+  return timescaleSelect(query, finalParams);
+}
+
+// Same keys as getSummary minus feedback, which the rollups do not carry.
+async function getSummaryFromTimescale(ctx) {
+  const seg = segments(ctx, true);
+  if (!seg) return null;
+  const [daily, fifteen] = await Promise.all([rollupTotals("daily_data", ctx, seg.daily), rollupTotals("fifteen_minute_data", ctx, seg.fifteen)]);
+  const total = num(daily.total_requests) + num(fifteen.total_requests);
+  const success = num(daily.success_count) + num(fifteen.success_count);
+  const latency = num(daily.latency_sum) + num(fifteen.latency_sum);
+  return {
+    range_end: seg.range_end,
+    data: {
+      total_requests: total,
+      success_count: success,
+      failed_runs: total - success,
+      // latency_sum includes failed calls, unlike getSummary's success-only average.
+      avg_response: total ? latency / total : 0,
+      total_tokens: num(daily.total_tokens) + num(fifteen.total_tokens),
+      est_cost: num(daily.est_cost) + num(fifteen.est_cost)
+    }
+  };
+}
+
+// Day-or-coarser buckets use both segments, finer buckets only 15-minute rows.
+async function getRequestsOverTimeFromTimescale(ctx) {
+  const seg = segments(ctx, isDayOrCoarser(ctx.bucket));
+  if (!seg) return null;
+  const [daily, fifteen] = await Promise.all([rollupBuckets("daily_data", ctx, seg.daily), rollupBuckets("fifteen_minute_data", ctx, seg.fifteen)]);
+  const byBucket = new Map();
+  for (const row of [...daily, ...fifteen]) {
+    const key = new Date(row.t).getTime();
+    const acc = byBucket.get(key) || { t: row.t, success: 0, failed: 0 };
+    acc.success += num(row.success);
+    acc.failed += num(row.failed);
+    byBucket.set(key, acc);
+  }
+  return { range_end: seg.range_end, data: [...byBucket.values()].sort((a, b) => new Date(a.t) - new Date(b.t)) };
+}
+
+// timescaleFn returns null when the rollups cannot serve the window; then pgFn runs.
+async function withTimescale(section, ctx, timescaleFn, pgFn) {
+  const startedAt = Date.now();
+  const cutoffs = await ctx.cutoffs;
+  let result = null;
+  if (cutoffs) {
+    try {
+      result = await timescaleFn({ ...ctx, cutoffs });
+    } catch (error) {
+      logger.warn(`analytics ${section} from timescale failed for ${ctx.bridge_id}, using PG: ${error.message}`);
+    }
+  }
+  const source = result ? "timescale" : "postgres";
+  if (!result) result = { range_end: ctx.end, data: await pgFn(ctx) };
+  ctx.served.push(`${section}=${source} ${Date.now() - startedAt}ms`);
+  return result;
+}
+
 async function pushAnalytics(channel, data) {
   await responseSender.sendResponse({
     rtlLayer: true,
@@ -157,12 +326,14 @@ async function pushAnalytics(channel, data) {
 // independently — a broken section pushes an error message instead of poisoning
 // the rest.
 async function runAndPush({ bridge_id, org_id, channel, window, filters }) {
-  const ctx = { bridge_id, org_id, ...window, filters };
+  const ctx = { bridge_id, org_id, ...window, filters, served: [] };
+  // One cutoff lookup shared by the summary and the requests chart.
+  ctx.cutoffs = canUseTimescale(filters) ? getCutoffs() : Promise.resolve(null);
   const base = { bridge_id, range_start: window.start, range_end: window.end };
 
   const summaryTask = (async () => {
     try {
-      const row = await getSummary(ctx);
+      const { data: row, range_end } = await withTimescale("summary", ctx, getSummaryFromTimescale, getSummary);
       const total = row.total_requests || 0;
       const summary = {
         total_requests: total,
@@ -174,7 +345,7 @@ async function runAndPush({ bridge_id, org_id, channel, window, filters }) {
         positive_feedback: row.positive_feedback || 0,
         negative_feedback: row.negative_feedback || 0
       };
-      await pushAnalytics(channel, { type: "summary", success: true, ...base, summary });
+      await pushAnalytics(channel, { type: "summary", success: true, ...base, range_end, summary });
     } catch (error) {
       logger.error(`analytics summary failed for ${bridge_id}: ${error.message}`);
       await pushAnalytics(channel, { type: "summary", success: false, ...base, error: error.message });
@@ -183,8 +354,13 @@ async function runAndPush({ bridge_id, org_id, channel, window, filters }) {
 
   const requestsTask = (async () => {
     try {
-      const requests_over_time = await getRequestsOverTime(ctx);
-      await pushAnalytics(channel, { type: "requests_over_time", success: true, ...base, requests_over_time });
+      const { data: requests_over_time, range_end } = await withTimescale(
+        "requests_over_time",
+        ctx,
+        getRequestsOverTimeFromTimescale,
+        getRequestsOverTime
+      );
+      await pushAnalytics(channel, { type: "requests_over_time", success: true, ...base, range_end, requests_over_time });
     } catch (error) {
       logger.error(`analytics requests_over_time failed for ${bridge_id}: ${error.message}`);
       await pushAnalytics(channel, { type: "requests_over_time", success: false, ...base, error: error.message });
@@ -212,6 +388,7 @@ async function runAndPush({ bridge_id, org_id, channel, window, filters }) {
   })();
 
   await Promise.allSettled([summaryTask, requestsTask, responseTimeTask, costTask]);
+  logger.info(`analytics ${bridge_id}: ${ctx.served.join(" ")}`);
 }
 
 // Distinct filter options for a bridge, used by the frontend to build the
