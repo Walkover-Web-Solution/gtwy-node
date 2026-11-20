@@ -66,7 +66,7 @@ export function filterBridge(data) {
  */
 const createTemplate = async (req, res, next) => {
   const { agent_id } = req.params;
-  const { templateName } = req.body;
+  const { templateName, category } = req.body;
 
   if (!agent_id) {
     throw new Error("agent_id is required");
@@ -169,7 +169,7 @@ const createTemplate = async (req, res, next) => {
   // Save the template — `isValid.meta` is the validator agent's marketing copy, persisted
   // alongside the template so the details page can render it.
   if (isValid?.status) {
-    const template = await templateService.saveTemplate(bridge, templateName, isValid?.meta || null);
+    const template = await templateService.saveTemplate(bridge, templateName, isValid?.meta || null, category);
     res.locals = {
       success: true,
       result: template
